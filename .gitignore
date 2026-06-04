@@ -1,0 +1,17 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+.npm-cache/
+.openwhispr-upstream-git/
+
+logs/
+*.log
+
+gigaam-sidecar/.venv/
+gigaam-sidecar/__pycache__/
+gigaam-sidecar/logs/
+
+openwhispr/node_modules/
+openwhispr/resources/bin/
