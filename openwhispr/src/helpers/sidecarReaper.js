@@ -8,6 +8,7 @@ const EXPECTED_BINARY_FRAGMENTS = {
   llama: "llama-server",
   qdrant: "qdrant",
   diarization: "sherpa-onnx-diarize",
+  gigaam: "gigatype-sidecar",
 };
 
 function isProcessAlive(pid) {

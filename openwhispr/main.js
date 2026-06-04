@@ -262,6 +262,7 @@ const AudioTapManager = require("./src/helpers/audioTapManager");
 const LinuxPortalAudioManager = require("./src/helpers/linuxPortalAudioManager");
 const MeetingAecManager = require("./src/helpers/meetingAecManager");
 const MeetingDetectionEngine = require("./src/helpers/meetingDetectionEngine");
+const GigaamSidecarManager = require("./src/helpers/gigaamSidecarManager");
 const { i18nMain, changeLanguage } = require("./src/helpers/i18nMain");
 const { ensureYdotool } = require("./src/helpers/ensureYdotool");
 const sidecarRegistry = require("./src/helpers/sidecarRegistry");
@@ -290,6 +291,7 @@ let audioTapManager = null;
 let linuxPortalAudioManager = null;
 let meetingAecManager = null;
 let qdrantManager = null;
+let gigaamSidecarManager = null;
 let ipcHandlers = null;
 let cliBridge = null;
 let globeKeyAlertShown = false;
@@ -372,6 +374,7 @@ function initializeCoreManagers() {
   audioTapManager = new AudioTapManager();
   linuxPortalAudioManager = new LinuxPortalAudioManager();
   meetingAecManager = new MeetingAecManager();
+  gigaamSidecarManager = new GigaamSidecarManager();
   windowManager.textEditMonitor = textEditMonitor;
 
   // IPC handlers must be registered before window content loads
@@ -409,6 +412,9 @@ function registerSidecars() {
   sidecarRegistry.register("llama", () => modelManager.stopServer());
   const onnxWorkerClient = require("./src/helpers/onnxWorkerClient");
   sidecarRegistry.register("onnx", () => onnxWorkerClient.stop());
+  if (gigaamSidecarManager) {
+    sidecarRegistry.register("gigaam", () => gigaamSidecarManager.stop());
+  }
 }
 
 // Phase 2: Non-critical setup after windows are visible
@@ -728,6 +734,17 @@ async function startApp() {
   await environmentManager.init();
   registerSidecars();
   startAuthBridgeServer();
+
+  if (gigaamSidecarManager?.isAvailable()) {
+    gigaamSidecarManager.start().catch((err) => {
+      debugLogger.error("GigaAM sidecar startup error", { error: err.message });
+    });
+  } else {
+    debugLogger.warn("GigaAM sidecar unavailable", {
+      platform: process.platform,
+      arch: process.arch,
+    });
+  }
 
   cliBridge = new CliBridge(ipcHandlers);
   cliBridge.start().catch((err) => {
