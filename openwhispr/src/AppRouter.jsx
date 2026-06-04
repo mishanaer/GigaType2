@@ -9,6 +9,7 @@ import { useTheme } from "./hooks/useTheme";
 const ControlPanel = React.lazy(() => import("./components/ControlPanel.tsx"));
 const OnboardingFlow = React.lazy(() => import("./components/OnboardingFlow.tsx"));
 const AgentOverlay = React.lazy(() => import("./components/AgentOverlay.tsx"));
+const ONBOARDING_ACTIVATION_STEP_INDEX = 1;
 
 export default function AppRouter() {
   useTheme();
@@ -62,8 +63,8 @@ function MainApp() {
 
     if (isDictationPanel && !onboardingCompleted) {
       const rawStep = parseInt(localStorage.getItem("onboardingCurrentStep") || "0");
-      const currentStep = Math.max(0, Math.min(rawStep, 5));
-      if (currentStep < 4) {
+      const currentStep = Math.max(0, Math.min(rawStep, ONBOARDING_ACTIVATION_STEP_INDEX));
+      if (currentStep < ONBOARDING_ACTIVATION_STEP_INDEX) {
         window.electronAPI?.hideWindow?.();
       }
     }
