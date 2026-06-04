@@ -1,6 +1,6 @@
 # Local Whisper Setup
 
-OpenWhispr supports local speech-to-text processing using whisper.cpp. This keeps your audio completely private—nothing leaves your device.
+GigaType supports local speech-to-text processing using whisper.cpp. This keeps your audio completely private—nothing leaves your device.
 
 ## Quick Start
 
@@ -24,7 +24,7 @@ The first transcription will download the model automatically.
 
 ## How It Works
 
-OpenWhispr uses whisper.cpp, a high-performance C++ implementation of OpenAI's Whisper model:
+GigaType uses whisper.cpp, a high-performance C++ implementation of OpenAI's Whisper model:
 
 1. whisper.cpp binary is bundled with the app (or uses system installation as fallback)
 2. GGML models are downloaded on first use to `~/.cache/openwhispr/whisper-models/`
@@ -38,7 +38,7 @@ OpenWhispr uses whisper.cpp, a high-performance C++ implementation of OpenAI's W
 
 ## Running From Source
 
-If you're running OpenWhispr locally from a git checkout (not a packaged app), download the whisper.cpp binary for your current platform:
+If you're running GigaType locally from a git checkout (not a packaged app), download the whisper.cpp binary for your current platform:
 
 ```bash
 npm run download:whisper-cpp

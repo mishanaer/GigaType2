@@ -1,4 +1,4 @@
-# NixOS module for OpenWhispr.
+# NixOS module for GigaType.
 #
 # Installs the app and configures everything Wayland auto-paste needs, which is
 # the main pain point for Nix users (see issue #728): ydotool, the uinput kernel
@@ -21,7 +21,7 @@ let
 in
 {
   options.programs.openwhispr = {
-    enable = lib.mkEnableOption "OpenWhispr voice dictation app with Wayland auto-paste support";
+    enable = lib.mkEnableOption "GigaType voice dictation app with Wayland auto-paste support";
 
     users = lib.mkOption {
       type = lib.types.listOf lib.types.str;
@@ -29,7 +29,7 @@ in
       example = [ "alice" ];
       description = ''
         Users to grant Wayland auto-paste access. Each listed user is added to the
-        ydotool group (to reach the ydotoold socket) and the uinput group (OpenWhispr's
+        ydotool group (to reach the ydotoold socket) and the uinput group (GigaType's
         own linux-fast-paste backend opens /dev/uinput directly). Leave empty to manage
         group membership yourself.
       '';
@@ -43,7 +43,7 @@ in
     programs.ydotool.enable = true;
 
     # Load the uinput module and install its udev rule. programs.ydotool does not
-    # do this, and OpenWhispr's linux-fast-paste --uinput needs /dev/uinput directly.
+    # do this, and GigaType's linux-fast-paste --uinput needs /dev/uinput directly.
     hardware.uinput.enable = true;
 
     users.users = lib.genAttrs cfg.users (_: {

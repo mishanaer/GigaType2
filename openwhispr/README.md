@@ -1,15 +1,15 @@
 <p align="center">
-  <img src="src/assets/logo.svg" alt="OpenWhispr" width="120" />
+  <img src="src/assets/logo.svg" alt="GigaType" width="120" />
 </p>
 
-<h1 align="center">OpenWhispr</h1>
+<h1 align="center">GigaType</h1>
 
 <p align="center">
-  <a href="https://github.com/OpenWhispr/openwhispr/blob/main/LICENSE"><img src="https://img.shields.io/github/license/OpenWhispr/openwhispr?style=flat" alt="License" /></a>
+  <a href="https://github.com/GigaType/openwhispr/blob/main/LICENSE"><img src="https://img.shields.io/github/license/GigaType/openwhispr?style=flat" alt="License" /></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey?style=flat" alt="Platform" />
-  <a href="https://github.com/OpenWhispr/openwhispr/releases/latest"><img src="https://img.shields.io/github/v/release/OpenWhispr/openwhispr?style=flat&sort=semver" alt="GitHub release" /></a>
-  <a href="https://github.com/OpenWhispr/openwhispr/releases"><img src="https://img.shields.io/github/downloads/OpenWhispr/openwhispr/total?style=flat&color=blue" alt="Downloads" /></a>
-  <a href="https://github.com/OpenWhispr/openwhispr/stargazers"><img src="https://img.shields.io/github/stars/OpenWhispr/openwhispr?style=flat" alt="GitHub stars" /></a>
+  <a href="https://github.com/GigaType/openwhispr/releases/latest"><img src="https://img.shields.io/github/v/release/GigaType/openwhispr?style=flat&sort=semver" alt="GitHub release" /></a>
+  <a href="https://github.com/GigaType/openwhispr/releases"><img src="https://img.shields.io/github/downloads/GigaType/openwhispr/total?style=flat&color=blue" alt="Downloads" /></a>
+  <a href="https://github.com/GigaType/openwhispr/stargazers"><img src="https://img.shields.io/github/stars/GigaType/openwhispr?style=flat" alt="GitHub stars" /></a>
 </p>
 
 <p align="center">
@@ -20,23 +20,23 @@
 <p align="center">
   <a href="https://openwhispr.com">Website</a> &middot;
   <a href="https://docs.openwhispr.com">Docs</a> &middot;
-  <a href="https://github.com/OpenWhispr/openwhispr/releases/latest">Download</a> &middot;
+  <a href="https://github.com/GigaType/openwhispr/releases/latest">Download</a> &middot;
   <a href="https://docs.openwhispr.com/api/overview">API</a> &middot;
-  <a href="https://github.com/OpenWhispr/openwhispr/blob/main/CHANGELOG.md">Changelog</a>
+  <a href="https://github.com/GigaType/openwhispr/blob/main/CHANGELOG.md">Changelog</a>
 </p>
 
 ---
 
-OpenWhispr turns your voice into text, notes, and actions from your desktop. Press a hotkey, speak, and your words appear at your cursor. Choose between fully private offline transcription with local speech-to-text engines like Whisper and NVIDIA Parakeet — where your audio never leaves your device — or cloud processing for speed. No data collection, no telemetry, fully open source.
+GigaType turns your voice into text, notes, and actions from your desktop. Press a hotkey, speak, and your words appear at your cursor. Choose between fully private offline transcription with local speech-to-text engines like Whisper and NVIDIA Parakeet — where your audio never leaves your device — or cloud processing for speed. No data collection, no telemetry, fully open source.
 
 ## Download
 
 | Platform | Download |
 |----------|----------|
-| macOS (Apple Silicon) | [`.dmg`](https://github.com/OpenWhispr/openwhispr/releases/latest) |
-| macOS (Intel) | [`.dmg`](https://github.com/OpenWhispr/openwhispr/releases/latest) |
-| Windows | [`.exe`](https://github.com/OpenWhispr/openwhispr/releases/latest) |
-| Linux | [`.AppImage`](https://github.com/OpenWhispr/openwhispr/releases/latest) / [`.deb`](https://github.com/OpenWhispr/openwhispr/releases/latest) / [`.rpm`](https://github.com/OpenWhispr/openwhispr/releases/latest) |
+| macOS (Apple Silicon) | [`.dmg`](https://github.com/GigaType/openwhispr/releases/latest) |
+| macOS (Intel) | [`.dmg`](https://github.com/GigaType/openwhispr/releases/latest) |
+| Windows | [`.exe`](https://github.com/GigaType/openwhispr/releases/latest) |
+| Linux | [`.AppImage`](https://github.com/GigaType/openwhispr/releases/latest) / [`.deb`](https://github.com/GigaType/openwhispr/releases/latest) / [`.rpm`](https://github.com/GigaType/openwhispr/releases/latest) |
 
 ## Features
 
@@ -51,7 +51,7 @@ OpenWhispr turns your voice into text, notes, and actions from your desktop. Pre
 ## Quick start
 
 ```bash
-git clone https://github.com/OpenWhispr/openwhispr.git
+git clone https://github.com/GigaType/openwhispr.git
 cd openwhispr
 npm install
 npm run dev
@@ -75,7 +75,7 @@ React 19, TypeScript, Tailwind CSS v4, Electron 41, better-sqlite3, whisper.cpp,
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=OpenWhispr/openwhispr&type=date&legend=top-left)](https://www.star-history.com/#OpenWhispr/openwhispr&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/svg?repos=GigaType/openwhispr&type=date&legend=top-left)](https://www.star-history.com/#GigaType/openwhispr&type=date&legend=top-left)
 
 ## Sponsors
 
@@ -89,7 +89,7 @@ React 19, TypeScript, Tailwind CSS v4, Electron 41, better-sqlite3, whisper.cpp,
   </a>
 </p>
 
-<p align="center"><a href="https://console.neon.tech/app/?promo=openwhispr">Neon</a> is the serverless Postgres platform powering OpenWhispr Cloud.</p>
+<p align="center"><a href="https://console.neon.tech/app/?promo=openwhispr">Neon</a> is the serverless Postgres platform powering GigaType Cloud.</p>
 
 ## Contributing
 
@@ -110,4 +110,4 @@ We welcome contributions. Fork the repo, create a feature branch, and open a pul
 - **[Electron](https://www.electronjs.org/)** — cross-platform desktop framework
 - **[React](https://react.dev/)** — UI component library
 - **[shadcn/ui](https://ui.shadcn.com/)** — accessible components built on Radix primitives
-- **[Neon](https://console.neon.tech/app/?promo=openwhispr)** — serverless Postgres powering OpenWhispr Cloud
+- **[Neon](https://console.neon.tech/app/?promo=openwhispr)** — serverless Postgres powering GigaType Cloud

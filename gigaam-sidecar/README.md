@@ -1,11 +1,11 @@
 # GigaAM Sidecar
 
-Local OpenAI-compatible ASR endpoint for OpenWhispr MVP.
+Local OpenAI-compatible ASR endpoint for GigaType MVP.
 
 The server forces ONNX Runtime `CPUExecutionProvider`. On this macOS setup,
 the default CoreML provider loads but fails during GigaAM RNN-T inference.
 It also enables CORS for local `localhost` / `127.0.0.1` dev origins, because
-OpenWhispr's Electron renderer calls the endpoint from Vite.
+GigaType's Electron renderer calls the endpoint from Vite.
 
 ## Setup
 
@@ -37,7 +37,7 @@ uvicorn gigaam_server:app --host 127.0.0.1 --port 8765
 curl http://127.0.0.1:8765/health
 ```
 
-OpenWhispr Custom Endpoint settings:
+GigaType Custom Endpoint settings:
 
 - Base URL: `http://127.0.0.1:8765/v1`
 - Model: `gigaam-v3-e2e-rnnt`

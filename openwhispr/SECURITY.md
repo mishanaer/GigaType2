@@ -11,7 +11,7 @@
 
 **Please do not open public issues for security vulnerabilities.**
 
-Use [GitHub's private vulnerability reporting](https://github.com/OpenWhispr/openwhispr/security/advisories/new)
+Use [GitHub's private vulnerability reporting](https://github.com/GigaType/openwhispr/security/advisories/new)
 to submit a report. You can also email security@openwhispr.com.
 
 We will acknowledge your report within **48 hours** and aim to release a fix

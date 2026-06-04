@@ -125,7 +125,7 @@ class HyprlandShortcutManager {
   }
 
   _createInterfaceClass(dbusModule, callback) {
-    class OpenWhisprInterface extends dbusModule.interface.Interface {
+    class GigaTypeInterface extends dbusModule.interface.Interface {
       constructor() {
         super(DBUS_INTERFACE);
         this._callback = callback;
@@ -138,13 +138,13 @@ class HyprlandShortcutManager {
       }
     }
 
-    OpenWhisprInterface.configureMembers({
+    GigaTypeInterface.configureMembers({
       methods: {
         Toggle: { inSignature: "", outSignature: "" },
       },
     });
 
-    return OpenWhisprInterface;
+    return GigaTypeInterface;
   }
 
   static isValidHotkey(hotkey) {

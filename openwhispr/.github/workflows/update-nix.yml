@@ -48,7 +48,7 @@ jobs:
         id: hash
         run: |
           version="${{ steps.release.outputs.version }}"
-          url="https://github.com/${{ github.repository }}/releases/download/v${version}/OpenWhispr-${version}-linux-x86_64.AppImage"
+          url="https://github.com/${{ github.repository }}/releases/download/v${version}/GigaType-${version}-linux-x86_64.AppImage"
           tmpfile=$(mktemp)
           curl -fSL --retry 3 --retry-delay 10 "$url" -o "$tmpfile"
           sri="sha256-$(sha256sum "$tmpfile" | cut -d' ' -f1 | xxd -r -p | base64 -w0)"

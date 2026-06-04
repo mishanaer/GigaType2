@@ -88,7 +88,7 @@ export default function DictionaryView() {
           </div>
 
           <div className="flex items-center gap-1.5 mt-3">
-            {["OpenWhispr", "Dr. Smith", "gRPC"].map((ex) => (
+            {["GigaType", "Dr. Smith", "gRPC"].map((ex) => (
               <span
                 key={ex}
                 className="text-xs text-foreground/12 px-1.5 py-0.5 rounded-[4px] border border-dashed border-foreground/6 dark:border-white/5"

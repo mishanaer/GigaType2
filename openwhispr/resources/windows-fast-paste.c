@@ -1,5 +1,5 @@
 /**
- * Windows Fast Paste for OpenWhispr
+ * Windows Fast Paste for GigaType
  *
  * Detects the foreground window, checks if it's a terminal emulator,
  * and simulates the appropriate paste keystroke using Win32 SendInput:

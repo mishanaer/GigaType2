@@ -81,7 +81,7 @@ const CLOUD_CHUNK_CONCURRENCY = 5;
 const CLOUD_CHUNK_SEGMENT_SECONDS = 240;
 
 function buildMultipartBody(fileBuffer, fileName, contentType, fields = {}) {
-  const boundary = `----OpenWhispr${Date.now()}`;
+  const boundary = `----GigaType${Date.now()}`;
   const parts = [];
 
   parts.push(
@@ -3859,7 +3859,7 @@ class IPCHandlers {
       const postServerToken = async (path, body = {}) => {
         const apiUrl = getApiUrl();
         if (!apiUrl) {
-          const err = new Error("OpenWhispr API URL not configured");
+          const err = new Error("GigaType API URL not configured");
           err.code = "NO_API";
           throw err;
         }
@@ -5622,7 +5622,7 @@ class IPCHandlers {
 
     const fetchDeepgramStreamingTokenFromWindow = async (windowId) => {
       const apiUrl = getApiUrl();
-      if (!apiUrl) throw new Error("OpenWhispr API URL not configured");
+      if (!apiUrl) throw new Error("GigaType API URL not configured");
 
       const win = BrowserWindow.fromId(windowId);
       if (!win || win.isDestroyed()) throw new Error("Window not available for token refresh");
@@ -5652,7 +5652,7 @@ class IPCHandlers {
     const fetchDeepgramStreamingToken = async (event) => {
       const apiUrl = getApiUrl();
       if (!apiUrl) {
-        throw new Error("OpenWhispr API URL not configured");
+        throw new Error("GigaType API URL not configured");
       }
 
       const authHeader = await getAuthHeader(event);

@@ -66,7 +66,7 @@ jobs:
             Prebuilt Windows mic listener binary for event-driven microphone detection.
 
             Uses WASAPI IAudioSessionManager2 to monitor capture sessions.
-            Supports --exclude-pid to filter out OpenWhispr's own mic usage.
+            Supports --exclude-pid to filter out GigaType's own mic usage.
           files: windows-mic-listener-win32-x64.zip
           make_latest: false
         env:

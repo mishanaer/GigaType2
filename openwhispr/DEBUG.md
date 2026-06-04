@@ -7,10 +7,10 @@ Enable verbose logging to diagnose issues like "no audio detected" or transcript
 ### Option 1: Command Line
 ```bash
 # macOS
-/Applications/OpenWhispr.app/Contents/MacOS/OpenWhispr --log-level=debug
+/Applications/GigaType.app/Contents/MacOS/GigaType --log-level=debug
 
 # Windows
-OpenWhispr.exe --log-level=debug
+GigaType.exe --log-level=debug
 ```
 
 ### Option 2: Environment File
@@ -20,15 +20,15 @@ OPENWHISPR_LOG_LEVEL=debug
 ```
 
 **Env file locations:**
-- macOS: `~/Library/Application Support/OpenWhispr/.env`
-- Windows: `%APPDATA%\OpenWhispr\.env`
-- Linux: `~/.config/OpenWhispr/.env`
+- macOS: `~/Library/Application Support/GigaType/.env`
+- Windows: `%APPDATA%\GigaType\.env`
+- Linux: `~/.config/GigaType/.env`
 
 ## Log File Locations
 
-- **macOS**: `~/Library/Application Support/OpenWhispr/logs/debug-*.log`
-- **Windows**: `%APPDATA%\OpenWhispr\logs\debug-*.log`
-- **Linux**: `~/.config/OpenWhispr/logs/debug-*.log`
+- **macOS**: `~/Library/Application Support/GigaType/logs/debug-*.log`
+- **Windows**: `%APPDATA%\GigaType\logs\debug-*.log`
+- **Linux**: `~/.config/GigaType/logs/debug-*.log`
 
 ## What Gets Logged
 

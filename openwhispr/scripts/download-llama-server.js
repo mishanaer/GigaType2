@@ -13,7 +13,7 @@ const {
 
 const LLAMA_CPP_REPO = "ggerganov/llama.cpp";
 
-// Pinned: whisper-server.exe (built against OpenWhispr/whisper.cpp 0.0.6) loads
+// Pinned: whisper-server.exe (built against GigaType/whisper.cpp 0.0.6) loads
 // ggml-*.dll from this script's output dir on Windows. Newer llama.cpp builds
 // bumped ggml's ABI and crash whisper-server on load_backend. Bump only after
 // verifying local Whisper starts on Windows.

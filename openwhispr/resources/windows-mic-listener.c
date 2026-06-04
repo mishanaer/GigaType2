@@ -5,7 +5,7 @@
  * Outputs MIC_START/MIC_STOP events with PIDs to stdout.
  *
  * Uses IAudioSessionManager2 to enumerate and monitor capture sessions.
- * Supports --exclude-pid to ignore OpenWhispr's own microphone usage.
+ * Supports --exclude-pid to ignore GigaType's own microphone usage.
  *
  * Compile with: cl /O2 windows-mic-listener.c /Fe:windows-mic-listener.exe ole32.lib oleaut32.lib
  * Or with MinGW: gcc -O2 windows-mic-listener.c -o windows-mic-listener.exe -lole32 -loleaut32
