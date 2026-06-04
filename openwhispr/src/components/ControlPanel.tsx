@@ -29,6 +29,7 @@ import ControlPanelSidebar, { type ControlPanelView } from "./ControlPanelSideba
 import MeetingRecordingMount from "./MeetingRecordingMount";
 import MeetingRecordingPill from "./notes/MeetingRecordingPill";
 import WindowControls from "./WindowControls";
+import GigaamAsrStatusPanel from "./GigaamAsrStatusPanel";
 
 import { getCachedPlatform } from "../utils/platform";
 import { isAccessibilitySkipped } from "../utils/permissions";
@@ -783,6 +784,9 @@ export default function ControlPanel() {
             )}
           </div>
           <div className="flex-1 overflow-y-auto pt-1">
+            {activeView === "home" && (
+              <GigaamAsrStatusPanel className="max-w-3xl mx-auto w-full mb-3" />
+            )}
             {usage?.isPastDue && activeView === "home" && (
               <div className="max-w-3xl mx-auto w-full mb-3">
                 <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/50 p-3">

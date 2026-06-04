@@ -451,6 +451,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getDebugState: () => ipcRenderer.invoke("get-debug-state"),
   setDebugLogging: (enabled) => ipcRenderer.invoke("set-debug-logging", enabled),
   openLogsFolder: () => ipcRenderer.invoke("open-logs-folder"),
+  getGigaamSidecarStatus: () => ipcRenderer.invoke("get-gigaam-sidecar-status"),
+  restartGigaamSidecar: () => ipcRenderer.invoke("restart-gigaam-sidecar"),
+  onGigaamSidecarStatus: registerListener(
+    "gigaam-sidecar-status",
+    (callback) => (_event, status) => callback(status)
+  ),
 
   // System settings helpers for microphone/audio permissions
   requestMicrophoneAccess: () => ipcRenderer.invoke("request-microphone-access"),

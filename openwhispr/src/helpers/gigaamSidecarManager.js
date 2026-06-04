@@ -2,6 +2,7 @@ const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const http = require("http");
+const { EventEmitter } = require("events");
 const { app } = require("electron");
 const debugLogger = require("./debugLogger");
 const {
@@ -22,8 +23,9 @@ const STARTUP_POLL_INTERVAL_MS = 100;
 const HEALTH_CHECK_INTERVAL_MS = 5000;
 const HEALTH_CHECK_TIMEOUT_MS = 2000;
 
-class GigaamSidecarManager {
+class GigaamSidecarManager extends EventEmitter {
   constructor() {
+    super();
     this.process = null;
     this.port = null;
     this.ready = false;
@@ -59,6 +61,12 @@ class GigaamSidecarManager {
     this.startupPromise = this._doStart();
     try {
       await this.startupPromise;
+    } catch (error) {
+      this.ready = false;
+      this.healthStatus = "error";
+      this.healthDetail = error.message;
+      this._emitStatus();
+      throw error;
     } finally {
       this.startupPromise = null;
     }
@@ -74,6 +82,10 @@ class GigaamSidecarManager {
     if (!ffprobePath) throw new Error("Bundled ffprobe not found");
 
     this.port = await findAvailablePort(PORT_RANGE_START, PORT_RANGE_END);
+    this.healthStatus = "starting";
+    this.healthDetail = null;
+    this._emitStatus();
+
     const hfHome = path.join(app.getPath("userData"), "model-cache", "huggingface");
     fs.mkdirSync(hfHome, { recursive: true });
 
@@ -133,6 +145,7 @@ class GigaamSidecarManager {
       this.ready = false;
       this.healthStatus = "error";
       this.healthDetail = error.message;
+      this._emitStatus();
     });
 
     this.process.on("close", (code) => {
@@ -142,9 +155,11 @@ class GigaamSidecarManager {
       this.healthStatus = "stopped";
       this.healthDetail = null;
       this.process = null;
+      this.port = null;
       this._stopHealthCheck();
       this._closeLogStream();
       sidecarPidFile.clear(SIDECAR_NAME);
+      this._emitStatus();
     });
 
     await this._waitForResponsive(() => ({ stderr: stderrBuffer, exitCode }));
@@ -175,6 +190,7 @@ class GigaamSidecarManager {
         this.ready = true;
         this.healthStatus = health.status || "unknown";
         this.healthDetail = health.detail || null;
+        this._emitStatus();
         debugLogger.debug("GigaAM sidecar responsive", {
           startupTimeMs: Date.now() - started,
           pollCount,
@@ -241,12 +257,23 @@ class GigaamSidecarManager {
       if (!health.ok) {
         debugLogger.warn("GigaAM sidecar health check failed");
         this.ready = false;
+        this._emitStatus();
         return;
       }
 
+      const previousStatus = this.healthStatus;
+      const previousDetail = this.healthDetail;
+      const wasReady = this.ready;
       this.ready = true;
       this.healthStatus = health.status || "unknown";
       this.healthDetail = health.detail || null;
+      if (
+        previousStatus !== this.healthStatus ||
+        previousDetail !== this.healthDetail ||
+        wasReady !== this.ready
+      ) {
+        this._emitStatus();
+      }
     }, HEALTH_CHECK_INTERVAL_MS);
   }
 
@@ -274,6 +301,7 @@ class GigaamSidecarManager {
       this.healthDetail = null;
       this._closeLogStream();
       sidecarPidFile.clear(SIDECAR_NAME);
+      this._emitStatus();
       return;
     }
 
@@ -292,6 +320,7 @@ class GigaamSidecarManager {
     this.healthDetail = null;
     this._closeLogStream();
     sidecarPidFile.clear(SIDECAR_NAME);
+    this._emitStatus();
   }
 
   getApiBaseUrl() {
@@ -307,6 +336,10 @@ class GigaamSidecarManager {
       healthStatus: this.healthStatus,
       healthDetail: this.healthDetail,
     };
+  }
+
+  _emitStatus() {
+    this.emit("status", this.getStatus());
   }
 }
 

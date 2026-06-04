@@ -417,6 +417,50 @@ function registerSidecars() {
   }
 }
 
+function getGigaamSidecarStatus() {
+  if (!gigaamSidecarManager) {
+    return {
+      available: false,
+      running: false,
+      port: null,
+      apiBaseUrl: null,
+      healthStatus: "unavailable",
+      healthDetail: null,
+    };
+  }
+
+  return gigaamSidecarManager.getStatus();
+}
+
+function broadcastGigaamSidecarStatus(status = getGigaamSidecarStatus()) {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win || win.isDestroyed()) continue;
+    win.webContents.send("gigaam-sidecar-status", status);
+  }
+}
+
+function setupGigaamSidecarIpc() {
+  if (!gigaamSidecarManager) return;
+
+  gigaamSidecarManager.on("status", (status) => {
+    broadcastGigaamSidecarStatus(status);
+  });
+
+  ipcMain.handle("get-gigaam-sidecar-status", () => getGigaamSidecarStatus());
+  ipcMain.handle("restart-gigaam-sidecar", async () => {
+    if (!gigaamSidecarManager?.isAvailable()) return getGigaamSidecarStatus();
+
+    try {
+      await gigaamSidecarManager.stop();
+      await gigaamSidecarManager.start();
+    } catch (error) {
+      debugLogger.error("GigaAM sidecar restart error", { error: error.message });
+    }
+
+    return getGigaamSidecarStatus();
+  });
+}
+
 // Phase 2: Non-critical setup after windows are visible
 function initializeDeferredManagers() {
   ensureYdotool().catch((err) => {
@@ -733,6 +777,7 @@ async function startApp() {
   initializeCoreManagers();
   await environmentManager.init();
   registerSidecars();
+  setupGigaamSidecarIpc();
   startAuthBridgeServer();
 
   if (gigaamSidecarManager?.isAvailable()) {

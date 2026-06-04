@@ -99,6 +99,7 @@ import { useSettingsStore } from "../stores/settingsStore";
 import { canManageSystemAudioInApp } from "../utils/systemAudioAccess";
 import WorkspaceSection from "./settings/WorkspaceSection";
 import { WORKSPACES_ENABLED } from "../lib/features";
+import GigaamAsrStatusPanel from "./GigaamAsrStatusPanel";
 
 const formatAmount = (cents: number, currency: string) =>
   (cents / 100).toLocaleString(undefined, { style: "currency", currency });
@@ -353,6 +354,8 @@ function TranscriptionSection({
         activeMode={transcriptionMode}
         onSelect={handleTranscriptionModeSelect}
       />
+
+      <GigaamAsrStatusPanel />
 
       {transcriptionMode === "providers" && renderTranscriptionPicker("cloud")}
       {transcriptionMode === "local" && (

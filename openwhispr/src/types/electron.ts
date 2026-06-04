@@ -4,6 +4,24 @@ export type InferenceMode = "openwhispr" | "providers" | "local" | "self-hosted"
 
 export type SelfHostedType = "openai-compatible" | "lan";
 
+export type GigaamHealthStatus =
+  | "unavailable"
+  | "stopped"
+  | "starting"
+  | "loading"
+  | "ok"
+  | "error"
+  | "unknown";
+
+export interface GigaamSidecarStatus {
+  available: boolean;
+  running: boolean;
+  port: number | null;
+  apiBaseUrl: string | null;
+  healthStatus: GigaamHealthStatus;
+  healthDetail?: string | null;
+}
+
 export type TranscriptionStatus = "completed" | "failed" | "pending";
 
 export type TranscriptionErrorCode =
@@ -1043,6 +1061,9 @@ declare global {
         error?: string;
       }>;
       openLogsFolder: () => Promise<{ success: boolean; error?: string }>;
+      getGigaamSidecarStatus?: () => Promise<GigaamSidecarStatus>;
+      restartGigaamSidecar?: () => Promise<GigaamSidecarStatus>;
+      onGigaamSidecarStatus?: (callback: (status: GigaamSidecarStatus) => void) => () => void;
 
       // FFmpeg availability
       checkFFmpegAvailability: () => Promise<FFmpegAvailabilityResult>;

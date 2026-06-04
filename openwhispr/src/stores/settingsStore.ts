@@ -5,7 +5,12 @@ import { ensureAgentNameInDictionary } from "../utils/agentName";
 import { useStreamingProvidersStore } from "./streamingProvidersStore";
 import logger from "../utils/logger";
 import whisperVadConstants from "../constants/whisperVad.json";
-import type { LocalTranscriptionProvider, InferenceMode, SelfHostedType } from "../types/electron";
+import type {
+  LocalTranscriptionProvider,
+  InferenceMode,
+  SelfHostedType,
+  GigaamSidecarStatus,
+} from "../types/electron";
 import type { GoogleCalendarAccount } from "../types/calendar";
 import { PROMPT_KIND_LIST, type PromptKind } from "../config/prompts/registry";
 import {
@@ -176,6 +181,22 @@ function migratePreferredLanguage() {
 }
 
 migratePreferredLanguage();
+
+const GIGATYPE_TRANSCRIPTION_SETTING_KEYS = [
+  "useLocalWhisper",
+  "preferredLanguage",
+  "cloudTranscriptionProvider",
+  "cloudTranscriptionModel",
+  "cloudTranscriptionBaseUrl",
+  "cloudTranscriptionMode",
+  "useCleanupModel",
+  "useDictationAgent",
+  "transcriptionMode",
+  "remoteTranscriptionType",
+  "remoteTranscriptionUrl",
+] as const;
+const hadUserTranscriptionSettingsBeforeProviderMigration =
+  isBrowser && GIGATYPE_TRANSCRIPTION_SETTING_KEYS.some((key) => localStorage.getItem(key) !== null);
 
 function migrateProviderSettings() {
   if (!isBrowser) return;
@@ -596,6 +617,85 @@ function createBooleanSetter(key: string) {
     if (isBrowser) localStorage.setItem(key, String(value));
     useSettingsStore.setState({ [key]: value });
   };
+}
+
+const GIGATYPE_ASR_DEFAULTS_APPLIED_KEY = "_gigatypeAsrDefaultsApplied";
+const GIGATYPE_ASR_MODEL = "gigaam-v3-e2e-rnnt";
+const LOCAL_GIGAAM_API_BASE_RE =
+  /^http:\/\/127\.0\.0\.1:(?:876[5-9]|877[0-5])\/v1(?:\/audio\/transcriptions)?\/?$/i;
+
+function isLocalGigaamApiBase(value: string | null | undefined): boolean {
+  return LOCAL_GIGAAM_API_BASE_RE.test((value || "").trim());
+}
+
+function shouldSyncGigaamApiBase(value: string | null | undefined): boolean {
+  const trimmed = (value || "").trim();
+  return !trimmed || isLocalGigaamApiBase(trimmed);
+}
+
+function persistSettingsPatch(patch: Partial<SettingsState>) {
+  if (!isBrowser || Object.keys(patch).length === 0) return;
+
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    localStorage.setItem(key, typeof value === "boolean" ? String(value) : String(value));
+  }
+  useSettingsStore.setState(patch);
+}
+
+async function syncGigaTypeAsrSettings(status?: GigaamSidecarStatus | null): Promise<void> {
+  if (!isBrowser) return;
+
+  let sidecarStatus = status;
+  if (!sidecarStatus) {
+    try {
+      sidecarStatus = await window.electronAPI?.getGigaamSidecarStatus?.();
+    } catch (err) {
+      logger.warn(
+        "Failed to read GigaAM sidecar status",
+        { error: (err as Error).message },
+        "settings"
+      );
+      return;
+    }
+  }
+
+  if (!sidecarStatus?.available || !sidecarStatus.apiBaseUrl) return;
+
+  const apiBaseUrl = sidecarStatus.apiBaseUrl.replace(/\/+$/, "");
+  const isFreshProfile =
+    localStorage.getItem(GIGATYPE_ASR_DEFAULTS_APPLIED_KEY) !== "1" &&
+    !hadUserTranscriptionSettingsBeforeProviderMigration;
+  const patch: Partial<SettingsState> = {};
+
+  if (isFreshProfile) {
+    Object.assign(patch, {
+      transcriptionMode: "self-hosted" as InferenceMode,
+      remoteTranscriptionType: "openai-compatible" as SelfHostedType,
+      remoteTranscriptionUrl: apiBaseUrl,
+      useLocalWhisper: false,
+      cloudTranscriptionProvider: "custom",
+      cloudTranscriptionMode: "byok",
+      cloudTranscriptionModel: GIGATYPE_ASR_MODEL,
+      cloudTranscriptionBaseUrl: apiBaseUrl,
+      useCleanupModel: false,
+      useDictationAgent: false,
+      preferredLanguage: "ru",
+    });
+  } else {
+    if (shouldSyncGigaamApiBase(localStorage.getItem("remoteTranscriptionUrl"))) {
+      patch.remoteTranscriptionUrl = apiBaseUrl;
+    }
+    if (shouldSyncGigaamApiBase(localStorage.getItem("cloudTranscriptionBaseUrl"))) {
+      patch.cloudTranscriptionBaseUrl = apiBaseUrl;
+    }
+  }
+
+  persistSettingsPatch(patch);
+
+  if (isFreshProfile) {
+    localStorage.setItem(GIGATYPE_ASR_DEFAULTS_APPLIED_KEY, "1");
+  }
 }
 
 let envPersistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1784,6 +1884,8 @@ export async function initializeSettings(): Promise<void> {
       useSettingsStore.setState({ preferredLanguage: migratedLang });
     }
 
+    await syncGigaTypeAsrSettings();
+
     // Sync dictionary from SQLite <-> localStorage
     try {
       if (window.electronAPI.getDictionary) {
@@ -1957,5 +2059,9 @@ export async function initializeSettings(): Promise<void> {
       );
       useSettingsStore.setState({ [data.key]: data.value });
     }
+  });
+
+  window.electronAPI?.onGigaamSidecarStatus?.((status: GigaamSidecarStatus) => {
+    void syncGigaTypeAsrSettings(status);
   });
 }
