@@ -96,17 +96,6 @@ const buttonVariants = cva(
           "underline-offset-4",
         ].join(" "),
 
-        // Social button for auth flows - ultra-premium glassmorphism
-        social: [
-          "relative font-medium",
-          "text-foreground bg-surface-1/80 backdrop-blur-xl",
-          "border border-border/60",
-          "shadow-sm gap-2",
-          "hover:bg-surface-2/90 hover:border-border-hover hover:shadow",
-          "active:scale-[0.985] active:shadow-sm",
-          "dark:bg-surface-raised/80 dark:border-border-hover dark:hover:bg-surface-raised/95",
-          "transition-[background-color,border-color,color,transform] duration-200 ease-out",
-        ].join(" "),
       },
       size: {
         default: "h-10 px-4 py-2",

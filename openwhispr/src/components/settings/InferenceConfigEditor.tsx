@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useTranslation } from "react-i18next";
-import { Cloud, Key, Cpu, Network, Building2 } from "lucide-react";
+import { Key, Cpu, Network, Building2 } from "lucide-react";
 import {
   useSettingsStore,
   selectResolvedLLMConfig,
@@ -42,13 +42,6 @@ const MODE_LABEL_PREFIX: Record<InferenceScope, string> = {
   chatIntelligence: "agentMode.settings.modes",
 };
 
-function startCloudOnboarding() {
-  localStorage.setItem("pendingCloudMigration", "true");
-  localStorage.setItem("onboardingCurrentStep", "0");
-  localStorage.removeItem("onboardingCompleted");
-  window.location.reload();
-}
-
 interface InferenceConfigEditorProps {
   scope: InferenceScope;
   onModeChange?: (mode: InferenceMode) => void;
@@ -57,18 +50,9 @@ interface InferenceConfigEditorProps {
 export default function InferenceConfigEditor({ scope, onModeChange }: InferenceConfigEditorProps) {
   const { t } = useTranslation();
   const config = useSettingsStore(useShallow((s) => selectResolvedLLMConfig(s, scope)));
-  const isSignedIn = useSettingsStore((s) => s.isSignedIn);
 
   const prefix = MODE_LABEL_PREFIX[scope];
   const modes: InferenceModeOption[] = [
-    {
-      id: "openwhispr",
-      label: t(`${prefix}.openwhispr`),
-      description: t(`${prefix}.openwhisprDesc`),
-      icon: <Cloud className="w-4 h-4" />,
-      disabled: !isSignedIn,
-      badge: !isSignedIn ? t("common.freeAccountRequired") : undefined,
-    },
     {
       id: "providers",
       label: t(`${prefix}.providers`),
@@ -105,15 +89,11 @@ export default function InferenceConfigEditor({ scope, onModeChange }: Inference
 
   const handleModeSelect = useCallback(
     (mode: InferenceMode) => {
-      if (mode === "openwhispr" && !isSignedIn) {
-        startCloudOnboarding();
-        return;
-      }
       if (mode === config.mode) return;
 
       const patch: Parameters<typeof setResolvedLLMConfig>[1] = {
         mode,
-        cloudMode: mode === "openwhispr" ? "openwhispr" : "byok",
+        cloudMode: "byok",
       };
       if (!isProviderValidForMode(config.provider, mode)) {
         patch.provider = "";
@@ -121,13 +101,13 @@ export default function InferenceConfigEditor({ scope, onModeChange }: Inference
       }
       setResolvedLLMConfig(scope, patch);
 
-      if (mode === "openwhispr" || mode === "self-hosted" || mode === "enterprise") {
+      if (mode === "self-hosted" || mode === "enterprise") {
         window.electronAPI?.llamaServerStop?.();
       }
 
       onModeChange?.(mode);
     },
-    [scope, config.mode, config.provider, isSignedIn, onModeChange]
+    [scope, config.mode, config.provider, onModeChange]
   );
 
   const setMode = setField("mode");

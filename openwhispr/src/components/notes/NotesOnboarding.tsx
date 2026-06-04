@@ -24,9 +24,9 @@ interface NotesOnboardingProps {
 
 export default function NotesOnboarding({ onComplete }: NotesOnboardingProps) {
   const { t } = useTranslation();
-  const { isProUser, isProLoading, isLLMConfigured, complete } = useNotesOnboarding();
+  const { isLLMConfigured, complete } = useNotesOnboarding();
   const actions = useActions();
-  const [llmExpanded, setLlmExpanded] = useState(!isLLMConfigured && !isProUser);
+  const [llmExpanded, setLlmExpanded] = useState(!isLLMConfigured);
   const [createExpanded, setCreateExpanded] = useState(false);
   const [actionName, setActionName] = useState("");
   const [actionDescription, setActionDescription] = useState("");
@@ -115,16 +115,15 @@ export default function NotesOnboarding({ onComplete }: NotesOnboardingProps) {
           </p>
         </div>
 
-        {/* LLM Configuration — non-Pro only, deferred until pro status is known */}
-        {!isProLoading && !isProUser && (
-          <div
-            className={cn(
-              "rounded-lg border transition-colors duration-200",
-              isLLMConfigured
-                ? "border-success/20 bg-success/[0.03]"
-                : "border-foreground/8 dark:border-white/6 bg-surface-1/30 dark:bg-white/[0.02]"
-            )}
-          >
+        {/* LLM Configuration */}
+        <div
+          className={cn(
+            "rounded-lg border transition-colors duration-200",
+            isLLMConfigured
+              ? "border-success/20 bg-success/[0.03]"
+              : "border-foreground/8 dark:border-white/6 bg-surface-1/30 dark:bg-white/[0.02]"
+          )}
+        >
             <button
               type="button"
               onClick={() => setLlmExpanded(!llmExpanded)}
@@ -173,8 +172,7 @@ export default function NotesOnboarding({ onComplete }: NotesOnboardingProps) {
                 />
               </div>
             )}
-          </div>
-        )}
+        </div>
 
         {/* System Audio Permission */}
         {shouldShowSystemAudioPermission && (

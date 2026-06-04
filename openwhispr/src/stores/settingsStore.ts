@@ -33,10 +33,36 @@ import type {
 let _ReasoningService: typeof import("../services/ReasoningService").default | null = null;
 
 const isBrowser = typeof window !== "undefined";
+const AUTH_BACKED_INFERENCE_MODE_KEYS = new Set([
+  "transcriptionMode",
+  "meetingTranscriptionMode",
+  "cleanupMode",
+  "noteFormattingMode",
+  "chatAgentMode",
+  "dictationAgentMode",
+]);
+const AUTH_BACKED_CLOUD_MODE_KEYS = new Set([
+  "cloudTranscriptionMode",
+  "meetingCloudTranscriptionMode",
+  "cleanupCloudMode",
+  "noteFormattingCloudMode",
+  "chatAgentCloudMode",
+  "dictationAgentCloudMode",
+]);
+
+function normalizeAuthBackedSetting(key: string, value: string): string {
+  if (AUTH_BACKED_INFERENCE_MODE_KEYS.has(key) && value === "openwhispr") {
+    return "providers";
+  }
+  if (AUTH_BACKED_CLOUD_MODE_KEYS.has(key) && value === "openwhispr") {
+    return "byok";
+  }
+  return value;
+}
 
 function readString(key: string, fallback: string): string {
   if (!isBrowser) return fallback;
-  return localStorage.getItem(key) ?? fallback;
+  return normalizeAuthBackedSetting(key, localStorage.getItem(key) ?? fallback);
 }
 
 function readBoolean(key: string, fallback: boolean): boolean {
@@ -56,6 +82,26 @@ function readStringArray(key: string, fallback: string[]): string[] {
     return Array.isArray(parsed) ? parsed : fallback;
   } catch {
     return fallback;
+  }
+}
+
+function disableAccountBackedFeatures() {
+  if (!isBrowser) return;
+  localStorage.setItem("isSignedIn", "false");
+  localStorage.setItem("cloudBackupEnabled", "false");
+  localStorage.setItem("isSubscribed", "false");
+  localStorage.setItem("authenticationSkipped", "true");
+  localStorage.setItem("skipAuth", "true");
+
+  for (const key of AUTH_BACKED_INFERENCE_MODE_KEYS) {
+    if (localStorage.getItem(key) === "openwhispr") {
+      localStorage.setItem(key, "providers");
+    }
+  }
+  for (const key of AUTH_BACKED_CLOUD_MODE_KEYS) {
+    if (localStorage.getItem(key) === "openwhispr") {
+      localStorage.setItem(key, "byok");
+    }
   }
 }
 
@@ -206,7 +252,7 @@ function migrateProviderSettings() {
   const useLocal = localStorage.getItem("useLocalWhisper") === "true";
   const provider = localStorage.getItem("cloudTranscriptionProvider");
 
-  let transcriptionMode: InferenceMode = "openwhispr";
+  let transcriptionMode: InferenceMode = "providers";
   if (useLocal) {
     transcriptionMode = "local";
   } else if (cloudMode === "byok") {
@@ -225,7 +271,7 @@ function migrateProviderSettings() {
 
   const reasoningMode = localStorage.getItem("cloudReasoningMode");
   const reasoningProvider = localStorage.getItem("reasoningProvider");
-  let newReasoningMode: InferenceMode = "openwhispr";
+  let newReasoningMode: InferenceMode = "providers";
   if (reasoningMode === "byok") {
     if (reasoningProvider === "custom") {
       newReasoningMode = "self-hosted";
@@ -265,7 +311,7 @@ function migrateAgentMode() {
   const cloudAgentMode = localStorage.getItem("cloudAgentMode");
   const agentProvider = localStorage.getItem("agentProvider");
 
-  let agentInferenceMode: InferenceMode = "openwhispr";
+  let agentInferenceMode: InferenceMode = "providers";
   if (cloudAgentMode === "byok") {
     const localProviders = ["qwen", "llama", "mistral", "openai-oss", "gemma"];
     if (agentProvider === "custom") {
@@ -362,6 +408,7 @@ function migrateLLMScopeKeys() {
 }
 
 migrateLLMScopeKeys();
+disableAccountBackedFeatures();
 
 export interface SettingsState
   extends
@@ -607,8 +654,9 @@ export interface SettingsState
 
 function createStringSetter(key: string) {
   return (value: string) => {
-    if (isBrowser) localStorage.setItem(key, value);
-    useSettingsStore.setState({ [key]: value });
+    const nextValue = normalizeAuthBackedSetting(key, value);
+    if (isBrowser) localStorage.setItem(key, nextValue);
+    useSettingsStore.setState({ [key]: nextValue });
   };
 }
 
@@ -805,8 +853,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   ),
   // Secrets aren't hydrated yet at construction; the BYOK default is set
   // post-hydration in initializeSettings.
-  cloudTranscriptionMode: readString("cloudTranscriptionMode", "openwhispr"),
-  cleanupCloudMode: readString("cleanupCloudMode", "openwhispr"),
+  cloudTranscriptionMode: readString("cloudTranscriptionMode", "byok"),
+  cleanupCloudMode: readString("cleanupCloudMode", "byok"),
   cleanupCloudBaseUrl: readString("cleanupCloudBaseUrl", API_ENDPOINTS.OPENAI_BASE),
   customDictionary: readStringArray("customDictionary", []),
   assemblyAiStreaming: readBoolean("assemblyAiStreaming", true),
@@ -859,7 +907,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (v === "light" || v === "dark" || v === "auto") return v;
     return "auto" as const;
   })(),
-  cloudBackupEnabled: readBoolean("cloudBackupEnabled", false),
+  cloudBackupEnabled: false,
   telemetryEnabled: readBoolean("telemetryEnabled", false),
   audioRetentionDays: (() => {
     if (!isBrowser) return 30;
@@ -926,12 +974,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   keepTranscriptionInClipboard: readBoolean("keepTranscriptionInClipboard", false),
   noteFilesEnabled: readBoolean("noteFilesEnabled", false),
   noteFilesPath: readString("noteFilesPath", ""),
-  isSignedIn: readBoolean("isSignedIn", false),
+  isSignedIn: false,
 
   transcriptionMode: (() => {
-    const v = readString("transcriptionMode", "openwhispr");
-    if (v === "openwhispr" || v === "providers" || v === "local" || v === "self-hosted") return v;
-    return "openwhispr" as InferenceMode;
+    const v = readString("transcriptionMode", "providers");
+    if (v === "providers" || v === "local" || v === "self-hosted") return v;
+    return "providers" as InferenceMode;
   })(),
   remoteTranscriptionType: (() => {
     const v = readString("remoteTranscriptionType", "lan");
@@ -939,23 +987,16 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   })(),
   remoteTranscriptionUrl: readString("remoteTranscriptionUrl", ""),
   cleanupMode: (() => {
-    const v = readString("cleanupMode", "openwhispr");
-    if (
-      v === "openwhispr" ||
-      v === "providers" ||
-      v === "local" ||
-      v === "self-hosted" ||
-      v === "enterprise"
-    )
-      return v;
-    return "openwhispr" as InferenceMode;
+    const v = readString("cleanupMode", "providers");
+    if (v === "providers" || v === "local" || v === "self-hosted" || v === "enterprise") return v;
+    return "providers" as InferenceMode;
   })(),
   cleanupRemoteUrl: readString("cleanupRemoteUrl", ""),
 
   meetingTranscriptionMode: (() => {
-    const v = readString("meetingTranscriptionMode", "openwhispr");
-    if (v === "openwhispr" || v === "providers" || v === "local" || v === "self-hosted") return v;
-    return "openwhispr" as InferenceMode;
+    const v = readString("meetingTranscriptionMode", "providers");
+    if (v === "providers" || v === "local" || v === "self-hosted") return v;
+    return "providers" as InferenceMode;
   })(),
   meetingUseLocalWhisper: readBoolean("meetingUseLocalWhisper", false),
   meetingWhisperModel: readString("meetingWhisperModel", ""),
@@ -975,16 +1016,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   meetingRemoteTranscriptionUrl: readString("meetingRemoteTranscriptionUrl", ""),
 
   noteFormattingMode: (() => {
-    const v = readString("noteFormattingMode", "openwhispr");
-    if (
-      v === "openwhispr" ||
-      v === "providers" ||
-      v === "local" ||
-      v === "self-hosted" ||
-      v === "enterprise"
-    )
-      return v;
-    return "openwhispr" as InferenceMode;
+    const v = readString("noteFormattingMode", "providers");
+    if (v === "providers" || v === "local" || v === "self-hosted" || v === "enterprise") return v;
+    return "providers" as InferenceMode;
   })(),
   noteFormattingProvider: readString("noteFormattingProvider", ""),
   noteFormattingModel: readString("noteFormattingModel", ""),
@@ -1031,18 +1065,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   chatAgentModel: readString("chatAgentModel", "openai/gpt-oss-120b"),
   chatAgentProvider: readString("chatAgentProvider", "groq"),
   chatAgentKey: readString("chatAgentKey", ""),
-  chatAgentCloudMode: readString("chatAgentCloudMode", "openwhispr"),
+  chatAgentCloudMode: readString("chatAgentCloudMode", "byok"),
   chatAgentMode: (() => {
-    const v = readString("chatAgentMode", "openwhispr");
-    if (
-      v === "openwhispr" ||
-      v === "providers" ||
-      v === "local" ||
-      v === "self-hosted" ||
-      v === "enterprise"
-    )
-      return v;
-    return "openwhispr" as InferenceMode;
+    const v = readString("chatAgentMode", "providers");
+    if (v === "providers" || v === "local" || v === "self-hosted" || v === "enterprise") return v;
+    return "providers" as InferenceMode;
   })(),
   chatAgentRemoteUrl: readString("chatAgentRemoteUrl", ""),
   chatAgentCloudBaseUrl: readString("chatAgentCloudBaseUrl", ""),
@@ -1051,7 +1078,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   dictationAgentMode: (() => {
     const v = readString("dictationAgentMode", "");
     if (
-      v === "openwhispr" ||
       v === "providers" ||
       v === "local" ||
       v === "self-hosted" ||
@@ -1295,7 +1321,10 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ theme: value });
   },
 
-  setCloudBackupEnabled: createBooleanSetter("cloudBackupEnabled"),
+  setCloudBackupEnabled: () => {
+    if (isBrowser) localStorage.setItem("cloudBackupEnabled", "false");
+    set({ cloudBackupEnabled: false });
+  },
   setTelemetryEnabled: createBooleanSetter("telemetryEnabled"),
   setAudioRetentionDays: (days: number) => {
     if (isBrowser) localStorage.setItem("audioRetentionDays", String(days));
@@ -1443,9 +1472,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setNoteFilesEnabled: createBooleanSetter("noteFilesEnabled"),
   setNoteFilesPath: createStringSetter("noteFilesPath"),
 
-  setIsSignedIn: (value: boolean) => {
-    if (isBrowser) localStorage.setItem("isSignedIn", String(value));
-    set({ isSignedIn: value });
+  setIsSignedIn: () => {
+    if (isBrowser) localStorage.setItem("isSignedIn", "false");
+    set({ isSignedIn: false });
   },
 
   setChatAgentModel: createStringSetter("chatAgentModel"),
@@ -1564,21 +1593,14 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
 // --- Selectors (derived state, not stored) ---
 
-export const selectIsCloudCleanupMode = (state: SettingsState) =>
-  state.isSignedIn && state.cleanupMode === "openwhispr" && state.cleanupCloudMode === "openwhispr";
+export const selectIsCloudCleanupMode = (_state: SettingsState) => false;
 
 export const selectEffectiveCleanupProvider = (state: SettingsState) =>
-  selectIsCloudCleanupMode(state) ? "openwhispr" : state.cleanupProvider;
+  state.cleanupProvider;
 
-export const selectIsCloudChatAgentMode = (state: SettingsState) =>
-  state.isSignedIn &&
-  state.chatAgentMode === "openwhispr" &&
-  state.chatAgentCloudMode === "openwhispr";
+export const selectIsCloudChatAgentMode = (_state: SettingsState) => false;
 
-export const selectIsCloudNoteFormattingMode = (state: SettingsState) => {
-  const cfg = selectResolvedNoteFormatting(state);
-  return state.isSignedIn && cfg.mode === "openwhispr" && cfg.cloudMode === "openwhispr";
-};
+export const selectIsCloudNoteFormattingMode = (_state: SettingsState) => false;
 
 export interface ResolvedMeetingTranscription {
   useLocalWhisper: boolean;
@@ -1671,10 +1693,17 @@ export const selectResolvedLLMConfig = (
 
   return {
     scope,
-    mode: state[def.storeKeys.mode] as InferenceMode,
+    mode: normalizeAuthBackedSetting(
+      def.storeKeys.mode as string,
+      state[def.storeKeys.mode] as string
+    ) as InferenceMode,
     provider: read("provider") || fallback?.provider || "",
     model: read("model") || fallback?.model || "",
-    cloudMode: read("cloudMode") || fallback?.cloudMode,
+    cloudMode:
+      (def.storeKeys.cloudMode
+        ? normalizeAuthBackedSetting(def.storeKeys.cloudMode as string, read("cloudMode") || "")
+        : undefined) ||
+      fallback?.cloudMode,
     cloudBaseUrl: read("cloudBaseUrl") || fallback?.cloudBaseUrl,
     remoteUrl: read("remoteUrl") || fallback?.remoteUrl,
     customApiKey: read("customApiKey"),
@@ -1692,20 +1721,22 @@ export function setResolvedLLMConfig(
     if (value === undefined) continue;
     const storeKey = def.storeKeys[field as keyof InferenceScopeStoreKeys];
     if (!storeKey) continue;
+    const storedValue =
+      typeof value === "string" ? normalizeAuthBackedSetting(storeKey as string, value) : value;
     // cleanupCustomApiKey is a secret kept in the OS secure store, not
     // localStorage (which is stripped on startup). Route it through the
     // dedicated setter so it survives restarts.
     if (storeKey === "cleanupCustomApiKey") {
-      useSettingsStore.getState().setCleanupCustomApiKey(value as string);
+      useSettingsStore.getState().setCleanupCustomApiKey(storedValue as string);
       continue;
     }
     if (isBrowser) {
       localStorage.setItem(
         storeKey as string,
-        typeof value === "boolean" ? String(value) : (value as string)
+        typeof storedValue === "boolean" ? String(storedValue) : (storedValue as string)
       );
     }
-    (updates as Record<string, unknown>)[storeKey as string] = value;
+    (updates as Record<string, unknown>)[storeKey as string] = storedValue;
   }
   if (Object.keys(updates).length > 0) useSettingsStore.setState(updates);
 }
