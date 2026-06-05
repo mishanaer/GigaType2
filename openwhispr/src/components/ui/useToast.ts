@@ -20,15 +20,55 @@ export interface ToastContextType {
 const renderMessage = (title?: string, description?: string) =>
   title || description || ""
 
+const activeToastIds = new Set<string>()
+
+const isDictationPanel = () =>
+  typeof window !== "undefined" &&
+  window.location.pathname.indexOf("control") === -1 &&
+  window.location.search.indexOf("panel=true") === -1
+
+const syncDictationToastWindow = () => {
+  if (!isDictationPanel()) return
+  if (activeToastIds.size > 0) {
+    window.electronAPI?.setMainWindowInteractivity?.(true)
+    window.electronAPI?.resizeMainWindow?.("WITH_TOAST")
+  } else {
+    window.electronAPI?.setMainWindowInteractivity?.(false)
+    window.electronAPI?.resizeMainWindow?.("BASE")
+  }
+}
+
+const removeToast = (id?: string) => {
+  if (id) {
+    activeToastIds.delete(id)
+  } else {
+    activeToastIds.clear()
+  }
+  syncDictationToastWindow()
+}
+
 export const useToast = (): ToastContextType => {
   const toast = React.useCallback((props: Omit<ToastProps, "id">): string => {
     const { title, description, action, duration, onClose, variant = "default" } = props
+
+    if (isDictationPanel() && variant === "destructive") {
+      onClose?.()
+      return ""
+    }
+
+    let toastId = ""
     const options = {
       description: title ? description : undefined,
       action,
       duration,
-      onAutoClose: onClose ? () => onClose() : undefined,
-      onDismiss: onClose ? () => onClose() : undefined,
+      onAutoClose: () => {
+        removeToast(toastId)
+        onClose?.()
+      },
+      onDismiss: () => {
+        removeToast(toastId)
+        onClose?.()
+      },
     }
     const message = renderMessage(title, description)
     const id =
@@ -38,12 +78,16 @@ export const useToast = (): ToastContextType => {
           ? sonnerToast.success(message, options)
           : sonnerToast(message, options)
 
-    return String(id)
+    toastId = String(id)
+    activeToastIds.add(toastId)
+    syncDictationToastWindow()
+    return toastId
   }, [])
 
   const dismiss = React.useCallback((id?: string) => {
     sonnerToast.dismiss(id)
+    removeToast(id)
   }, [])
 
-  return { toast, dismiss, toastCount: 0 }
+  return { toast, dismiss, toastCount: activeToastIds.size }
 }

@@ -486,6 +486,9 @@ declare global {
       ) => Promise<void>;
       hideWindow: () => Promise<void>;
       showDictationPanel: () => Promise<void>;
+      resizeMainWindow?: (
+        sizeKey: "BASE" | "WITH_MENU" | "WITH_TOAST" | "EXPANDED"
+      ) => Promise<{ success: boolean; message?: string }>;
       onToggleDictation: (callback: () => void) => () => void;
       onStartDictation?: (callback: () => void) => () => void;
       onStopDictation?: (callback: () => void) => () => void;
@@ -545,14 +548,6 @@ declare global {
         text: string,
         rawText: string
       ) => Promise<{ success: boolean; transcription?: TranscriptionItem; error?: string }>;
-
-      // Dictionary operations
-      getDictionary: () => Promise<string[]>;
-      setDictionary: (words: string[]) => Promise<{ success: boolean }>;
-      onDictionaryUpdated?: (callback: (words: string[]) => void) => () => void;
-      setAutoLearnEnabled?: (enabled: boolean) => void;
-      onCorrectionsLearned?: (callback: (words: string[]) => void) => () => void;
-      undoLearnedCorrections?: (words: string[]) => Promise<{ success: boolean }>;
 
       // Note operations
       saveNote: (

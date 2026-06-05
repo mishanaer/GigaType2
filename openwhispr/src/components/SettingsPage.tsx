@@ -504,8 +504,6 @@ export default function SettingsPage({
     setCloudTranscriptionModel,
     setCloudTranscriptionBaseUrl,
     setDictationKey,
-    autoLearnCorrections,
-    setAutoLearnCorrections,
     updateTranscriptionSettings,
     cloudTranscriptionMode,
     setCloudTranscriptionMode,
@@ -539,8 +537,6 @@ export default function SettingsPage({
     setAudioRetentionDays,
     dataRetentionEnabled,
     setDataRetentionEnabled,
-    customDictionary,
-    setCustomDictionary,
     dictationSileroEnabled,
     setDictationSileroEnabled,
     whisperVadThreshold,
@@ -1254,30 +1250,6 @@ export default function SettingsPage({
                     onPreferBuiltInChange={setPreferBuiltInMic}
                     onDeviceSelect={setSelectedMicDeviceId}
                   />
-                </SettingsPanelRow>
-              </SettingsPanel>
-            </div>
-
-            {/* Dictionary */}
-            <div>
-              <SectionHeader
-                title={t("settingsPage.dictionary.autoLearnTitle", {
-                  defaultValue: "Auto-learn from corrections",
-                })}
-              />
-              <SettingsPanel>
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.dictionary.autoLearnTitle", {
-                      defaultValue: "Auto-learn from corrections",
-                    })}
-                    description={t("settingsPage.dictionary.autoLearnDescription", {
-                      defaultValue:
-                        "When you correct a transcription in the target app, the corrected word is automatically added to your dictionary.",
-                    })}
-                  >
-                    <Toggle checked={autoLearnCorrections} onChange={setAutoLearnCorrections} />
-                  </SettingsRow>
                 </SettingsPanelRow>
               </SettingsPanel>
             </div>

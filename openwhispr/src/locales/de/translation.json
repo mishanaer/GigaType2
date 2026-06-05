@@ -702,7 +702,6 @@
       "title": "Was protokolliert wird"
     }
   },
-  "dictionarySuffix": "Wörterbuch-Suffix",
   "emailVerification": {
     "checkEmailDescription": "Wir haben einen Bestätigungslink gesendet an",
     "checkEmailTitle": "Prüfen Sie Ihre E-Mail",
@@ -1219,28 +1218,6 @@
       },
       "resetAppData": "App-Daten zurücksetzen",
       "resetAppDataDescription": "Alle lokalen Einstellungen, Transkriptionen, Audioaufnahmen, heruntergeladene Modelle und zwischengespeicherte Daten dauerhaft löschen"
-    },
-    "dictionary": {
-      "title": "Benutzerwörterbuch",
-      "description": "Bringen Sie der KI Ihren Wortschatz bei — Namen, Fachbegriffe und Ausdrücke, die sie sonst übersehen könnte",
-      "addWordOrPhrase": "Wort oder Ausdruck hinzufügen",
-      "placeholder": "Wort oder Ausdruck hinzufügen...",
-      "add": "Hinzufügen",
-      "pressEnterToAdd": "Enter drücken zum Hinzufügen",
-      "autoLearnTitle": "Automatisch aus Korrekturen lernen",
-      "autoLearnDescription": "Wenn Sie eine Transkription in der Ziel-App korrigieren, wird das korrigierte Wort automatisch Ihrem Wörterbuch hinzugefügt.",
-      "yourWords": "Ihre Wörter",
-      "clearDictionaryTitle": "Wörterbuch löschen?",
-      "clearDictionaryDescription": "Dadurch werden alle Wörter aus Ihrem benutzerdefinierten Wörterbuch entfernt. Diese Aktion kann nicht rückgängig gemacht werden.",
-      "clearAll": "Alles löschen",
-      "agentNameAutoManaged": "Automatisch verwaltet — synchronisiert mit dem Agentennamen",
-      "removeWord": "Wort entfernen",
-      "noWords": "Noch keine Wörter",
-      "wordsAppearHere": "Hinzugefügte Wörter erscheinen hier",
-      "howItWorksTitle": "So funktioniert es",
-      "howItWorksDescription": "Wörter werden als Kontexthinweise an das Sprachmodell übergeben, um ungewöhnliche Begriffe besser zu erkennen. Für schwierige Wörter versuchen Sie, Kontext hinzuzufügen wie \"The word is Synty\" neben dem Wort selbst.",
-      "tipLabel": "Tipp",
-      "tipDescription": "Trennen Sie mehrere Wörter mit Kommas. Fügen Sie Kontextphrasen wie \"The word is Synty\" für bessere Erkennung hinzu."
     },
     "general": {
       "appearance": {
@@ -2115,25 +2092,10 @@
       }
     }
   },
-  "dictionary": {
-    "addWord": "Wort hinzufügen",
-    "removeWord": "{{word}} entfernen",
-    "clearAll": "Alle löschen",
-    "howItWorks": "So funktioniert es",
-    "howItWorksDetail": "Hinzugefügte Wörter werden in den KI-Prompt aufgenommen, damit das Modell diese Begriffe bei der Transkriptionsbereinigung erkennt und beibehält.",
-    "autoManaged": "Agent-Name (automatisch verwaltet)",
-    "inputHint": "Enter drücken zum Hinzufügen",
-    "title": "Benutzerdefiniertes Wörterbuch",
-    "description": "Bringe der KI dein Vokabular bei – Namen, Fachbegriffe und Ausdrücke, die sie sonst übersehen könnte",
-    "clearTitle": "Wörterbuch leeren?",
-    "clearDescription": "Dadurch werden alle Wörter aus deinem benutzerdefinierten Wörterbuch entfernt. Diese Aktion kann nicht rückgängig gemacht werden.",
-    "addPlaceholder": "Ein Wort oder eine Phrase hinzufügen..."
-  },
   "sidebar": {
     "home": "Startseite",
     "notes": "Notizen",
     "upload": "Hochladen",
-    "dictionary": "Wörterbuch",
     "referral": "Gratis-Monat erhalten",
     "settings": "Einstellungen",
     "limitReached": "Wochenlimit erreicht",
@@ -2230,7 +2192,6 @@
         "title": "Tastenkombination nicht verfügbar",
         "description": "Die ausgewählte Tastenkombination konnte nicht registriert werden. Bitte wähle eine andere in den Einstellungen."
       },
-      "addedToDict": "{{words}} zu deinem Wörterbuch hinzugefügt",
       "undo": "Rückgängig",
       "accessibilityMissing": {
         "title": "Bedienungshilfen-Berechtigungen erforderlich",

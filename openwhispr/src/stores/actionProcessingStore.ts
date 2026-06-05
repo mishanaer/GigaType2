@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import reasoningService from "../services/ReasoningService";
 import { getSettings } from "./settingsStore";
-import { appendDictionarySuffix } from "../config/prompts";
 import { generateNoteTitle } from "../utils/generateTitle";
 import type { ActionItem } from "../types/electron";
 
@@ -123,11 +122,7 @@ export function runBackgroundAction(
     try {
       const basePrompt = options.isMeetingNote ? MEETING_SYSTEM_PROMPT : BASE_SYSTEM_PROMPT;
       const settings = getSettings();
-      const systemPrompt = appendDictionarySuffix(
-        basePrompt + action.prompt,
-        options.isMeetingNote ? settings.customDictionary : undefined,
-        settings.uiLanguage
-      );
+      const systemPrompt = basePrompt + action.prompt;
       const enhanced = await reasoningService.processText(noteContent, modelId, null, {
         systemPrompt,
         temperature: 0.3,

@@ -674,7 +674,6 @@
       "title": "O que é registrado"
     }
   },
-  "dictionarySuffix": "Sufixo do dicionário",
   "emailVerification": {
     "checkEmailDescription": "Enviamos um link de verificação para",
     "checkEmailTitle": "Verifique seu e-mail",
@@ -1191,28 +1190,6 @@
       },
       "resetAppData": "Redefinir dados do app",
       "resetAppDataDescription": "Excluir permanentemente todas as configurações locais, transcrições, gravações de áudio, modelos baixados e dados em cache"
-    },
-    "dictionary": {
-      "title": "Dicionário personalizado",
-      "description": "Ensine à IA o seu vocabulário — nomes, jargões e termos que ela poderia não reconhecer",
-      "addWordOrPhrase": "Adicionar palavra ou frase",
-      "placeholder": "Adicionar uma palavra ou frase...",
-      "add": "Adicionar",
-      "pressEnterToAdd": "Pressione Enter para adicionar",
-      "autoLearnTitle": "Aprender automaticamente com correções",
-      "autoLearnDescription": "Quando você corrige uma transcrição no aplicativo de destino, a palavra corrigida é adicionada automaticamente ao seu dicionário.",
-      "yourWords": "Suas palavras",
-      "clearDictionaryTitle": "Limpar dicionário?",
-      "clearDictionaryDescription": "Isso removerá todas as palavras do seu dicionário personalizado. Esta ação não pode ser desfeita.",
-      "clearAll": "Limpar tudo",
-      "agentNameAutoManaged": "Gerenciado automaticamente — sincronizado com o nome do agente",
-      "removeWord": "Remover palavra",
-      "noWords": "Nenhuma palavra ainda",
-      "wordsAppearHere": "Palavras que você adicionar aparecerão aqui",
-      "howItWorksTitle": "Como funciona",
-      "howItWorksDescription": "As palavras são fornecidas como dicas de contexto ao modelo de fala, ajudando-o a reconhecer termos incomuns. Para palavras difíceis, tente adicionar contexto como \"The word is Synty\" junto com a própria palavra.",
-      "tipLabel": "Dica",
-      "tipDescription": "Separe várias palavras com vírgulas. Adicione frases de contexto como \"The word is Synty\" para melhor reconhecimento."
     },
     "general": {
       "appearance": {
@@ -2115,25 +2092,10 @@
       }
     }
   },
-  "dictionary": {
-    "addWord": "Adicionar palavra",
-    "removeWord": "Remover {{word}}",
-    "clearAll": "Limpar tudo",
-    "howItWorks": "Como funciona",
-    "howItWorksDetail": "As palavras adicionadas são incluídas no prompt de IA para que o modelo saiba procurar e preservar esses termos durante a limpeza da transcrição.",
-    "autoManaged": "Gerenciado automaticamente",
-    "inputHint": "Pressione Enter para adicionar",
-    "title": "Dicionário personalizado",
-    "description": "Ensine a IA o seu vocabulário — nomes, jargões e termos que ela poderia não reconhecer",
-    "clearTitle": "Limpar o dicionário?",
-    "clearDescription": "Isso removerá todas as palavras do seu dicionário personalizado. Esta ação não pode ser desfeita.",
-    "addPlaceholder": "Adicionar uma palavra ou frase..."
-  },
   "sidebar": {
     "home": "Início",
     "notes": "Notas",
     "upload": "Enviar",
-    "dictionary": "Dicionário",
     "referral": "Ganhe um mês grátis",
     "settings": "Configurações",
     "limitReached": "Limite semanal atingido",
@@ -2230,7 +2192,6 @@
         "title": "Atalho indisponível",
         "description": "Não foi possível registrar o atalho selecionado. Escolha outro nas configurações."
       },
-      "addedToDict": "{{words}} adicionado ao seu dicionário",
       "undo": "Desfazer",
       "accessibilityMissing": {
         "title": "Permissões de acessibilidade necessárias",

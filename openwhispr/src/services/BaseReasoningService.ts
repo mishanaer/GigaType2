@@ -16,10 +16,6 @@ export interface ReasoningConfig {
 export abstract class BaseReasoningService {
   protected isProcessing = false;
 
-  protected getCustomDictionary(): string[] {
-    return getSettings().customDictionary;
-  }
-
   protected getPreferredLanguage(): string {
     return getSettings().preferredLanguage || "auto";
   }
@@ -29,12 +25,7 @@ export abstract class BaseReasoningService {
   }
 
   protected getSystemPrompt(agentName: string | null): string {
-    return getCleanupSystemPrompt(
-      agentName,
-      this.getCustomDictionary(),
-      this.getPreferredLanguage(),
-      this.getUiLanguage()
-    );
+    return getCleanupSystemPrompt(agentName, this.getPreferredLanguage(), this.getUiLanguage());
   }
 
   protected calculateMaxTokens(

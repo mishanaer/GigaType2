@@ -549,14 +549,14 @@ class WhisperServerManager extends EventEmitter {
         `${language || "auto"}\r\n`
     );
 
-    // Add initial prompt for custom dictionary words
+    // Forward an optional provider prompt when a caller supplies one.
     if (initialPrompt) {
       parts.push(
         `--${boundary}\r\n` +
           `Content-Disposition: form-data; name="prompt"\r\n\r\n` +
           `${initialPrompt}\r\n`
       );
-      debugLogger.info("Using custom dictionary prompt", { prompt: initialPrompt });
+      debugLogger.info("Using transcription initial prompt", { prompt: initialPrompt });
     }
 
     parts.push(

@@ -2,7 +2,6 @@ import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useAgentName } from "../../utils/agentName";
-import { useSettings } from "../../hooks/useSettings";
 import { useDialogs } from "../../hooks/useDialogs";
 import { Toggle } from "../ui/toggle";
 import { Input } from "../ui/input";
@@ -18,24 +17,12 @@ export default function DictationAgentSettings() {
 
   const { agentName, setAgentName } = useAgentName();
   const [agentNameInput, setAgentNameInput] = useState(agentName);
-  const { customDictionary, setCustomDictionary } = useSettings();
   const { showAlertDialog } = useDialogs();
 
   const handleSaveAgentName = useCallback(() => {
     const trimmed = agentNameInput.trim();
-    const previousName = agentName;
-
     setAgentName(trimmed);
     setAgentNameInput(trimmed);
-
-    let nextDictionary = customDictionary.filter((w) => w !== previousName);
-    if (trimmed) {
-      const hasName = nextDictionary.some((w) => w.toLowerCase() === trimmed.toLowerCase());
-      if (!hasName) {
-        nextDictionary = [trimmed, ...nextDictionary];
-      }
-    }
-    setCustomDictionary(nextDictionary);
 
     showAlertDialog({
       title: t("settingsPage.agentConfig.dialogs.updatedTitle"),
@@ -45,10 +32,7 @@ export default function DictationAgentSettings() {
     });
   }, [
     agentNameInput,
-    agentName,
-    customDictionary,
     setAgentName,
-    setCustomDictionary,
     showAlertDialog,
     t,
   ]);

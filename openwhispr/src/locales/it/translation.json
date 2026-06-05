@@ -702,7 +702,6 @@
       "title": "Cosa viene registrato"
     }
   },
-  "dictionarySuffix": "Suffisso dizionario",
   "emailVerification": {
     "checkEmailDescription": "Abbiamo inviato un link di verifica a",
     "checkEmailTitle": "Controlla la tua e-mail",
@@ -1219,28 +1218,6 @@
       },
       "resetAppData": "Reimposta dati app",
       "resetAppDataDescription": "Eliminare permanentemente tutte le impostazioni locali, trascrizioni, registrazioni audio, modelli scaricati e dati memorizzati nella cache"
-    },
-    "dictionary": {
-      "title": "Dizionario personalizzato",
-      "description": "Insegna all'IA il tuo vocabolario — nomi, gergo e termini che potrebbe altrimenti non riconoscere",
-      "addWordOrPhrase": "Aggiungi parola o frase",
-      "placeholder": "Aggiungi una parola o frase...",
-      "add": "Aggiungi",
-      "pressEnterToAdd": "Premi Invio per aggiungere",
-      "autoLearnTitle": "Apprendimento automatico dalle correzioni",
-      "autoLearnDescription": "Quando correggi una trascrizione nell'app di destinazione, la parola corretta viene aggiunta automaticamente al tuo dizionario.",
-      "yourWords": "Le tue parole",
-      "clearDictionaryTitle": "Svuotare il dizionario?",
-      "clearDictionaryDescription": "Verranno rimosse tutte le parole dal tuo dizionario personalizzato. Questa azione non può essere annullata.",
-      "clearAll": "Cancella tutto",
-      "agentNameAutoManaged": "Gestito automaticamente — sincronizzato con il nome dell'agente",
-      "removeWord": "Rimuovi parola",
-      "noWords": "Nessuna parola ancora",
-      "wordsAppearHere": "Le parole aggiunte appariranno qui",
-      "howItWorksTitle": "Come funziona",
-      "howItWorksDescription": "Le parole vengono fornite come suggerimenti di contesto al modello vocale, aiutandolo a riconoscere termini poco comuni. Per parole difficili, prova ad aggiungere contesto come \"The word is Synty\" insieme alla parola stessa.",
-      "tipLabel": "Suggerimento",
-      "tipDescription": "Separa più parole con le virgole. Aggiungi frasi di contesto come \"The word is Synty\" per un migliore riconoscimento."
     },
     "general": {
       "appearance": {
@@ -2115,25 +2092,10 @@
       }
     }
   },
-  "dictionary": {
-    "addWord": "Aggiungi parola",
-    "removeWord": "Rimuovi {{word}}",
-    "clearAll": "Cancella tutto",
-    "howItWorks": "Come funziona",
-    "howItWorksDetail": "Le parole aggiunte vengono incluse nel prompt dell'IA, in modo che il modello sappia cercare e preservare questi termini durante la correzione della trascrizione.",
-    "autoManaged": "Gestito automaticamente",
-    "inputHint": "Premi Invio per aggiungere",
-    "title": "Dizionario personalizzato",
-    "description": "Insegna all'IA il tuo vocabolario — nomi, gergo e termini che potrebbe altrimenti non riconoscere",
-    "clearTitle": "Svuotare il dizionario?",
-    "clearDescription": "Verranno rimossi tutti i termini dal tuo dizionario personalizzato. Questa azione non può essere annullata.",
-    "addPlaceholder": "Aggiungi una parola o una frase..."
-  },
   "sidebar": {
     "home": "Home",
     "notes": "Note",
     "upload": "Carica",
-    "dictionary": "Dizionario",
     "referral": "Ottieni un mese gratis",
     "settings": "Impostazioni",
     "limitReached": "Limite settimanale raggiunto",
@@ -2230,7 +2192,6 @@
         "title": "Scorciatoia non disponibile",
         "description": "Non è stato possibile registrare la scorciatoia selezionata. Scegline un’altra nelle impostazioni."
       },
-      "addedToDict": "{{words}} aggiunto al tuo dizionario",
       "undo": "Annulla",
       "accessibilityMissing": {
         "title": "Autorizzazioni di accessibilità richieste",

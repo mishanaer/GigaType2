@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { API_ENDPOINTS } from "../config/constants";
 import i18n, { normalizeUiLanguage } from "../i18n";
-import { ensureAgentNameInDictionary } from "../utils/agentName";
 import { useStreamingProvidersStore } from "./streamingProvidersStore";
 import logger from "../utils/logger";
 import whisperVadConstants from "../constants/whisperVad.json";
@@ -188,7 +187,7 @@ const BOOLEAN_SETTINGS = new Set([
   "gcalPrimaryOnly",
 ]);
 
-const ARRAY_SETTINGS = new Set(["customDictionary", "gcalAccounts"]);
+const ARRAY_SETTINGS = new Set(["gcalAccounts"]);
 
 const NUMERIC_SETTINGS = new Set([
   "audioRetentionDays",
@@ -545,7 +544,6 @@ export interface SettingsState
   setCloudTranscriptionMode: (value: string) => void;
   setCleanupCloudMode: (value: string) => void;
   setCleanupCloudBaseUrl: (value: string) => void;
-  setCustomDictionary: (words: string[]) => void;
   setAssemblyAiStreaming: (value: boolean) => void;
   setAutoGenerateNoteTitle: (value: boolean) => void;
   setUseCleanupModel: (value: boolean) => void;
@@ -842,7 +840,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   cloudTranscriptionMode: readString("cloudTranscriptionMode", "byok"),
   cleanupCloudMode: readString("cleanupCloudMode", "byok"),
   cleanupCloudBaseUrl: readString("cleanupCloudBaseUrl", API_ENDPOINTS.OPENAI_BASE),
-  customDictionary: readStringArray("customDictionary", []),
   assemblyAiStreaming: readBoolean("assemblyAiStreaming", true),
 
   autoGenerateNoteTitle: readBoolean("autoGenerateNoteTitle", true),
@@ -1131,18 +1128,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setUseDictationAgent: createBooleanSetter("useDictationAgent"),
   setCleanupProvider: createStringSetter("cleanupProvider"),
   setCleanupModel: createStringSetter("cleanupModel"),
-
-  setCustomDictionary: (words: string[]) => {
-    if (isBrowser) localStorage.setItem("customDictionary", JSON.stringify(words));
-    set({ customDictionary: words });
-    window.electronAPI?.setDictionary(words).catch((err) => {
-      logger.warn(
-        "Failed to sync dictionary to SQLite",
-        { error: (err as Error).message },
-        "settings"
-      );
-    });
-  },
 
   setUiLanguage: (language: string) => {
     const normalized = normalizeUiLanguage(language);
@@ -1535,7 +1520,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       s.setCloudTranscriptionBaseUrl(settings.cloudTranscriptionBaseUrl);
     if (settings.cloudTranscriptionMode !== undefined)
       s.setCloudTranscriptionMode(settings.cloudTranscriptionMode);
-    if (settings.customDictionary !== undefined) s.setCustomDictionary(settings.customDictionary);
     if (settings.assemblyAiStreaming !== undefined)
       s.setAssemblyAiStreaming(settings.assemblyAiStreaming);
     if (settings.showTranscriptionPreview !== undefined)
@@ -1903,26 +1887,6 @@ export async function initializeSettings(): Promise<void> {
 
     await syncGigaTypeAsrSettings();
 
-    // Sync dictionary from SQLite <-> localStorage
-    try {
-      if (window.electronAPI.getDictionary) {
-        const currentDictionary = useSettingsStore.getState().customDictionary;
-        const dbWords = await window.electronAPI.getDictionary();
-        if (dbWords.length === 0 && currentDictionary.length > 0) {
-          await window.electronAPI.setDictionary(currentDictionary);
-        } else if (dbWords.length > 0 && currentDictionary.length === 0) {
-          if (isBrowser) localStorage.setItem("customDictionary", JSON.stringify(dbWords));
-          useSettingsStore.setState({ customDictionary: dbWords });
-        }
-      }
-    } catch (err) {
-      logger.warn(
-        "Failed to sync dictionary on startup",
-        { error: (err as Error).message },
-        "settings"
-      );
-    }
-
     // Sync meeting detection preferences to main process
     try {
       const currentState = useSettingsStore.getState();
@@ -1998,8 +1962,6 @@ export async function initializeSettings(): Promise<void> {
         "settings"
       );
     }
-
-    ensureAgentNameInDictionary();
   }
 
   // Sync Zustand store when another window writes to localStorage

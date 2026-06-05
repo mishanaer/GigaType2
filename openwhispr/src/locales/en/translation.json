@@ -798,7 +798,6 @@
       "revokeFailed": "Failed to revoke API key"
     }
   },
-  "dictionarySuffix": "Dictionary Suffix",
   "emailVerification": {
     "checkEmailDescription": "We sent a verification link to",
     "checkEmailTitle": "Check your email",
@@ -1190,7 +1189,6 @@
             "Unlimited local AI models",
             "Unlimited cloud transcription with your own API keys",
             "100+ languages supported",
-            "Custom dictionary",
             "Zero data retention",
             "Community support"
           ]
@@ -1400,28 +1398,6 @@
       },
       "resetAppData": "Reset app data",
       "resetAppDataDescription": "Permanently delete all local settings, transcriptions, audio recordings, downloaded models, and cached data"
-    },
-    "dictionary": {
-      "title": "Custom Dictionary",
-      "description": "Teach the AI your vocabulary — names, jargon, and terms it might otherwise miss",
-      "addWordOrPhrase": "Add word or phrase",
-      "placeholder": "Add a word or phrase...",
-      "add": "Add",
-      "pressEnterToAdd": "Press Enter to add",
-      "autoLearnTitle": "Auto-learn from corrections",
-      "autoLearnDescription": "When you correct a transcription in the target app, the corrected word is automatically added to your dictionary.",
-      "yourWords": "Your words",
-      "clearDictionaryTitle": "Clear dictionary?",
-      "clearDictionaryDescription": "This will remove all words from your custom dictionary. This action cannot be undone.",
-      "clearAll": "Clear all",
-      "agentNameAutoManaged": "Auto-managed — synced from agent name",
-      "removeWord": "Remove word",
-      "noWords": "No words yet",
-      "wordsAppearHere": "Words you add will appear here",
-      "howItWorksTitle": "How it works",
-      "howItWorksDescription": "Words are fed as context hints to the speech model, helping it recognize uncommon terms. For difficult words, try adding context like \"The word is Synty\" alongside the word itself.",
-      "tipLabel": "Tip",
-      "tipDescription": "Separate multiple words with commas. Add context phrases like \"The word is Synty\" for better recognition."
     },
     "general": {
       "appearance": {
@@ -1900,7 +1876,6 @@
     "home": "Home",
     "notes": "Notes",
     "upload": "Upload",
-    "dictionary": "Dictionary",
     "referral": "Get a free month",
     "settings": "Settings",
     "limitReached": "Weekly limit reached",
@@ -2321,20 +2296,6 @@
       }
     }
   },
-  "dictionary": {
-    "title": "Custom Dictionary",
-    "description": "Teach the AI your vocabulary — names, jargon, and terms it might otherwise miss",
-    "clearTitle": "Clear dictionary?",
-    "clearDescription": "This will remove all words from your custom dictionary. This action cannot be undone.",
-    "addWord": "Add word",
-    "addPlaceholder": "Add a word or phrase...",
-    "removeWord": "Remove {{word}}",
-    "clearAll": "Clear all",
-    "howItWorks": "How it works",
-    "howItWorksDetail": "Words are fed as context hints to the speech model, helping it recognize uncommon terms. For difficult words, try adding context like \"The word is Synty\" alongside the word itself.",
-    "autoManaged": "Auto-managed — synced from agent name",
-    "inputHint": "Separate multiple words with commas. Add context phrases like \"The word is Synty\" for better recognition."
-  },
   "postMigration": {
     "title": "Welcome back to GigaType",
     "description": "Your notes and settings carried over from the previous version. macOS treats this as a new app though, so a few permissions need to be granted again.",
@@ -2374,7 +2335,6 @@
         "title": "Hotkey unavailable",
         "description": "The selected hotkey could not be registered. Please choose a different one in settings."
       },
-      "addedToDict": "Added {{words}} to your dictionary",
       "undo": "Undo",
       "accessibilityMissing": {
         "title": "Accessibility permissions required",

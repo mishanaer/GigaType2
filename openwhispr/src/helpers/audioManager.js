@@ -63,6 +63,8 @@ const STREAMING_PROVIDERS = {
   },
 };
 
+const isNoTextTranscription = (error) => error?.message?.startsWith("No text transcribed");
+
 class AudioManager {
   constructor() {
     this.mediaRecorder = null;
@@ -152,11 +154,6 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 `;
     this.workletBlobUrl = URL.createObjectURL(new Blob([code], { type: "application/javascript" }));
     return this.workletBlobUrl;
-  }
-
-  getCustomDictionaryPrompt() {
-    const words = getSettings().customDictionary;
-    return words.length > 0 ? words.join(", ") : null;
   }
 
   setCallbacks({
@@ -565,16 +562,30 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     } catch (error) {
       const errorAtMs = Math.round(performance.now() - pipelineStart);
 
-      logger.error(
-        "Pipeline failed",
-        {
-          errorAtMs,
-          error: error.message,
-        },
-        "performance"
-      );
+      const shouldSkipFailureStatus = isNoTextTranscription(error);
 
-      if (error.message !== "No audio detected") {
+      if (shouldSkipFailureStatus) {
+        logger.info(
+          "Pipeline completed without transcribed text",
+          {
+            errorAtMs,
+            durationSeconds: metadata?.durationSeconds ?? null,
+            error: error.message,
+          },
+          "audio"
+        );
+        this.lastAudioBlob = null;
+        this.lastAudioMetadata = null;
+      } else if (error.message !== "No audio detected") {
+        logger.error(
+          "Pipeline failed",
+          {
+            errorAtMs,
+            error: error.message,
+          },
+          "performance"
+        );
+
         this.onError?.({
           title: "Transcription Error",
           description: `Transcription failed: ${error.message}`,
@@ -606,12 +617,6 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       const options = { model };
       if (language) {
         options.language = language;
-      }
-
-      // Add custom dictionary as initial prompt to help Whisper recognize specific words
-      const dictionaryPrompt = this.getCustomDictionaryPrompt();
-      if (dictionaryPrompt) {
-        options.initialPrompt = dictionaryPrompt;
       }
 
       logger.debug(
@@ -1014,16 +1019,12 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     return result;
   }
 
-  getCustomDictionaryArray() {
-    return getSettings().customDictionary;
-  }
-
   getCustomPrompt() {
     return getSettings().customPrompts.cleanup || undefined;
   }
 
   getKeyterms() {
-    return this.getCustomDictionaryArray();
+    return [];
   }
 
   async processWithOpenAIAPI(audioBlob, metadata = {}) {
@@ -1089,30 +1090,6 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       const endpoint = this.getTranscriptionEndpoint();
 
-      // Groq rejects prompts > 896 chars (incl. when reached via "custom" provider).
-      // 890 leaves margin for UTF-16 vs codepoint counting drift.
-      const isGroqEndpoint = provider === "groq" || endpoint.includes("api.groq.com");
-      const MAX_PROMPT_CHARS = isGroqEndpoint ? 890 : 900;
-      let dictionaryPrompt = this.getCustomDictionaryPrompt();
-      if (dictionaryPrompt) {
-        if (dictionaryPrompt.length > MAX_PROMPT_CHARS) {
-          const originalLength = dictionaryPrompt.length;
-          const truncated = dictionaryPrompt.slice(0, MAX_PROMPT_CHARS);
-          const lastComma = truncated.lastIndexOf(",");
-          dictionaryPrompt = lastComma > 0 ? truncated.slice(0, lastComma) : truncated;
-          logger.debug(
-            "Custom dictionary prompt truncated",
-            {
-              originalLength,
-              truncatedLength: dictionaryPrompt.length,
-              maxChars: MAX_PROMPT_CHARS,
-            },
-            "transcription"
-          );
-        }
-        formData.append("prompt", dictionaryPrompt);
-      }
-
       const shouldStream = this.shouldStreamTranscription(model, provider);
       if (shouldStream) {
         formData.append("stream", "true");
@@ -1130,17 +1107,6 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       if (provider === "mistral" && window.electronAPI?.proxyMistralTranscription) {
         const audioBuffer = await optimizedAudio.arrayBuffer();
         const proxyData = { audioBuffer, model, language };
-
-        if (dictionaryPrompt) {
-          const tokens = dictionaryPrompt
-            .split(",")
-            .flatMap((entry) => entry.trim().split(/\s+/))
-            .filter(Boolean)
-            .slice(0, 100);
-          if (tokens.length > 0) {
-            proxyData.contextBias = tokens;
-          }
-        }
 
         const result = await window.electronAPI.proxyMistralTranscription(proxyData);
         const proxyText = result?.text;
@@ -2103,6 +2069,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     );
 
     const streamingSttModel = stopResult?.model || "nova-3";
+    const streamingSource = `${this.getStreamingProviderName()}-streaming`;
 
     // If streaming produced no text, fall back to BYOK batch transcription.
     if (!finalText && durationSeconds > 2 && fallbackBlob?.size > 0) {
@@ -2125,26 +2092,32 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
 
     if (finalText) {
+      const tBeforePostProcessing = performance.now();
+      const rawText = finalText;
+      finalText = await this.processTranscription(rawText, streamingSource);
       const tBeforePaste = performance.now();
       this.lastAudioMetadata = {
         durationMs: durationSeconds
           ? Math.round(durationSeconds * 1000)
           : Math.round(tBeforePaste - t0),
-        provider: `${this.getStreamingProviderName()}-streaming`,
+        provider: streamingSource,
         model: streamingSttModel || null,
       };
       this.onTranscriptionComplete?.({
         success: true,
         text: finalText,
-        rawText: finalText,
-        source: `${this.getStreamingProviderName()}-streaming`,
+        rawText,
+        source: streamingSource,
       });
 
       logger.info(
         "Streaming total processing",
         {
           totalProcessingMs: Math.round(tBeforePaste - t0),
+          postProcessingMs: Math.round(tBeforePaste - tBeforePostProcessing),
           hasReasoning: false,
+          rawTextLength: rawText.length,
+          finalTextLength: finalText.length,
         },
         "streaming"
       );

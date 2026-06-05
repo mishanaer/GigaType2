@@ -44,7 +44,6 @@ class ReasoningService extends BaseReasoningService {
       getApiKey: (provider: string) =>
         this.getApiKey(provider as Parameters<ReasoningService["getApiKey"]>[0]),
       getSystemPrompt: this.getSystemPrompt.bind(this),
-      getCustomDictionary: this.getCustomDictionary.bind(this),
       getPreferredLanguage: this.getPreferredLanguage.bind(this),
       getUiLanguage: this.getUiLanguage.bind(this),
       callChatCompletionsApi: this.callChatCompletionsApi.bind(this),

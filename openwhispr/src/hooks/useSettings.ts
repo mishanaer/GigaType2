@@ -1,7 +1,6 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef } from "react";
+import React, { createContext, useContext, useEffect, useRef } from "react";
 import { useSettingsStore, initializeSettings } from "../stores/settingsStore";
 import logger from "../utils/logger";
-import { useLocalStorage } from "./useLocalStorage";
 import type { LocalTranscriptionProvider, InferenceMode, SelfHostedType } from "../types/electron";
 
 export interface TranscriptionSettings {
@@ -21,7 +20,6 @@ export interface TranscriptionSettings {
   transcriptionMode: InferenceMode;
   remoteTranscriptionType: SelfHostedType;
   remoteTranscriptionUrl: string;
-  customDictionary: string[];
   assemblyAiStreaming: boolean;
   showTranscriptionPreview: boolean;
 }
@@ -84,10 +82,9 @@ export interface ChatAgentSettings {
 
 function useSettingsInternal() {
   const store = useSettingsStore();
-  const { setCustomDictionary } = store;
 
   // One-time initialization: sync API keys, dictation key, activation mode,
-  // UI language, and dictionary from the main process / SQLite.
+  // and UI language from the main process / SQLite.
   const hasInitialized = useRef(false);
   useEffect(() => {
     if (hasInitialized.current) return;
@@ -99,41 +96,6 @@ function useSettingsInternal() {
         "settings"
       );
     });
-  }, []);
-
-  // Listen for dictionary updates from main process (auto-learn corrections)
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.electronAPI?.onDictionaryUpdated) return;
-    const unsubscribe = window.electronAPI.onDictionaryUpdated((words: string[]) => {
-      if (Array.isArray(words)) {
-        setCustomDictionary(words);
-      }
-    });
-    return unsubscribe;
-  }, [setCustomDictionary]);
-
-  // Auto-learn corrections from user edits in external apps
-  const [autoLearnCorrections, setAutoLearnCorrectionsRaw] = useLocalStorage(
-    "autoLearnCorrections",
-    true,
-    {
-      serialize: String,
-      deserialize: (value: string) => value !== "false",
-    }
-  );
-
-  const setAutoLearnCorrections = useCallback(
-    (enabled: boolean) => {
-      setAutoLearnCorrectionsRaw(enabled);
-      window.electronAPI?.setAutoLearnEnabled?.(enabled);
-    },
-    [setAutoLearnCorrectionsRaw]
-  );
-
-  // Sync auto-learn state to main process on mount
-  useEffect(() => {
-    window.electronAPI?.setAutoLearnEnabled?.(autoLearnCorrections);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sync startup pre-warming preferences to main process
@@ -189,7 +151,6 @@ function useSettingsInternal() {
     remoteTranscriptionUrl: store.remoteTranscriptionUrl,
     cleanupMode: store.cleanupMode,
     cleanupRemoteUrl: store.cleanupRemoteUrl,
-    customDictionary: store.customDictionary,
     assemblyAiStreaming: store.assemblyAiStreaming,
     setAssemblyAiStreaming: store.setAssemblyAiStreaming,
     autoGenerateNoteTitle: store.autoGenerateNoteTitle,
@@ -226,7 +187,6 @@ function useSettingsInternal() {
     setRemoteTranscriptionUrl: store.setRemoteTranscriptionUrl,
     setCleanupMode: store.setCleanupMode,
     setCleanupRemoteUrl: store.setCleanupRemoteUrl,
-    setCustomDictionary: store.setCustomDictionary,
     setUseCleanupModel: store.setUseCleanupModel,
     setUseDictationAgent: store.setUseDictationAgent,
     setCleanupModel: store.setCleanupModel,
@@ -267,8 +227,6 @@ function useSettingsInternal() {
     selectedMicDeviceId: store.selectedMicDeviceId,
     setPreferBuiltInMic: store.setPreferBuiltInMic,
     setSelectedMicDeviceId: store.setSelectedMicDeviceId,
-    autoLearnCorrections,
-    setAutoLearnCorrections,
     showTranscriptionPreview: store.showTranscriptionPreview,
     setShowTranscriptionPreview: store.setShowTranscriptionPreview,
     autoPasteEnabled: store.autoPasteEnabled,

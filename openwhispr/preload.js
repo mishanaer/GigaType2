@@ -51,22 +51,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("update-transcription-text", id, text, rawText),
   getTranscriptionById: (id) => ipcRenderer.invoke("get-transcription-by-id", id),
 
-  // Dictionary functions
-  getDictionary: () => ipcRenderer.invoke("db-get-dictionary"),
-  setDictionary: (words) => ipcRenderer.invoke("db-set-dictionary", words),
-  onDictionaryUpdated: (callback) => {
-    const listener = (_event, words) => callback?.(words);
-    ipcRenderer.on("dictionary-updated", listener);
-    return () => ipcRenderer.removeListener("dictionary-updated", listener);
-  },
-  setAutoLearnEnabled: (enabled) => ipcRenderer.send("auto-learn-changed", enabled),
-  onCorrectionsLearned: (callback) => {
-    const listener = (_event, words) => callback?.(words);
-    ipcRenderer.on("corrections-learned", listener);
-    return () => ipcRenderer.removeListener("corrections-learned", listener);
-  },
-  undoLearnedCorrections: (words) => ipcRenderer.invoke("undo-learned-corrections", words),
-
   // Note functions
   saveNote: (title, content, noteType, sourceFile, audioDuration, folderId) =>
     ipcRenderer.invoke(

@@ -750,7 +750,6 @@
       "revokeFailed": "Impossible de révoquer la clé API"
     }
   },
-  "dictionarySuffix": "Suffixe du dictionnaire",
   "emailVerification": {
     "checkEmailDescription": "Nous avons envoyé un lien de vérification à",
     "checkEmailTitle": "Vérifiez votre e-mail",
@@ -1267,28 +1266,6 @@
       },
       "resetAppData": "Réinitialiser les données de l'application",
       "resetAppDataDescription": "Supprimer définitivement tous les paramètres locaux, transcriptions, enregistrements audio, modèles téléchargés et données en cache"
-    },
-    "dictionary": {
-      "title": "Dictionnaire personnalisé",
-      "description": "Apprenez à l'IA votre vocabulaire — noms, jargon et termes qu'elle pourrait autrement manquer",
-      "addWordOrPhrase": "Ajouter un mot ou une expression",
-      "placeholder": "Ajouter un mot ou une expression...",
-      "add": "Ajouter",
-      "pressEnterToAdd": "Appuyez sur Entrée pour ajouter",
-      "autoLearnTitle": "Apprentissage automatique à partir des corrections",
-      "autoLearnDescription": "Lorsque vous corrigez une transcription dans l'application cible, le mot corrigé est automatiquement ajouté à votre dictionnaire.",
-      "yourWords": "Vos mots",
-      "clearDictionaryTitle": "Effacer le dictionnaire ?",
-      "clearDictionaryDescription": "Cela supprimera tous les mots de votre dictionnaire personnalisé. Cette action est irréversible.",
-      "clearAll": "Tout effacer",
-      "agentNameAutoManaged": "Géré automatiquement — synchronisé avec le nom de l'agent",
-      "removeWord": "Supprimer le mot",
-      "noWords": "Aucun mot pour l'instant",
-      "wordsAppearHere": "Les mots que vous ajoutez apparaîtront ici",
-      "howItWorksTitle": "Comment ça fonctionne",
-      "howItWorksDescription": "Les mots sont fournis comme indices de contexte au modèle vocal, l'aidant à reconnaître les termes peu courants. Pour les mots difficiles, essayez d'ajouter du contexte comme « The word is Synty » en plus du mot lui-même.",
-      "tipLabel": "Astuce",
-      "tipDescription": "Séparez plusieurs mots par des virgules. Ajoutez des phrases de contexte comme « The word is Synty » pour une meilleure reconnaissance."
     },
     "general": {
       "appearance": {
@@ -1852,7 +1829,6 @@
     "home": "Accueil",
     "notes": "Notes",
     "upload": "Importer",
-    "dictionary": "Dictionnaire",
     "referral": "Obtenir un mois gratuit",
     "settings": "Paramètres",
     "limitReached": "Limite hebdomadaire atteinte",
@@ -2225,20 +2201,6 @@
       }
     }
   },
-  "dictionary": {
-    "title": "Dictionnaire personnalisé",
-    "description": "Apprenez à l'IA votre vocabulaire — noms, jargon et termes qu'elle pourrait autrement manquer",
-    "clearTitle": "Vider le dictionnaire ?",
-    "clearDescription": "Cela supprimera tous les mots de votre dictionnaire personnalisé. Cette action est irréversible.",
-    "addWord": "Ajouter un mot",
-    "addPlaceholder": "Ajouter un mot ou une expression...",
-    "removeWord": "Supprimer {{word}}",
-    "clearAll": "Tout effacer",
-    "howItWorks": "Comment ça marche",
-    "howItWorksDetail": "Les mots sont transmis comme indices contextuels au modèle vocal, l'aidant à reconnaître les termes peu courants. Pour les mots difficiles, essayez d'ajouter du contexte comme « Le mot est Synty » en plus du mot lui-même.",
-    "autoManaged": "Géré automatiquement — synchronisé depuis le nom de l'agent",
-    "inputHint": "Séparez les mots par des virgules. Ajoutez des phrases de contexte comme « Le mot est Synty » pour une meilleure reconnaissance."
-  },
   "postMigration": {
     "title": "Bon retour sur GigaType",
     "description": "Vos notes et vos paramètres ont été conservés depuis la version précédente. macOS considère toutefois cette installation comme une nouvelle app, il faudra donc accorder à nouveau quelques permissions.",
@@ -2278,7 +2240,6 @@
         "title": "Raccourci indisponible",
         "description": "Le raccourci sélectionné n’a pas pu être enregistré. Veuillez en choisir un autre dans les paramètres."
       },
-      "addedToDict": "{{words}} ajouté à votre dictionnaire",
       "undo": "Annuler",
       "accessibilityMissing": {
         "title": "Autorisations d'accessibilité requises",

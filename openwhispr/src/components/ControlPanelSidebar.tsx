@@ -1,11 +1,9 @@
 import React from "react";
-import { Home, BookOpen, Settings } from "lucide-react";
+import { Home, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "./lib/utils";
 
-export type ControlPanelView =
-  | "home"
-  | "dictionary";
+export type ControlPanelView = "home";
 
 interface ControlPanelSidebarProps {
   activeView: ControlPanelView;
@@ -27,7 +25,6 @@ export default function ControlPanelSidebar({
     icon: React.ComponentType<{ size?: number; className?: string }>;
   }[] = [
     { id: "home", label: t("sidebar.home"), icon: Home },
-    { id: "dictionary", label: t("sidebar.dictionary"), icon: BookOpen },
   ];
 
   return (

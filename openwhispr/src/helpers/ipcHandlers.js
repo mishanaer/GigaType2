@@ -62,9 +62,6 @@ function parseAttendees(raw) {
 
 const MISTRAL_TRANSCRIPTION_URL = "https://api.mistral.ai/v1/audio/transcriptions";
 
-// Debounce delay: wait for user to stop typing before processing corrections
-const AUTO_LEARN_DEBOUNCE_MS = 1500;
-
 const AUDIO_MIME_TYPES = {
   mp3: "audio/mpeg",
   wav: "audio/wav",
@@ -295,10 +292,6 @@ class IPCHandlers {
     this._meetingMicStreaming = null;
     this._meetingSystemStreaming = null;
     this._hotkeyCaptureMode = false;
-    this._autoLearnEnabled = true; // Default on, synced from renderer
-    this._autoLearnDebounceTimer = null;
-    this._autoLearnLatestData = null;
-    this._textEditHandler = null;
     this._activeRecordingPipeline = null;
     this.audioStorageManager = new AudioStorageManager();
     this._audioCleanupInterval = null;
@@ -312,7 +305,6 @@ class IPCHandlers {
       ...DEFAULT_WHISPER_VAD_CONFIG,
     };
     liveSpeakerIdentifier.setDiarizationManager(this.diarizationManager);
-    this._setupTextEditMonitor();
     this._setupAudioCleanup();
     this._logDetectedGpus();
     this.setupHandlers();
@@ -476,14 +468,6 @@ class IPCHandlers {
     return folder?.name || "Personal";
   }
 
-  _getDictionarySafe() {
-    try {
-      return this.databaseManager.getDictionary();
-    } catch {
-      return [];
-    }
-  }
-
   _resolveByokModel(provider, configuredModel) {
     const trimmed = (configuredModel || "").trim();
     if (provider === "custom") return trimmed || "whisper-1";
@@ -498,18 +482,6 @@ class IPCHandlers {
     if (provider === "groq") return "whisper-large-v3-turbo";
     if (provider === "mistral") return "voxtral-mini-latest";
     return "gpt-4o-mini-transcribe";
-  }
-
-  _cleanupTextEditMonitor() {
-    if (this._autoLearnDebounceTimer) {
-      clearTimeout(this._autoLearnDebounceTimer);
-      this._autoLearnDebounceTimer = null;
-    }
-    this._autoLearnLatestData = null;
-    if (this.textEditMonitor && this._textEditHandler) {
-      this.textEditMonitor.removeListener("text-edited", this._textEditHandler);
-      this._textEditHandler = null;
-    }
   }
 
   async _logDetectedGpus() {
@@ -549,82 +521,6 @@ class IPCHandlers {
         );
       }
     }, SIX_HOURS_MS);
-  }
-
-  _setupTextEditMonitor() {
-    if (!this.textEditMonitor) return;
-
-    this._textEditHandler = (data) => {
-      if (
-        !data ||
-        typeof data.originalText !== "string" ||
-        typeof data.newFieldValue !== "string"
-      ) {
-        debugLogger.debug("[AutoLearn] Invalid event payload, skipping");
-        return;
-      }
-
-      const { originalText, newFieldValue } = data;
-
-      debugLogger.debug("[AutoLearn] text-edited event", {
-        originalPreview: originalText.substring(0, 80),
-        newValuePreview: newFieldValue.substring(0, 80),
-      });
-
-      this._autoLearnLatestData = { originalText, newFieldValue };
-
-      if (this._autoLearnDebounceTimer) {
-        clearTimeout(this._autoLearnDebounceTimer);
-      }
-
-      this._autoLearnDebounceTimer = setTimeout(() => {
-        this._processCorrections();
-      }, AUTO_LEARN_DEBOUNCE_MS);
-    };
-
-    this.textEditMonitor.on("text-edited", this._textEditHandler);
-  }
-
-  _processCorrections() {
-    this._autoLearnDebounceTimer = null;
-    if (!this._autoLearnLatestData) return;
-    if (!this._autoLearnEnabled) {
-      debugLogger.debug("[AutoLearn] Disabled, skipping correction processing");
-      this._autoLearnLatestData = null;
-      return;
-    }
-
-    const { originalText, newFieldValue } = this._autoLearnLatestData;
-    this._autoLearnLatestData = null;
-
-    try {
-      const { extractCorrections } = require("../utils/correctionLearner");
-      const currentDict = this._getDictionarySafe();
-      const corrections = extractCorrections(originalText, newFieldValue, currentDict);
-      debugLogger.debug("[AutoLearn] Corrections result", {
-        corrections,
-        dictSize: currentDict.length,
-      });
-
-      if (corrections.length > 0) {
-        const updatedDict = [...currentDict, ...corrections];
-        const saveResult = this.databaseManager.setDictionary(updatedDict);
-
-        if (saveResult?.success === false) {
-          debugLogger.debug("[AutoLearn] Failed to save dictionary", { error: saveResult.error });
-          return;
-        }
-
-        this.broadcastToWindows("dictionary-updated", updatedDict);
-
-        // Show the overlay so the toast is visible (it may have been hidden after dictation)
-        this.windowManager.showDictationPanel();
-        this.broadcastToWindows("corrections-learned", corrections);
-        debugLogger.debug("[AutoLearn] Saved corrections", { corrections });
-      }
-    } catch (error) {
-      debugLogger.debug("[AutoLearn] Error processing corrections", { error: error.message });
-    }
   }
 
   _syncStartupEnv(setVars, clearVars = []) {
@@ -829,58 +725,6 @@ class IPCHandlers {
 
     ipcMain.handle("get-transcription-by-id", async (event, id) => {
       return this.databaseManager.getTranscriptionById(id);
-    });
-
-    // Dictionary handlers
-    ipcMain.on("auto-learn-changed", (_event, enabled) => {
-      this._autoLearnEnabled = !!enabled;
-      if (!this._autoLearnEnabled) {
-        if (this._autoLearnDebounceTimer) {
-          clearTimeout(this._autoLearnDebounceTimer);
-          this._autoLearnDebounceTimer = null;
-        }
-        this._autoLearnLatestData = null;
-      }
-      debugLogger.debug("[AutoLearn] Setting changed", { enabled: this._autoLearnEnabled });
-    });
-
-    ipcMain.handle("db-get-dictionary", async () => {
-      return this.databaseManager.getDictionary();
-    });
-
-    ipcMain.handle("db-set-dictionary", async (event, words) => {
-      if (!Array.isArray(words)) {
-        throw new Error("words must be an array");
-      }
-      return this.databaseManager.setDictionary(words);
-    });
-
-    ipcMain.handle("undo-learned-corrections", async (_event, words) => {
-      try {
-        if (!Array.isArray(words) || words.length === 0) {
-          return { success: false };
-        }
-        const validWords = words.filter((w) => typeof w === "string" && w.trim().length > 0);
-        if (validWords.length === 0) {
-          return { success: false };
-        }
-        const currentDict = this._getDictionarySafe();
-        const removeSet = new Set(validWords.map((w) => w.toLowerCase()));
-        const updatedDict = currentDict.filter((w) => !removeSet.has(w.toLowerCase()));
-        const saveResult = this.databaseManager.setDictionary(updatedDict);
-        if (saveResult?.success === false) {
-          debugLogger.debug("[AutoLearn] Undo failed to save dictionary", {
-            error: saveResult.error,
-          });
-          return { success: false };
-        }
-        this.broadcastToWindows("dictionary-updated", updatedDict);
-        debugLogger.debug("[AutoLearn] Undo: removed words", { words: validWords });
-        return { success: true };
-      } catch (err) {
-        debugLogger.debug("[AutoLearn] Undo failed", { error: err.message });
-        return { success: false };
-      }
     });
 
     ipcMain.handle(
@@ -1434,7 +1278,6 @@ class IPCHandlers {
 
     ipcMain.handle("paste-text", async (event, text, options) => {
       const mainWindow = this.windowManager?.mainWindow;
-      const targetPid = this.textEditMonitor?.lastTargetPid || null;
 
       // Activating the target by PID is more reliable than hide()'s implicit
       // focus hand-off for Chromium apps like Claude desktop and Brave (#668).
@@ -1457,23 +1300,6 @@ class IPCHandlers {
         ...options,
         webContents: event.sender,
       });
-      debugLogger.debug("[AutoLearn] Paste completed", {
-        autoLearnEnabled: this._autoLearnEnabled,
-        hasMonitor: !!this.textEditMonitor,
-        targetPid,
-      });
-      if (this.textEditMonitor && this._autoLearnEnabled) {
-        setTimeout(() => {
-          try {
-            debugLogger.debug("[AutoLearn] Starting monitoring", {
-              textPreview: text.substring(0, 80),
-            });
-            this.textEditMonitor.startMonitoring(text, 30000, { targetPid });
-          } catch (err) {
-            debugLogger.debug("[AutoLearn] Failed to start monitoring", { error: err.message });
-          }
-        }, 500);
-      }
       return result;
     });
 
@@ -3100,6 +2926,64 @@ class IPCHandlers {
     ipcMain.handle("app-log", async (event, entry) => {
       debugLogger.logEntry(entry);
       return { success: true };
+    });
+
+    ipcMain.handle("get-debug-state", async () => {
+      debugLogger.ensureFileLogging();
+      return {
+        enabled: debugLogger.isEnabled(),
+        logPath: debugLogger.getLogPath(),
+        logLevel: debugLogger.getLevel(),
+      };
+    });
+
+    ipcMain.handle("set-debug-logging", async (event, enabled) => {
+      try {
+        const nextLevel = enabled ? "debug" : "info";
+        this._syncStartupEnv({ OPENWHISPR_LOG_LEVEL: nextLevel });
+        debugLogger.refreshLogLevel();
+        debugLogger.ensureFileLogging();
+
+        return {
+          success: true,
+          enabled: debugLogger.isEnabled(),
+          logPath: debugLogger.getLogPath(),
+          logLevel: debugLogger.getLevel(),
+        };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("open-logs-folder", async () => {
+      try {
+        const logsDir = path.join(app.getPath("userData"), "logs");
+        fs.mkdirSync(logsDir, { recursive: true });
+        const error = await shell.openPath(logsDir);
+        return error ? { success: false, error } : { success: true };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle("get-ydotool-status", async () => {
+      try {
+        return require("./ensureYdotool").getYdotoolStatus();
+      } catch (error) {
+        debugLogger.warn("Failed to get ydotool status", { error: error.message }, "clipboard");
+        return {
+          isLinux: process.platform === "linux",
+          isWayland: false,
+          hasYdotool: false,
+          hasYdotoold: false,
+          daemonRunning: false,
+          hasService: false,
+          hasUinput: false,
+          hasUdevRule: false,
+          hasGroup: false,
+          allGood: false,
+        };
+      }
     });
 
     const SYSTEM_SETTINGS_URLS = {

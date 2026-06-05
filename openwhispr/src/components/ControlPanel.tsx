@@ -30,7 +30,6 @@ import { syncService } from "../services/SyncService.js";
 const platform = getCachedPlatform();
 
 const SettingsModal = React.lazy(() => import("./SettingsModal"));
-const DictionaryView = React.lazy(() => import("./DictionaryView"));
 
 export default function ControlPanel() {
   const { t } = useTranslation();
@@ -536,11 +535,6 @@ export default function ControlPanel() {
                   setShowSettings(true);
                 }}
               />
-            )}
-            {activeView === "dictionary" && (
-              <Suspense fallback={null}>
-                <DictionaryView />
-              </Suspense>
             )}
           </div>
         </main>

@@ -702,7 +702,6 @@
       "title": "記録される内容"
     }
   },
-  "dictionarySuffix": "辞書サフィックス",
   "emailVerification": {
     "checkEmailDescription": "確認リンクを送信しました",
     "checkEmailTitle": "メールを確認してください",
@@ -1219,28 +1218,6 @@
       },
       "resetAppData": "アプリデータをリセット",
       "resetAppDataDescription": "すべてのローカル設定、文字起こし、音声録音、ダウンロード済みモデル、キャッシュデータを完全に削除"
-    },
-    "dictionary": {
-      "title": "カスタム辞書",
-      "description": "AIにあなたの語彙を教えましょう — 名前、専門用語、見逃しがちな用語など",
-      "addWordOrPhrase": "単語またはフレーズを追加",
-      "placeholder": "単語またはフレーズを追加...",
-      "add": "追加",
-      "pressEnterToAdd": "Enterキーで追加",
-      "autoLearnTitle": "修正から自動学習",
-      "autoLearnDescription": "対象アプリで文字起こしを修正すると、修正された単語が自動的に辞書に追加されます。",
-      "yourWords": "あなたの単語",
-      "clearDictionaryTitle": "辞書をクリアしますか？",
-      "clearDictionaryDescription": "カスタム辞書からすべての単語が削除されます。この操作は元に戻せません。",
-      "clearAll": "すべてクリア",
-      "agentNameAutoManaged": "自動管理 — エージェント名と同期",
-      "removeWord": "単語を削除",
-      "noWords": "まだ単語がありません",
-      "wordsAppearHere": "追加した単語がここに表示されます",
-      "howItWorksTitle": "仕組み",
-      "howItWorksDescription": "単語は音声モデルへのコンテキストヒントとして提供され、一般的でない用語の認識を助けます。難しい単語には、単語自体に加えて \"The word is Synty\" のようなコンテキストを追加してみてください。",
-      "tipLabel": "ヒント",
-      "tipDescription": "複数の単語はカンマで区切ってください。より良い認識のために \"The word is Synty\" のようなコンテキストフレーズを追加してください。"
     },
     "general": {
       "appearance": {
@@ -2043,20 +2020,6 @@
       "cancel": "キャンセル"
     }
   },
-  "dictionary": {
-    "addWord": "単語を追加",
-    "removeWord": "{{word}} を削除",
-    "clearAll": "すべてクリア",
-    "howItWorks": "仕組み",
-    "howItWorksDetail": "追加した単語は AI プロンプトに含まれ、文字起こし時にこれらの用語を正確に認識・保持します。",
-    "autoManaged": "自動管理",
-    "inputHint": "Enter で追加",
-    "title": "カスタム辞書",
-    "description": "AIに語彙を学習させましょう — 名前、専門用語、見落とされがちな表現など",
-    "clearTitle": "辞書をクリアしますか？",
-    "clearDescription": "カスタム辞書のすべての単語が削除されます。この操作は元に戻せません。",
-    "addPlaceholder": "単語やフレーズを追加..."
-  },
   "referral": {
     "title": "紹介して特典をゲット",
     "subtitle": "1か月あげて、1か月もらおう。",
@@ -2133,7 +2096,6 @@
     "home": "ホーム",
     "notes": "ノート",
     "upload": "アップロード",
-    "dictionary": "辞書",
     "referral": "1か月無料を取得",
     "settings": "設定",
     "limitReached": "週間の利用上限に達しました",
@@ -2230,7 +2192,6 @@
         "title": "ホットキーが使用できません",
         "description": "選択したホットキーを登録できませんでした。設定から別のホットキーを選択してください。"
       },
-      "addedToDict": "{{words}} を辞書に追加しました",
       "undo": "元に戻す",
       "accessibilityMissing": {
         "title": "アクセシビリティの許可が必要です",
