@@ -484,6 +484,11 @@ class IPCHandlers {
     return "gpt-4o-mini-transcribe";
   }
 
+  _cleanupTextEditMonitor() {
+    // Kept for main-process teardown compatibility. Text edit monitoring no longer
+    // registers IPC-owned listeners after removing auto-learn.
+  }
+
   async _logDetectedGpus() {
     const { listNvidiaGpus } = require("../utils/gpuDetection");
     const gpus = await listNvidiaGpus();
