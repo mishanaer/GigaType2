@@ -142,10 +142,6 @@ function useSettingsInternal() {
     localTranscriptionProvider,
     whisperModel,
     parakeetModel,
-    cleanupProvider,
-    cleanupModel,
-    dictationAgentProvider,
-    dictationAgentModel,
   } = store;
 
   useEffect(() => {
@@ -157,10 +153,6 @@ function useSettingsInternal() {
         useLocalWhisper,
         localTranscriptionProvider,
         model: model || undefined,
-        cleanupProvider,
-        cleanupModel: cleanupProvider === "local" ? cleanupModel : undefined,
-        dictationAgentProvider,
-        dictationAgentModel: dictationAgentProvider === "local" ? dictationAgentModel : undefined,
       })
       .catch((err) =>
         logger.warn(
@@ -174,10 +166,6 @@ function useSettingsInternal() {
     localTranscriptionProvider,
     whisperModel,
     parakeetModel,
-    cleanupProvider,
-    cleanupModel,
-    dictationAgentProvider,
-    dictationAgentModel,
   ]);
 
   return {
@@ -206,8 +194,6 @@ function useSettingsInternal() {
     setAssemblyAiStreaming: store.setAssemblyAiStreaming,
     autoGenerateNoteTitle: store.autoGenerateNoteTitle,
     setAutoGenerateNoteTitle: store.setAutoGenerateNoteTitle,
-    useCleanupModel: store.useCleanupModel,
-    useDictationAgent: store.useDictationAgent,
     cleanupModel: store.cleanupModel,
     cleanupProvider: store.cleanupProvider,
     openaiApiKey: store.openaiApiKey,

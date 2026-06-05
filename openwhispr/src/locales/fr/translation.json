@@ -199,7 +199,7 @@
       "systemAudioDescription": "Transcrivez réunions, appels, conférences, podcasts et autres audios système.",
       "optional": "Facultatif",
       "recommended": "Recommandé",
-      "accessibilityTroubleshooting": "Dans Réglages Système → Accessibilité, désactivez le bouton d'GigaType puis réactivez-le. Si ça ne marche pas, supprimez GigaType de la liste et rajoutez-le. Toujours bloqué ? Écrivez à support@openwhispr.com."
+      "accessibilityTroubleshooting": "Dans Réglages Système → Accessibilité, désactivez le bouton d'GigaType puis réactivez-le. Si ça ne marche pas, supprimez GigaType de la liste et rajoutez-le."
     },
     "transcription": {
       "title": "Configuration de la transcription",
@@ -318,11 +318,6 @@
       "title": "Bienvenue sur GigaType Cloud",
       "description": "Nous avons basculé la transcription vers GigaType Cloud pour des résultats plus rapides et plus précis. Vos anciens réglages sont conservés : vous pouvez revenir en arrière à tout moment dans Paramètres.",
       "viewSettings": "Voir les paramètres"
-    },
-    "aiCta": {
-      "title": "Améliorez vos transcriptions avec l'IA",
-      "description": "Corrige automatiquement grammaire, ponctuation et mise en forme pendant que vous parlez.",
-      "enable": "Activer l'amélioration IA"
     },
     "loading": "Chargement...",
     "gpu": {
@@ -984,10 +979,6 @@
         "description": "Moteurs pour dictée et enregistrement de notes",
         "label": "Reconnaissance vocale"
       },
-      "llms": {
-        "description": "Modèles pour chat, nettoyage & résumés",
-        "label": "Modèles de langage"
-      },
       "privacyData": {
         "description": "Confidentialité, permissions & analytique",
         "label": "Confidentialité & données"
@@ -1206,8 +1197,6 @@
       "customSetup": "Configuration personnalisée",
       "customSetupDescription": "Utilisez votre propre fournisseur et clé API.",
       "description": "Corrige les transcriptions, gère les commandes et corrige les erreurs tout en préservant votre ton.",
-      "enableTextCleanup": "Activer la correction de texte",
-      "enableTextCleanupDescription": "L'IA supprime les mots de remplissage, corrige la grammaire et la ponctuation",
       "modes": {
         "openwhispr": "GigaType Cloud",
         "providers": "Fournisseurs cloud",
@@ -1567,16 +1556,6 @@
       },
       "selfHostedStreamingNote": "Nécessite un serveur qui prend en charge la transcription en streaming."
     },
-    "llms": {
-      "title": "Modèles de langage",
-      "description": "Configurez les modèles pour le nettoyage, la mise en forme des notes et le chat",
-      "tabs": {
-        "dictationCleanup": "Nettoyage de la dictée",
-        "dictationAgent": "Voice Agent",
-        "noteFormatting": "Mise en forme des notes",
-        "chatIntelligence": "Chat"
-      }
-    },
     "noteFormatting": {
       "autoGenerateTitle": "Générer automatiquement les titres des notes",
       "autoGenerateTitleDescription": "Utiliser l'IA pour générer un titre court pour les notes après la transcription ou l'amélioration"
@@ -1876,7 +1855,6 @@
     "dictionary": "Dictionnaire",
     "referral": "Obtenir un mois gratuit",
     "settings": "Paramètres",
-    "support": "Assistance",
     "limitReached": "Limite hebdomadaire atteinte",
     "limitReachedDescription": "Passez à Pro pour des transcriptions illimitées.",
     "viewPlans": "Voir les forfaits",
@@ -2260,12 +2238,6 @@
     "howItWorksDetail": "Les mots sont transmis comme indices contextuels au modèle vocal, l'aidant à reconnaître les termes peu courants. Pour les mots difficiles, essayez d'ajouter du contexte comme « Le mot est Synty » en plus du mot lui-même.",
     "autoManaged": "Géré automatiquement — synchronisé depuis le nom de l'agent",
     "inputHint": "Séparez les mots par des virgules. Ajoutez des phrases de contexte comme « Le mot est Synty » pour une meilleure reconnaissance."
-  },
-  "support": {
-    "documentation": "Documentation",
-    "joinDiscord": "Rejoindre Discord",
-    "contactSupport": "Contacter le support",
-    "submitBug": "Signaler un bug"
   },
   "postMigration": {
     "title": "Bon retour sur GigaType",

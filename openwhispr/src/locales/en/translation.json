@@ -199,7 +199,7 @@
       "systemAudioDescription": "Transcribe meetings, calls, lectures, podcasts, and other system audio.",
       "optional": "Optional",
       "recommended": "Recommended",
-      "accessibilityTroubleshooting": "In System Settings → Accessibility, switch GigaType's toggle off and back on. If that doesn't work, remove GigaType from the list and add it back. Still stuck? Email support@openwhispr.com."
+      "accessibilityTroubleshooting": "In System Settings → Accessibility, switch GigaType's toggle off and back on. If that doesn't work, remove GigaType from the list and add it back."
     },
     "transcription": {
       "title": "Transcription Setup",
@@ -318,11 +318,6 @@
       "title": "Welcome to GigaType Cloud",
       "description": "We've switched your transcription to GigaType Cloud for faster, more accurate results. Your previous settings are saved — switch back anytime in Settings.",
       "viewSettings": "View Settings"
-    },
-    "aiCta": {
-      "title": "Enhance your transcriptions with AI",
-      "description": "Automatically fix grammar, punctuation, and formatting as you speak.",
-      "enable": "Enable AI Enhancement"
     },
     "loading": "Loading...",
     "gpu": {
@@ -1036,10 +1031,6 @@
         "description": "Engines for dictation & note recording",
         "label": "Speech-to-Text"
       },
-      "llms": {
-        "description": "Models for chat, cleanup & summaries",
-        "label": "Language Models"
-      },
       "privacyData": {
         "description": "Privacy, permissions & analytics",
         "label": "Privacy & Data"
@@ -1339,8 +1330,6 @@
       "customSetup": "Custom Setup",
       "customSetupDescription": "Use your own provider and API key.",
       "description": "Clean up transcriptions, handle commands, and fix errors while preserving your tone.",
-      "enableTextCleanup": "Enable text cleanup",
-      "enableTextCleanupDescription": "Use AI to remove filler words, fix grammar, and polish punctuation",
       "modes": {
         "openwhispr": "GigaType Cloud",
         "providers": "Cloud Providers",
@@ -1700,16 +1689,6 @@
       },
       "selfHostedStreamingNote": "Requires a server that supports streaming transcription."
     },
-    "llms": {
-      "title": "Language Models",
-      "description": "Configure models for cleanup, note formatting, and chat",
-      "tabs": {
-        "dictationCleanup": "Dictation Cleanup",
-        "dictationAgent": "Voice Agent",
-        "noteFormatting": "Note Formatting",
-        "chatIntelligence": "Chat"
-      }
-    },
     "noteFormatting": {
       "autoGenerateTitle": "Auto-generate note titles",
       "autoGenerateTitleDescription": "Use AI to generate a short title for notes after transcription or enhancement"
@@ -1924,7 +1903,6 @@
     "dictionary": "Dictionary",
     "referral": "Get a free month",
     "settings": "Settings",
-    "support": "Support",
     "limitReached": "Weekly limit reached",
     "limitReachedDescription": "Upgrade to Pro for unlimited transcriptions.",
     "viewPlans": "View Plans",
@@ -2356,12 +2334,6 @@
     "howItWorksDetail": "Words are fed as context hints to the speech model, helping it recognize uncommon terms. For difficult words, try adding context like \"The word is Synty\" alongside the word itself.",
     "autoManaged": "Auto-managed — synced from agent name",
     "inputHint": "Separate multiple words with commas. Add context phrases like \"The word is Synty\" for better recognition."
-  },
-  "support": {
-    "documentation": "Documentation",
-    "joinDiscord": "Join Discord",
-    "contactSupport": "Contact Support",
-    "submitBug": "Submit Bug"
   },
   "postMigration": {
     "title": "Welcome back to GigaType",

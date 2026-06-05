@@ -199,7 +199,7 @@
       "systemAudioDescription": "Transkribiert Meetings, Anrufe, Vorträge, Podcasts und andere Systemaudios.",
       "optional": "Optional",
       "recommended": "Empfohlen",
-      "accessibilityTroubleshooting": "Schalte in Systemeinstellungen → Bedienungshilfen den Schalter für GigaType aus und wieder ein. Wenn das nicht hilft, entferne GigaType aus der Liste und füge es erneut hinzu. Klappt's immer noch nicht? Schreib an support@openwhispr.com."
+      "accessibilityTroubleshooting": "Schalte in Systemeinstellungen → Bedienungshilfen den Schalter für GigaType aus und wieder ein. Wenn das nicht hilft, entferne GigaType aus der Liste und füge es erneut hinzu."
     },
     "transcription": {
       "title": "Transkriptions-Einrichtung",
@@ -318,11 +318,6 @@
       "title": "Willkommen bei GigaType Cloud",
       "description": "Wir haben die Transkription auf GigaType Cloud umgestellt für schnellere und genauere Ergebnisse. Ihre bisherigen Einstellungen sind gespeichert – wechseln Sie jederzeit in den Einstellungen zurück.",
       "viewSettings": "Einstellungen anzeigen"
-    },
-    "aiCta": {
-      "title": "Verbessern Sie Ihre Transkriptionen mit KI",
-      "description": "Korrigiert automatisch Grammatik, Zeichensetzung und Formatierung, während Sie sprechen.",
-      "enable": "KI-Verbesserung aktivieren"
     },
     "loading": "Laden...",
     "gpu": {
@@ -936,10 +931,6 @@
         "description": "Engines für Diktat & Notizaufnahme",
         "label": "Spracherkennung"
       },
-      "llms": {
-        "description": "Modelle für Chat, Bereinigung & Zusammenfassungen",
-        "label": "Sprachmodelle"
-      },
       "privacyData": {
         "description": "Datenschutz, Berechtigungen & Analyse",
         "label": "Datenschutz & Daten"
@@ -1158,8 +1149,6 @@
       "customSetup": "Benutzerdefinierte Einrichtung",
       "customSetupDescription": "Verwenden Sie Ihren eigenen Anbieter und API-Schlüssel.",
       "description": "Bereinigt Transkriptionen, verarbeitet Befehle und korrigiert Fehler unter Beibehaltung Ihres Stils.",
-      "enableTextCleanup": "Textbereinigung aktivieren",
-      "enableTextCleanupDescription": "KI entfernt Füllwörter, korrigiert Grammatik und Zeichensetzung",
       "modes": {
         "openwhispr": "GigaType Cloud",
         "providers": "Cloud-Anbieter",
@@ -1518,16 +1507,6 @@
         "noteRecording": "Notizaufnahme"
       },
       "selfHostedStreamingNote": "Erfordert einen Server, der Streaming-Transkription unterstützt."
-    },
-    "llms": {
-      "title": "Sprachmodelle",
-      "description": "Konfigurieren Sie Modelle für Bereinigung, Notizformatierung und Chat",
-      "tabs": {
-        "dictationCleanup": "Diktat-Bereinigung",
-        "dictationAgent": "Voice Agent",
-        "noteFormatting": "Notizformatierung",
-        "chatIntelligence": "Chat"
-      }
     },
     "noteFormatting": {
       "autoGenerateTitle": "Notiztitel automatisch generieren",
@@ -2157,7 +2136,6 @@
     "dictionary": "Wörterbuch",
     "referral": "Gratis-Monat erhalten",
     "settings": "Einstellungen",
-    "support": "Support",
     "limitReached": "Wochenlimit erreicht",
     "limitReachedDescription": "Upgraden Sie auf Pro für unbegrenzte Transkriptionen.",
     "viewPlans": "Tarife ansehen",
@@ -2212,12 +2190,6 @@
     "upgradeToPro": "Auf Pro upgraden",
     "useYourOwnKey": "Eigenen API-Schlüssel verwenden",
     "upgradeUnlimited": "Auf Pro upgraden – unbegrenzte Transkriptionen"
-  },
-  "support": {
-    "documentation": "Dokumentation",
-    "joinDiscord": "Discord beitreten",
-    "contactSupport": "Support kontaktieren",
-    "submitBug": "Fehler melden"
   },
   "postMigration": {
     "title": "Willkommen zurück bei GigaType",

@@ -84,8 +84,7 @@
     "desktop-app"
   ],
   "author": {
-    "name": "GigaType Team",
-    "email": "support@openwhispr.com"
+    "name": "GigaType Team"
   },
   "license": "MIT",
   "devDependencies": {

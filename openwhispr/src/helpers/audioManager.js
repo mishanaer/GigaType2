@@ -1,4 +1,3 @@
-import ReasoningService from "../services/ReasoningService";
 import { API_ENDPOINTS, buildApiUrl, normalizeBaseUrl } from "../config/constants";
 import logger from "../utils/logger";
 import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
@@ -9,57 +8,11 @@ import {
   getLocalSpeechGateDecision,
   recordLocalSpeechWindow,
 } from "./localSpeechGate";
-import { getSettings, getEffectiveCleanupModel, isCloudCleanupMode } from "../stores/settingsStore";
+import { getSettings } from "../stores/settingsStore";
 import { shouldSkipTranscriptionApiKey } from "./transcriptionAuth";
-import { detectAgentName } from "../config/agentDetection";
-import { resolvePrompt } from "../config/prompts";
 import { syncService } from "../services/SyncService.js";
 
-const REASONING_CACHE_TTL = 30000; // 30 seconds
 const REALTIME_MODELS = new Set(["gpt-4o-mini-transcribe", "gpt-4o-transcribe"]);
-
-function resolveReasoningRoute(text, settings, agentName) {
-  const cleanupReachable =
-    !!settings.useCleanupModel && (!!settings.cleanupModel?.trim() || isCloudCleanupMode());
-  const agentModel = settings.dictationAgentModel?.trim() || "";
-  const agentReachable = !!settings.useDictationAgent && agentModel.length > 0;
-  if (!cleanupReachable && !agentReachable) return { kind: "skip" };
-
-  const invoked = !!agentName && detectAgentName(text, agentName);
-  if (agentReachable && invoked) {
-    const provider = settings.dictationAgentProvider?.trim() || undefined;
-    const isSelfHostedAgent =
-      settings.dictationAgentMode === "self-hosted" && !!settings.dictationAgentRemoteUrl;
-    const isCustomAgent = settings.dictationAgentMode === "providers" && provider === "custom";
-    return {
-      kind: "agent",
-      model: agentModel,
-      config: {
-        provider,
-        lanUrl: isSelfHostedAgent ? settings.dictationAgentRemoteUrl : undefined,
-        baseUrl: isCustomAgent ? settings.dictationAgentCloudBaseUrl || undefined : undefined,
-        customApiKey:
-          isCustomAgent || isSelfHostedAgent
-            ? settings.dictationAgentCustomApiKey || undefined
-            : undefined,
-        disableThinking: settings.dictationAgentDisableThinking,
-        systemPrompt: resolvePrompt("dictationAgent", {
-          agentName,
-          language: settings.preferredLanguage,
-          customDictionary: settings.customDictionary,
-          uiLanguage: settings.uiLanguage,
-        }),
-      },
-    };
-  }
-  if (cleanupReachable) {
-    return {
-      kind: "cleanup",
-      config: { disableThinking: settings.cleanupDisableThinking },
-    };
-  }
-  return { kind: "skip" };
-}
 
 const PLACEHOLDER_KEYS = {
   openai: "your_openai_api_key_here",
@@ -132,8 +85,6 @@ class AudioManager {
     this.cachedEndpointProvider = null;
     this.cachedEndpointBaseUrl = null;
     this.recordingStartTime = null;
-    this.reasoningAvailabilityCache = { value: false, expiresAt: 0 };
-    this.cachedReasoningPreference = null;
     this.isStreaming = false;
     this.streamingAudioContext = null;
     this.streamingSource = null;
@@ -152,7 +103,6 @@ class AudioManager {
     this.stopRequestedDuringStreamingStart = false;
     this.streamingFallbackRecorder = null;
     this.streamingFallbackChunks = [];
-    this.skipReasoning = false;
     this.context = "dictation";
     this.sttConfig = null;
     this.lastAudioBlob = null;
@@ -221,10 +171,6 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     this.onTranscriptionComplete = onTranscriptionComplete;
     this.onPartialTranscript = onPartialTranscript;
     this.onStreamingCommit = onStreamingCommit;
-  }
-
-  setSkipReasoning(skip) {
-    this.skipReasoning = skip;
   }
 
   setContext(context) {
@@ -603,7 +549,6 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         audioDurationMs: metadata.durationSeconds
           ? Math.round(metadata.durationSeconds * 1000)
           : null,
-        reasoningProcessingDurationMs: result?.timings?.reasoningProcessingDurationMs ?? null,
         roundTripDurationMs,
         audioSizeBytes: audioBlob.size,
         audioFormat: audioBlob.type,
@@ -695,9 +640,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       if (result.success && result.text) {
         const rawText = result.text;
-        const reasoningStart = performance.now();
         const text = await this.processTranscription(result.text, "local");
-        timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
         if (text !== null && text !== undefined) {
           return { success: true, text: text || result.text, rawText, source: "local", timings };
@@ -764,9 +707,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       if (result.success && result.text) {
         const rawText = result.text;
-        const reasoningStart = performance.now();
         const text = await this.processTranscription(result.text, "local-parakeet");
-        timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
         if (text !== null && text !== undefined) {
           return {
@@ -900,211 +841,21 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     return apiKey;
   }
 
-  async processWithReasoningModel(text, model, agentName, config) {
-    logger.logReasoning("CALLING_REASONING_SERVICE", {
-      model,
-      agentName,
-      textLength: text.length,
-      hasOverrides: !!config,
-    });
-
-    const startTime = Date.now();
-
-    try {
-      const result = await ReasoningService.processText(text, model, agentName, config);
-
-      const processingTime = Date.now() - startTime;
-
-      logger.logReasoning("REASONING_SERVICE_COMPLETE", {
-        model,
-        processingTimeMs: processingTime,
-        resultLength: result.length,
-        success: true,
-      });
-
-      return result;
-    } catch (error) {
-      const processingTime = Date.now() - startTime;
-
-      logger.logReasoning("REASONING_SERVICE_ERROR", {
-        model,
-        processingTimeMs: processingTime,
-        error: error.message,
-        stack: error.stack,
-      });
-
-      throw error;
-    }
-  }
-
-  async isReasoningAvailable() {
-    if (typeof window === "undefined") {
-      return false;
-    }
-
-    const s = getSettings();
-    const useReasoning =
-      !!s.useCleanupModel || (!!s.useDictationAgent && !!s.dictationAgentModel?.trim());
-    const now = Date.now();
-    const cacheValid =
-      this.reasoningAvailabilityCache &&
-      now < this.reasoningAvailabilityCache.expiresAt &&
-      this.cachedReasoningPreference === useReasoning;
-
-    if (cacheValid) {
-      return this.reasoningAvailabilityCache.value;
-    }
-
-    logger.logReasoning("REASONING_STORAGE_CHECK", {
-      useReasoning,
-    });
-
-    if (!useReasoning) {
-      this.reasoningAvailabilityCache = {
-        value: false,
-        expiresAt: now + REASONING_CACHE_TTL,
-      };
-      this.cachedReasoningPreference = useReasoning;
-      return false;
-    }
-
-    if (s.useCleanupModel && isCloudCleanupMode()) {
-      this.reasoningAvailabilityCache = {
-        value: true,
-        expiresAt: now + REASONING_CACHE_TTL,
-      };
-      this.cachedReasoningPreference = useReasoning;
-      return true;
-    }
-
-    try {
-      const isAvailable = await ReasoningService.isAvailable();
-
-      logger.logReasoning("REASONING_AVAILABILITY", {
-        isAvailable,
-        reasoningEnabled: useReasoning,
-        finalDecision: useReasoning && isAvailable,
-      });
-
-      this.reasoningAvailabilityCache = {
-        value: isAvailable,
-        expiresAt: now + REASONING_CACHE_TTL,
-      };
-      this.cachedReasoningPreference = useReasoning;
-
-      return isAvailable;
-    } catch (error) {
-      logger.logReasoning("REASONING_AVAILABILITY_ERROR", {
-        error: error.message,
-        stack: error.stack,
-      });
-
-      this.reasoningAvailabilityCache = {
-        value: false,
-        expiresAt: now + REASONING_CACHE_TTL,
-      };
-      this.cachedReasoningPreference = useReasoning;
-      return false;
-    }
-  }
-
   async processTranscription(text, source) {
     const normalizedText = typeof text === "string" ? text.trim() : "";
 
     if (!normalizedText) {
-      logger.logReasoning("TRANSCRIPTION_EMPTY_SKIPPING_REASONING", {
+      logger.debug("Transcription text empty after normalization", {
         source,
-        reason: "Empty text after normalization",
-      });
+      }, "transcription");
       return normalizedText;
     }
 
-    if (this.skipReasoning) {
-      logger.logReasoning("REASONING_SKIPPED_AGENT_MODE", {
-        source,
-        reason: "skipReasoning is set (agent mode) — returning raw transcription",
-      });
-      return normalizedText;
-    }
-
-    logger.logReasoning("TRANSCRIPTION_RECEIVED", {
+    logger.debug("Transcription text normalized", {
       source,
       textLength: normalizedText.length,
       textPreview: normalizedText.substring(0, 100) + (normalizedText.length > 100 ? "..." : ""),
-      timestamp: new Date().toISOString(),
-    });
-
-    const cleanupModel = getEffectiveCleanupModel();
-    const isCloud = isCloudCleanupMode();
-    const settings = getSettings();
-    const cleanupProvider = settings.cleanupProvider || "auto";
-    const hasAgentModel = !!settings.dictationAgentModel?.trim();
-    const cleanupReachable = !!settings.useCleanupModel && (!!cleanupModel || isCloud);
-    const agentReachable = !!settings.useDictationAgent && hasAgentModel;
-    const agentName =
-      typeof window !== "undefined" && window.localStorage
-        ? localStorage.getItem("agentName") || null
-        : null;
-    if (!cleanupReachable && !agentReachable) {
-      logger.logReasoning("REASONING_SKIPPED", {
-        reason: "No cleanup or dictation-agent model available",
-      });
-      return normalizedText;
-    }
-
-    const useReasoning = await this.isReasoningAvailable();
-
-    logger.logReasoning("REASONING_CHECK", {
-      useReasoning,
-      cleanupModel,
-      cleanupProvider,
-      agentName,
-    });
-
-    if (useReasoning) {
-      try {
-        const route = resolveReasoningRoute(normalizedText, getSettings(), agentName);
-        if (route.kind === "skip") return normalizedText;
-
-        const targetModel = route.kind === "agent" ? route.model : cleanupModel;
-        const reasoningConfig = route.config;
-
-        logger.logReasoning("SENDING_TO_REASONING", {
-          preparedTextLength: normalizedText.length,
-          model: targetModel,
-          provider: route.config?.provider || cleanupProvider,
-          path: route.kind,
-          disableThinking: reasoningConfig?.disableThinking,
-        });
-
-        const result = await this.processWithReasoningModel(
-          normalizedText,
-          targetModel,
-          agentName,
-          reasoningConfig
-        );
-
-        logger.logReasoning("REASONING_SUCCESS", {
-          resultLength: result.length,
-          resultPreview: result.substring(0, 100) + (result.length > 100 ? "..." : ""),
-          processingTime: new Date().toISOString(),
-        });
-
-        return result;
-      } catch (error) {
-        logger.logReasoning("REASONING_FAILED", {
-          error: error.message,
-          stack: error.stack,
-          fallbackToCleanup: true,
-        });
-        logger.warn("Reasoning failed", { source, error: error.message }, "notes");
-      }
-    }
-
-    logger.logReasoning("USING_STANDARD_CLEANUP", {
-      reason: useReasoning ? "Reasoning failed" : "Reasoning not enabled",
-    });
-
+    }, "transcription");
     return normalizedText;
   }
 
@@ -1397,12 +1148,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         if (proxyText && proxyText.trim().length > 0) {
           timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
           const rawText = proxyText;
-          const reasoningStart = performance.now();
           const text = await this.processTranscription(proxyText, "mistral");
-          timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
-          const source = (await this.isReasoningAvailable()) ? "mistral-reasoned" : "mistral";
-          return { success: true, text, rawText, source, timings };
+          return { success: true, text, rawText, source: "mistral", timings };
         }
 
         throw new Error("No text transcribed - Mistral response was empty");
@@ -1538,11 +1286,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
         const rawText = result.text;
 
-        const reasoningStart = performance.now();
         const text = await this.processTranscription(result.text, "openai");
-        timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
 
-        const source = (await this.isReasoningAvailable()) ? "openai-reasoned" : "openai";
+        const source = "openai";
         logger.debug(
           "Transcription successful",
           {
@@ -1550,7 +1296,6 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             processedLength: text.length,
             source,
             transcriptionProcessingDurationMs: timings.transcriptionProcessingDurationMs,
-            reasoningProcessingDurationMs: timings.reasoningProcessingDurationMs,
           },
           "transcription"
         );
@@ -2357,51 +2102,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       "streaming"
     );
 
-    const stSettings = getSettings();
     const streamingSttModel = stopResult?.model || "nova-3";
-    if (finalText && !this.skipReasoning) {
-      const reasoningStart = performance.now();
-      const agentName = localStorage.getItem("agentName") || null;
-      const route = resolveReasoningRoute(finalText, stSettings, agentName);
-      try {
-        if (route.kind === "agent") {
-          const reasoned = await this.processWithReasoningModel(
-            finalText,
-            route.model,
-            agentName,
-            route.config
-          );
-          if (reasoned) finalText = reasoned;
-          logger.info(
-            "Streaming dictation-agent complete",
-            { reasoningDurationMs: Math.round(performance.now() - reasoningStart) },
-            "streaming"
-          );
-        } else if (route.kind === "cleanup") {
-          const effectiveModel = getEffectiveCleanupModel();
-          if (effectiveModel) {
-            const reasoned = await this.processWithReasoningModel(
-              finalText,
-              effectiveModel,
-              agentName,
-              route.config
-            );
-            if (reasoned) finalText = reasoned;
-            logger.info(
-              "Streaming BYOK reasoning complete",
-              { reasoningDurationMs: Math.round(performance.now() - reasoningStart) },
-              "streaming"
-            );
-          }
-        }
-      } catch (reasonError) {
-        logger.error(
-          "Streaming reasoning failed, using raw text",
-          { error: reasonError.message },
-          "streaming"
-        );
-      }
-    }
 
     // If streaming produced no text, fall back to BYOK batch transcription.
     if (!finalText && durationSeconds > 2 && fallbackBlob?.size > 0) {
@@ -2443,7 +2144,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         "Streaming total processing",
         {
           totalProcessingMs: Math.round(tBeforePaste - t0),
-          hasReasoning: stSettings.useCleanupModel || stSettings.useDictationAgent,
+          hasReasoning: false,
         },
         "streaming"
       );
@@ -2465,8 +2166,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   shouldShowPreviewCleanupState() {
-    const settings = getSettings();
-    return (!!settings.useCleanupModel || !!settings.useDictationAgent) && !this.skipReasoning;
+    return false;
   }
 
   cleanupPreview(options = {}) {

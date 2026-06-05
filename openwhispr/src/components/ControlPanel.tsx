@@ -1,7 +1,7 @@
 import React, { Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "./ui/button";
-import { Download, RefreshCw, Loader2, Zap, ChevronLeft } from "lucide-react";
+import { Download, RefreshCw, Loader2, Zap } from "lucide-react";
 import PostMigrationOnboarding from "./PostMigrationOnboarding";
 import { ConfirmDialog, AlertDialog } from "./ui/dialog";
 import { useDialogs } from "../hooks/useDialogs";
@@ -17,39 +17,20 @@ import {
   clearTranscriptions as clearStore,
 } from "../stores/transcriptionStore";
 import { useSettingsStore } from "../stores/settingsStore";
-import {
-  useIsMeetingMode,
-  useIsNarrowWindow,
-  useMeetingRecordingStore,
-} from "../stores/meetingRecordingStore";
 import ControlPanelSidebar, { type ControlPanelView } from "./ControlPanelSidebar";
-import MeetingRecordingMount from "./MeetingRecordingMount";
-import MeetingRecordingPill from "./notes/MeetingRecordingPill";
 import WindowControls from "./WindowControls";
 import GigaamAsrStatusPanel from "./GigaamAsrStatusPanel";
 
 import { getCachedPlatform } from "../utils/platform";
 import { isAccessibilitySkipped } from "../utils/permissions";
-import {
-  setActiveNoteId,
-  setActiveFolderId,
-  useActiveNoteId,
-  initializeNotes,
-} from "../stores/noteStore";
 import { fetchProviders as fetchStreamingProviders } from "../stores/streamingProvidersStore";
 import HistoryView from "./HistoryView";
-import BackgroundActionToastListener from "./notes/BackgroundActionToastListener";
 import { syncService } from "../services/SyncService.js";
 
 const platform = getCachedPlatform();
 
 const SettingsModal = React.lazy(() => import("./SettingsModal"));
-const PersonalNotesView = React.lazy(() => import("./notes/PersonalNotesView"));
 const DictionaryView = React.lazy(() => import("./DictionaryView"));
-const UploadAudioView = React.lazy(() => import("./notes/UploadAudioView"));
-const IntegrationsView = React.lazy(() => import("./IntegrationsView"));
-const ChatView = React.lazy(() => import("./chat/ChatView"));
-const CommandSearch = React.lazy(() => import("./CommandSearch"));
 
 export default function ControlPanel() {
   const { t } = useTranslation();
@@ -58,26 +39,9 @@ export default function ControlPanel() {
   const [showSettings, setShowSettings] = useState(false);
   const [showPostMigration, setShowPostMigration] = useState(false);
   const [settingsSection, setSettingsSection] = useState<string | undefined>();
-  const [aiCTADismissed, setAiCTADismissed] = useState(
-    () => localStorage.getItem("aiCTADismissed") === "true"
-  );
-  const [showSearch, setShowSearch] = useState(false);
   const [activeView, setActiveView] = useState<ControlPanelView>("home");
-  const isMeetingMode = useIsMeetingMode();
-  const isNarrowWindow = useIsNarrowWindow();
-  const activeNoteId = useActiveNoteId();
-  const isSidePanelLayout =
-    isMeetingMode || (isNarrowWindow && activeView === "personal-notes" && activeNoteId != null);
-  const recordingNoteId = useMeetingRecordingStore((s) => s.recordingNoteId);
-  const recordingFolderId = useMeetingRecordingStore((s) => s.recordingFolderId);
-  const [meetingRecordingRequest, setMeetingRecordingRequest] = useState<{
-    noteId: number;
-    folderId: number;
-    event: any;
-  } | null>(null);
-  const [gpuAccelAvailable, setGpuAccelAvailable] = useState<{ cuda: boolean; vulkan: boolean }>({
+  const [gpuAccelAvailable, setGpuAccelAvailable] = useState<{ cuda: boolean }>({
     cuda: false,
-    vulkan: false,
   });
   const [gpuBannerDismissed, setGpuBannerDismissed] = useState(
     () => localStorage.getItem("gpuBannerDismissedUnified") === "true"
@@ -86,11 +50,7 @@ export default function ControlPanel() {
   const updateErrorToastShown = useRef<Error | null>(null);
   const { hotkey } = useHotkey();
   const { toast } = useToast();
-  const {
-    useLocalWhisper,
-    localTranscriptionProvider,
-    useCleanupModel,
-  } = useSettings();
+  const { useLocalWhisper, localTranscriptionProvider } = useSettings();
 
   const {
     status: updateStatus,
@@ -128,14 +88,6 @@ export default function ControlPanel() {
   }, [showAlertDialog, t]);
 
   useEffect(() => {
-    const { noteFilesEnabled, noteFilesPath } = useSettingsStore.getState();
-    if (!noteFilesEnabled) return;
-    window.electronAPI?.noteFilesSetEnabled?.(true, noteFilesPath || undefined, {
-      skipRebuild: true,
-    });
-  }, []);
-
-  useEffect(() => {
     if (platform !== "darwin") return;
     window.electronAPI?.getPostMigrationState?.().then((state) => {
       if (state?.justMigrated) setShowPostMigration(true);
@@ -150,10 +102,7 @@ export default function ControlPanel() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = platform === "darwin" ? e.metaKey : e.ctrlKey;
-      if (mod && e.key === "k") {
-        e.preventDefault();
-        setShowSearch(true);
-      } else if (mod && e.key === ",") {
+      if (mod && e.key === ",") {
         e.preventDefault();
         setShowSettings(true);
       }
@@ -194,63 +143,17 @@ export default function ControlPanel() {
   useEffect(() => {
     if (platform === "darwin" || gpuBannerDismissed) return;
     const detect = async () => {
-      const results = { cuda: false, vulkan: false };
+      const results = { cuda: false };
       if (useLocalWhisper && localTranscriptionProvider === "whisper") {
         try {
           const status = await window.electronAPI?.getCudaWhisperStatus?.();
           if (status?.gpuInfo.hasNvidiaGpu && !status.downloaded) results.cuda = true;
         } catch {}
       }
-      if (useCleanupModel) {
-        try {
-          const [gpu, vulkan] = await Promise.all([
-            window.electronAPI?.detectVulkanGpu?.(),
-            window.electronAPI?.getLlamaVulkanStatus?.(),
-          ]);
-          if (gpu?.available && !vulkan?.downloaded) results.vulkan = true;
-        } catch {}
-      }
       setGpuAccelAvailable(results);
     };
     detect();
-  }, [useLocalWhisper, localTranscriptionProvider, useCleanupModel, gpuBannerDismissed]);
-
-  useEffect(() => {
-    const drain = async () => {
-      const data = await window.electronAPI?.getPendingMeetingNoteNavigation?.();
-      if (!data) return;
-      setActiveFolderId(data.folderId);
-      setActiveNoteId(data.noteId);
-      setActiveView("personal-notes");
-      setMeetingRecordingRequest({
-        noteId: data.noteId,
-        folderId: data.folderId,
-        event: data.event,
-      });
-      initializeNotes(null, 50, data.folderId);
-      if (
-        data.trigger === "hotkey" &&
-        useSettingsStore.getState().meetingHotkeyLayoutMode === "side-panel"
-      ) {
-        window.electronAPI?.snapToMeetingMode?.();
-      }
-    };
-    drain();
-    const cleanup = window.electronAPI?.onMeetingNoteNavigationPending?.(drain);
-    return () => cleanup?.();
-  }, []);
-
-  useEffect(() => {
-    const cleanup = window.electronAPI?.onNavigateToNote?.((data) => {
-      if (data.folderId) {
-        setActiveFolderId(data.folderId);
-        initializeNotes(null, 50, data.folderId);
-      }
-      setActiveNoteId(data.noteId);
-      setActiveView("personal-notes");
-    });
-    return () => cleanup?.();
-  }, []);
+  }, [useLocalWhisper, localTranscriptionProvider, gpuBannerDismissed]);
 
   useEffect(() => {
     const cleanup = window.electronAPI?.onShowSettings?.(() => {
@@ -282,15 +185,6 @@ export default function ControlPanel() {
 
   useEffect(() => {
     fetchStreamingProviders();
-  }, []);
-
-  const handleMeetingRecordingRequestHandled = useCallback(
-    () => setMeetingRecordingRequest(null),
-    []
-  );
-
-  const handleExitMeetingMode = useCallback(() => {
-    window.electronAPI?.restoreFromMeetingMode?.();
   }, []);
 
   const copyToClipboard = useCallback(
@@ -415,43 +309,7 @@ export default function ControlPanel() {
           remoteTranscriptionUrl: s.remoteTranscriptionUrl,
         });
         if (result.success && result.transcription) {
-          const rawText = result.transcription.text;
-          let finalTranscription = result.transcription;
-
-          // Apply AI reasoning if enabled
-          if (useCleanupModel) {
-            try {
-              const [
-                { default: ReasoningService },
-                { getEffectiveCleanupModel, isCloudCleanupMode, getSettings },
-              ] = await Promise.all([
-                import("../services/ReasoningService"),
-                import("../stores/settingsStore"),
-              ]);
-              const model = getEffectiveCleanupModel();
-              const isCloud = isCloudCleanupMode();
-              if (model || isCloud) {
-                const agentName = localStorage.getItem("agentName") || null;
-                const reasonedText = await ReasoningService.processText(rawText, model, agentName, {
-                  disableThinking: getSettings().cleanupDisableThinking,
-                });
-                if (reasonedText && reasonedText !== rawText) {
-                  const updated = await window.electronAPI.updateTranscriptionText(
-                    id,
-                    reasonedText,
-                    rawText
-                  );
-                  if (updated.success && updated.transcription) {
-                    finalTranscription = updated.transcription;
-                  }
-                }
-              }
-            } catch {
-              // Reasoning failed — keep the raw STT result
-            }
-          }
-
-          updateInStore(finalTranscription);
+          updateInStore(result.transcription);
           toast({ title: t("controlPanel.history.retrySuccess") });
         } else {
           toast({
@@ -467,7 +325,7 @@ export default function ControlPanel() {
         });
       }
     },
-    [toast, t, useCleanupModel]
+    [toast, t]
   );
 
   const handleUpdateClick = async () => {
@@ -538,16 +396,6 @@ export default function ControlPanel() {
 
   return (
     <div className="h-screen bg-background flex flex-col">
-      <MeetingRecordingMount />
-      <MeetingRecordingPill
-        activeView={activeView}
-        activeNoteId={activeNoteId}
-        onReturnToNote={() => {
-          setActiveView("personal-notes");
-          setActiveFolderId(recordingFolderId);
-          setActiveNoteId(recordingNoteId);
-        }}
-      />
       <ConfirmDialog
         open={confirmDialog.open}
         onOpenChange={hideConfirmDialog}
@@ -584,33 +432,11 @@ export default function ControlPanel() {
         </Suspense>
       )}
 
-      {showSearch && (
-        <Suspense fallback={null}>
-          <CommandSearch
-            open={showSearch}
-            onOpenChange={setShowSearch}
-            transcriptions={history}
-            onNoteSelect={(id, folderId) => {
-              if (folderId) setActiveFolderId(folderId);
-              setActiveNoteId(id);
-              setActiveView("personal-notes");
-            }}
-            onTranscriptSelect={() => {
-              setActiveView("home");
-            }}
-          />
-        </Suspense>
-      )}
-
       <div className="flex flex-1 overflow-hidden">
-        <div
-          className="shrink-0 overflow-hidden transition-[width] duration-300 ease-out"
-          style={{ width: isSidePanelLayout ? 0 : undefined }}
-        >
+        <div className="shrink-0 overflow-hidden">
           <ControlPanelSidebar
             activeView={activeView}
             onViewChange={setActiveView}
-            onOpenSearch={() => setShowSearch(true)}
             onOpenSettings={() => {
               setSettingsSection(undefined);
               setShowSettings(true);
@@ -639,22 +465,6 @@ export default function ControlPanel() {
             className="flex items-center justify-between w-full h-10 shrink-0"
             style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
           >
-            {isSidePanelLayout && (
-              <div
-                className={platform === "darwin" ? "ml-[84px] mt-[16px]" : "ml-2"}
-                style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
-              >
-                <Button
-                  variant="outline-flat"
-                  size="sm"
-                  onClick={handleExitMeetingMode}
-                  className="h-7 px-2.5 pl-1.5 gap-1"
-                >
-                  <ChevronLeft size={14} strokeWidth={1.8} />
-                  {t("controlPanel.backToNotes")}
-                </Button>
-              </div>
-            )}
             <div className="flex-1" />
             {platform !== "darwin" && (
               <div className="pr-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
@@ -666,7 +476,7 @@ export default function ControlPanel() {
             {activeView === "home" && (
               <GigaamAsrStatusPanel className="max-w-3xl mx-auto w-full mb-3" />
             )}
-            {(gpuAccelAvailable.cuda || gpuAccelAvailable.vulkan) &&
+            {gpuAccelAvailable.cuda &&
               activeView === "home" &&
               !gpuBannerDismissed && (
                 <div className="max-w-3xl mx-auto w-full mb-3">
@@ -688,9 +498,7 @@ export default function ControlPanel() {
                             size="sm"
                             className="h-7 text-xs"
                             onClick={() => {
-                              setSettingsSection(
-                                gpuAccelAvailable.cuda ? "transcription" : "intelligence"
-                              );
+                              setSettingsSection("transcription");
                               setShowSettings(true);
                             }}
                           >
@@ -718,9 +526,6 @@ export default function ControlPanel() {
                 hotkey={hotkey}
                 showCloudMigrationBanner={false}
                 setShowCloudMigrationBanner={() => {}}
-                aiCTADismissed={aiCTADismissed}
-                setAiCTADismissed={setAiCTADismissed}
-                useCleanupModel={useCleanupModel}
                 copyToClipboard={copyToClipboard}
                 deleteTranscription={deleteTranscription}
                 clearAllTranscriptions={clearAllTranscriptions}
@@ -732,53 +537,14 @@ export default function ControlPanel() {
                 }}
               />
             )}
-            {activeView === "chat" && (
-              <Suspense fallback={null}>
-                <ChatView />
-              </Suspense>
-            )}
-            {activeView === "personal-notes" && (
-              <Suspense fallback={null}>
-                <PersonalNotesView
-                  onOpenSettings={(section) => {
-                    setSettingsSection(section);
-                    setShowSettings(true);
-                  }}
-                  onOpenSearch={() => setShowSearch(true)}
-                  meetingRecordingRequest={meetingRecordingRequest}
-                  onMeetingRecordingRequestHandled={handleMeetingRecordingRequestHandled}
-                />
-              </Suspense>
-            )}
             {activeView === "dictionary" && (
               <Suspense fallback={null}>
                 <DictionaryView />
               </Suspense>
             )}
-            {activeView === "upload" && (
-              <Suspense fallback={null}>
-                <UploadAudioView
-                  onNoteCreated={(noteId, folderId) => {
-                    setActiveNoteId(noteId);
-                    if (folderId) setActiveFolderId(folderId);
-                    setActiveView("personal-notes");
-                  }}
-                  onOpenSettings={(section) => {
-                    setSettingsSection(section);
-                    setShowSettings(true);
-                  }}
-                />
-              </Suspense>
-            )}
-            {activeView === "integrations" && (
-              <Suspense fallback={null}>
-                <IntegrationsView />
-              </Suspense>
-            )}
           </div>
         </main>
       </div>
-      <BackgroundActionToastListener />
     </div>
   );
 }

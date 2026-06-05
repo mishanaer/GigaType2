@@ -30,8 +30,6 @@ import type {
   ChatAgentSettings,
 } from "../hooks/useSettings";
 
-let _ReasoningService: typeof import("../services/ReasoningService").default | null = null;
-
 const isBrowser = typeof window !== "undefined";
 const AUTH_BACKED_INFERENCE_MODE_KEYS = new Set([
   "transcriptionMode",
@@ -815,20 +813,8 @@ const STALE_SECRET_LOCALSTORAGE_KEYS = [
 ] as const;
 
 function invalidateApiKeyCaches(
-  provider?: "openai" | "anthropic" | "gemini" | "groq" | "mistral" | "custom"
+  _provider?: "openai" | "anthropic" | "gemini" | "groq" | "mistral" | "custom"
 ) {
-  if (provider) {
-    if (_ReasoningService) {
-      _ReasoningService.clearApiKeyCache(provider);
-    } else {
-      import("../services/ReasoningService")
-        .then((mod) => {
-          _ReasoningService = mod.default;
-          _ReasoningService.clearApiKeyCache(provider);
-        })
-        .catch(() => {});
-    }
-  }
   if (isBrowser) window.dispatchEvent(new Event("api-key-changed"));
   debouncedPersistToEnv();
 }
@@ -860,8 +846,8 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   assemblyAiStreaming: readBoolean("assemblyAiStreaming", true),
 
   autoGenerateNoteTitle: readBoolean("autoGenerateNoteTitle", true),
-  useCleanupModel: readBoolean("useCleanupModel", true),
-  useDictationAgent: readBoolean("useDictationAgent", true),
+  useCleanupModel: readBoolean("useCleanupModel", false),
+  useDictationAgent: readBoolean("useDictationAgent", false),
   cleanupModel: readString("cleanupModel", ""),
   cleanupProvider: readString("cleanupProvider", "openai"),
 

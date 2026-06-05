@@ -199,7 +199,7 @@
       "systemAudioDescription": "会議、通話、講義、ポッドキャストなど、システム音声を文字起こしします。",
       "optional": "任意",
       "recommended": "推奨",
-      "accessibilityTroubleshooting": "システム設定 → アクセシビリティで、GigaTypeのスイッチをオフにしてから再度オンにしてください。それでもうまくいかない場合は、リストからGigaTypeを削除して再度追加してみてください。それでも解決しませんか？support@openwhispr.com までメールでお問い合わせください。"
+      "accessibilityTroubleshooting": "システム設定 → アクセシビリティで、GigaTypeのスイッチをオフにしてから再度オンにしてください。それでもうまくいかない場合は、リストからGigaTypeを削除して再度追加してみてください。"
     },
     "transcription": {
       "title": "文字起こし設定",
@@ -318,11 +318,6 @@
       "title": "GigaType Cloud へようこそ",
       "description": "より高速で正確な文字起こしのために GigaType Cloud に切り替えました。以前の設定は保存されています。設定からいつでも戻せます。",
       "viewSettings": "設定を表示"
-    },
-    "aiCta": {
-      "title": "AI で文字起こしを向上させましょう",
-      "description": "話しながら文法、句読点、書式を自動的に修正します。",
-      "enable": "AI 補正を有効にする"
     },
     "loading": "読み込み中...",
     "gpu": {
@@ -936,10 +931,6 @@
         "description": "ディクテーションとノート録音用エンジン",
         "label": "音声認識"
       },
-      "llms": {
-        "description": "クリーンアップ、ノートのフォーマット、チャット用のモデル",
-        "label": "言語モデル"
-      },
       "privacyData": {
         "description": "プライバシー、権限、分析",
         "label": "プライバシーとデータ"
@@ -1158,8 +1149,6 @@
       "customSetup": "カスタム設定",
       "customSetupDescription": "独自のプロバイダーと API キーを使用。",
       "description": "文字起こしのクリーンアップ、コマンド処理、エラー修正を行いながら、あなたの話し方を維持します。",
-      "enableTextCleanup": "テキスト補正を有効にする",
-      "enableTextCleanupDescription": "AI がフィラーワードを除去し、文法と句読点を整える",
       "modes": {
         "openwhispr": "GigaType Cloud",
         "providers": "クラウドプロバイダー",
@@ -1518,16 +1507,6 @@
         "noteRecording": "ノート録音"
       },
       "selfHostedStreamingNote": "ストリーミング文字起こしに対応したサーバーが必要です。"
-    },
-    "llms": {
-      "title": "言語モデル",
-      "description": "クリーンアップ、ノートのフォーマット、チャット用のモデルを設定",
-      "tabs": {
-        "dictationCleanup": "ディクテーションのクリーンアップ",
-        "dictationAgent": "Voice Agent",
-        "noteFormatting": "ノートのフォーマット",
-        "chatIntelligence": "チャット"
-      }
     },
     "noteFormatting": {
       "autoGenerateTitle": "ノートのタイトルを自動生成",
@@ -2157,7 +2136,6 @@
     "dictionary": "辞書",
     "referral": "1か月無料を取得",
     "settings": "設定",
-    "support": "サポート",
     "limitReached": "週間の利用上限に達しました",
     "limitReachedDescription": "Pro にアップグレードして無制限の文字起こしをご利用ください。",
     "viewPlans": "プランを見る",
@@ -2212,12 +2190,6 @@
     "upgradeToPro": "Proにアップグレード",
     "useYourOwnKey": "自分のAPIキーを使用",
     "upgradeUnlimited": "Proにアップグレード — 無制限の文字起こし"
-  },
-  "support": {
-    "documentation": "ドキュメント",
-    "joinDiscord": "Discord に参加",
-    "contactSupport": "サポートに問い合わせ",
-    "submitBug": "バグを報告"
   },
   "postMigration": {
     "title": "GigaType へおかえりなさい",

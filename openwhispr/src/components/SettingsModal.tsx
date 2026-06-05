@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import {
   Sliders,
   Mic,
-  Brain,
   Wrench,
   Keyboard,
   Shield,
@@ -13,16 +12,10 @@ import SettingsPage, { SettingsSectionType } from "./SettingsPage";
 
 export type { SettingsSectionType };
 
-// The old AI Models sidebar had four items (transcription, meetings,
-// intelligence, agentMode) — they now collapse into two: speechToText + llms.
+// The old AI Models sidebar had several items; only dictation-related sections
+// still remain reachable after slimming the app.
 // Legacy deep-links land on the matching sub-tab via LEGACY_SUB_TAB.
 const SECTION_ALIASES: Record<string, SettingsSectionType> = {
-  aiModels: "llms",
-  agentConfig: "llms",
-  agentMode: "llms",
-  intelligence: "llms",
-  meetings: "llms",
-  prompts: "llms",
   transcription: "speechToText",
   softwareUpdates: "system",
   privacy: "privacyData",
@@ -32,15 +25,25 @@ const SECTION_ALIASES: Record<string, SettingsSectionType> = {
 
 const LEGACY_SUB_TAB: Record<string, string> = {
   transcription: "dictation",
-  meetings: "noteFormatting",
-  intelligence: "dictationCleanup",
-  agentMode: "chatIntelligence",
-  agentConfig: "chatIntelligence",
-  aiModels: "dictationCleanup",
-  prompts: "dictationCleanup",
 };
 
-const REMOVED_SECTIONS = new Set(["account", "plansBilling", "workspace"]);
+const REMOVED_SECTIONS = new Set([
+  "account",
+  "agentConfig",
+  "agentMode",
+  "aiModels",
+  "chat",
+  "integrations",
+  "intelligence",
+  "llms",
+  "meetings",
+  "notes",
+  "plansBilling",
+  "support",
+  "upload",
+  "uploads",
+  "workspace",
+]);
 
 interface SettingsModalProps {
   open: boolean;
@@ -71,13 +74,6 @@ export default function SettingsModal({ open, onOpenChange, initialSection }: Se
         label: t("settingsModal.sections.speechToText.label"),
         icon: Mic,
         description: t("settingsModal.sections.speechToText.description"),
-        group: t("settingsModal.groups.aiModels"),
-      },
-      {
-        id: "llms",
-        label: t("settingsModal.sections.llms.label"),
-        icon: Brain,
-        description: t("settingsModal.sections.llms.description"),
         group: t("settingsModal.groups.aiModels"),
       },
       {

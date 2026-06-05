@@ -400,7 +400,6 @@ function initializeDeferredManagers() {
   }
 
   googleCalendarManager.start();
-  meetingDetectionEngine.start();
 }
 
 app.on("open-url", (event, _url) => {
@@ -483,59 +482,6 @@ async function startApp() {
     await windowManager.createControlPanelWindow();
   }
 
-  // Create agent window (hidden) and set up agent hotkey
-  await windowManager.createAgentWindow();
-
-  const agentHotkeyCallback = () => {
-    if (hotkeyManager.isInListeningMode()) return;
-    windowManager.toggleAgentOverlay();
-  };
-  windowManager._agentHotkeyCallback = agentHotkeyCallback;
-
-  const savedAgentKey = environmentManager.getAgentKey?.() || "";
-  if (savedAgentKey) {
-    const result = await hotkeyManager.registerSlot("agent", savedAgentKey, agentHotkeyCallback);
-    if (!result.success) {
-      debugLogger.warn("Failed to restore agent hotkey", { hotkey: savedAgentKey }, "hotkey");
-    }
-  }
-
-  // Set up meeting mode hotkey
-  const meetingHotkeyCallback = () => {
-    if (hotkeyManager.isInListeningMode()) return;
-    debugLogger.info("Meeting hotkey triggered", {}, "meeting");
-    meetingDetectionEngine?.startManualMeeting();
-  };
-
-  const savedMeetingKey = environmentManager.getMeetingKey?.() || "";
-  if (savedMeetingKey) {
-    const result = await hotkeyManager.registerSlot(
-      "meeting",
-      savedMeetingKey,
-      meetingHotkeyCallback
-    );
-    debugLogger.info(
-      "Meeting hotkey startup registration",
-      { savedMeetingKey, ...result },
-      "meeting"
-    );
-  }
-
-  ipcMain.handle("register-meeting-hotkey", async (_event, hotkey) => {
-    if (hotkey) {
-      const result = await hotkeyManager.registerSlot("meeting", hotkey, meetingHotkeyCallback);
-      if (result.success) {
-        environmentManager.saveMeetingKey(hotkey);
-        return { success: true };
-      }
-      return { success: false, message: result.error };
-    } else {
-      hotkeyManager.unregisterSlot("meeting");
-      environmentManager.saveMeetingKey("");
-      return { success: true };
-    }
-  });
-
   // Phase 2: Initialize remaining managers after windows are visible
   initializeDeferredManagers();
 
@@ -567,29 +513,6 @@ async function startApp() {
   parakeetManager.initializeAtStartup(parakeetSettings).catch((err) => {
     debugLogger.debug("Parakeet startup init error (non-fatal)", { error: err.message });
   });
-
-  // TODO: drop legacy REASONING_PROVIDER / LOCAL_REASONING_MODEL fallbacks after 2 releases.
-  const cleanupProvider = process.env.CLEANUP_PROVIDER || process.env.REASONING_PROVIDER;
-  const cleanupLocalModel = process.env.LOCAL_CLEANUP_MODEL || process.env.LOCAL_REASONING_MODEL;
-  if (cleanupProvider === "local" && cleanupLocalModel) {
-    const modelManager = require("./src/helpers/modelManagerBridge").default;
-    modelManager.prewarmServer(cleanupLocalModel).catch((err) => {
-      debugLogger.debug("llama-server pre-warm error (non-fatal)", { error: err.message });
-    });
-  }
-
-  if (
-    process.env.DICTATION_AGENT_PROVIDER === "local" &&
-    process.env.LOCAL_DICTATION_AGENT_MODEL &&
-    process.env.LOCAL_DICTATION_AGENT_MODEL !== cleanupLocalModel
-  ) {
-    const modelManager = require("./src/helpers/modelManagerBridge").default;
-    modelManager.prewarmServer(process.env.LOCAL_DICTATION_AGENT_MODEL).catch((err) => {
-      debugLogger.debug("dictation-agent llama-server pre-warm error (non-fatal)", {
-        error: err.message,
-      });
-    });
-  }
 
   // Auto-download diarization models if binary is available
   if (
@@ -696,11 +619,7 @@ async function startApp() {
         }
       }
 
-      // Check agent slot for Globe/Fn key
-      const agentHotkey = hotkeyManager.getSlotHotkey("agent");
-      if (agentHotkey && isGlobeLikeHotkey(agentHotkey)) {
-        windowManager.toggleAgentOverlay();
-      } else if (!isGlobeLikeHotkey(currentHotkey)) {
+      if (!isGlobeLikeHotkey(currentHotkey)) {
         debugLogger?.debug("[Globe] Ignored — hotkey is not GLOBE", { currentHotkey });
       }
     });
@@ -743,12 +662,6 @@ async function startApp() {
 
     globeKeyManager.on("right-modifier-down", async (modifier) => {
       const currentHotkey = hotkeyManager.getCurrentHotkey && hotkeyManager.getCurrentHotkey();
-
-      // Check agent slot for right-modifier
-      const agentHotkey = hotkeyManager.getSlotHotkey("agent");
-      if (agentHotkey === modifier) {
-        windowManager.toggleAgentOverlay();
-      }
 
       if (currentHotkey !== modifier) return;
       if (!isLiveWindow(windowManager.mainWindow)) return;
@@ -825,11 +738,6 @@ async function startApp() {
       if (!isMouseButtonHotkey(button)) return;
 
       const currentHotkey = hotkeyManager.getCurrentHotkey && hotkeyManager.getCurrentHotkey();
-      const agentHotkey = hotkeyManager.getSlotHotkey("agent");
-
-      if (agentHotkey === button) {
-        windowManager.toggleAgentOverlay();
-      }
 
       if (currentHotkey !== button) return;
       if (!isLiveWindow(windowManager.mainWindow)) return;
@@ -1254,9 +1162,6 @@ function performSyncTeardown() {
   if (cliBridge) {
     cliBridge.stop().catch(() => {});
     cliBridge = null;
-  }
-  if (windowManager && isLiveWindow(windowManager.agentWindow)) {
-    windowManager.agentWindow.destroy();
   }
   if (windowManager && isLiveWindow(windowManager.transcriptionPreviewWindow)) {
     windowManager.transcriptionPreviewWindow.destroy();

@@ -1,6 +1,7 @@
 const path = require("path");
 const fs = require("fs");
 const fsPromises = require("fs/promises");
+const crypto = require("crypto");
 const { app } = require("electron");
 const debugLogger = require("./debugLogger");
 const { normalizeUiLanguage } = require("./i18nMain");
@@ -223,7 +224,7 @@ class EnvironmentManager {
         envContent += `${key}=${process.env[key]}\n`;
       }
     }
-    const tmpPath = `${envPath}.tmp`;
+    const tmpPath = `${envPath}.${process.pid}.${Date.now()}.${crypto.randomUUID()}.tmp`;
     await fsPromises.writeFile(tmpPath, envContent, "utf8");
     await fsPromises.rename(tmpPath, envPath);
   }
