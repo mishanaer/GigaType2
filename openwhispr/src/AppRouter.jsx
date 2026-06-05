@@ -113,7 +113,7 @@ function LoadingFallback({ message }) {
         </svg>
         <div className="w-7 h-7 rounded-full border-[2.5px] border-transparent border-t-primary animate-[spinner-rotate_0.8s_cubic-bezier(0.4,0,0.2,1)_infinite] motion-reduce:animate-none motion-reduce:border-t-muted-foreground motion-reduce:opacity-50" />
         {fallbackMessage && (
-          <p className="text-[13px] font-medium text-muted-foreground dark:text-foreground/60 tracking-[-0.01em]">
+          <p className="text-[13px] font-medium text-muted-foreground dark:text-foreground/60 tracking-normal">
             {fallbackMessage}
           </p>
         )}

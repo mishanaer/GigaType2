@@ -164,8 +164,8 @@ export default function LanguageSelector({
           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-offset-1
           ${
             isOpen
-              ? "border-border-active bg-surface-2/90 shadow ring-1 ring-primary/20"
-              : "border-border/70 bg-surface-1/80 hover:border-border-hover hover:bg-surface-2/70 hover:shadow active:scale-[0.985]"
+              ? "border-ring bg-card/90 shadow ring-1 ring-primary/20"
+              : "border-border/70 bg-muted/80 hover:border-ring/60 hover:bg-card/70 hover:shadow active:scale-[0.985]"
           }
         `}
         aria-haspopup="listbox"

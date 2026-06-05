@@ -135,7 +135,7 @@ export default function ApiKeyInput({
             onClick={enterEdit}
             className={`w-full h-8 flex items-center px-3 rounded border text-sm transition-all cursor-pointer group ${
               hasKey
-                ? "border-border/70 bg-input hover:border-border-hover dark:bg-surface-1 dark:border-border-subtle/50 dark:hover:border-border-hover"
+                ? "border-border/70 bg-input hover:border-ring/60 dark:bg-muted dark:border-border/50 dark:hover:border-ring/60"
                 : "border-dashed border-border/40 bg-transparent hover:border-border/70 hover:bg-muted/30"
             }`}
             aria-label={hasKey ? t("apiKeyInput.edit") : t("apiKeyInput.add")}

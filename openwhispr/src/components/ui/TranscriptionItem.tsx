@@ -78,7 +78,7 @@ export default function TranscriptionItem({
         "group rounded-md border px-3 py-2.5 transition-colors duration-150",
         isFailed
           ? "border-destructive/30 bg-destructive/5 hover:bg-destructive/10"
-          : "border-border/40 dark:border-border-subtle/60 bg-card/50 dark:bg-surface-2/60 hover:bg-muted/30 dark:hover:bg-surface-2/80"
+          : "border-border/40 dark:border-border/60 bg-card/50 dark:bg-card/60 hover:bg-muted/30 dark:hover:bg-card/80"
       )}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}

@@ -44,7 +44,7 @@ export const SettingsGroup: React.FC<SettingsGroupProps> = ({
 }) => {
   const baseClasses = "space-y-3 p-3 rounded-lg border";
   const variantClasses = {
-    default: "bg-card/50 dark:bg-surface-2/50 border-border/50 dark:border-border-subtle",
+    default: "bg-card/50 dark:bg-card/50 border-border/50 dark:border-border",
     highlighted: "bg-primary/5 dark:bg-primary/10 border-primary/20 dark:border-primary/30",
   };
 
@@ -97,7 +97,7 @@ export function SettingsPanel({
 }) {
   return (
     <div
-      className={`rounded-lg border border-border/50 dark:border-border-subtle/70 bg-card/50 dark:bg-surface-2/50 backdrop-blur-sm divide-y divide-border/30 dark:divide-border-subtle/50 ${className}`}
+      className={`rounded-lg border border-border/50 dark:border-border/70 bg-card/50 dark:bg-card/50 backdrop-blur-sm divide-y divide-border/30 dark:divide-border/50 ${className}`}
     >
       {children}
     </div>
@@ -171,7 +171,7 @@ export function InferenceModeSelector({
                 className={`w-8 h-8 rounded-md flex items-center justify-center shrink-0 transition-colors ${
                   isActive
                     ? "bg-primary/10 dark:bg-primary/15"
-                    : "bg-muted/60 dark:bg-surface-raised group-hover:bg-muted dark:group-hover:bg-surface-3"
+                    : "bg-muted/60 dark:bg-popover group-hover:bg-muted dark:group-hover:bg-accent"
                 }`}
               >
                 <div
@@ -189,7 +189,7 @@ export function InferenceModeSelector({
                     </span>
                   )}
                   {isDisabled && mode.badge && (
-                    <span className="text-xs font-medium text-muted-foreground bg-muted/80 dark:bg-surface-3 px-1.5 py-px rounded-sm">
+                    <span className="text-xs font-medium text-muted-foreground bg-muted/80 dark:bg-accent px-1.5 py-px rounded-sm">
                       {mode.badge}
                     </span>
                   )}
@@ -200,7 +200,7 @@ export function InferenceModeSelector({
                 className={`w-4 h-4 rounded-full border-2 shrink-0 transition-colors ${
                   isActive
                     ? "border-primary bg-primary"
-                    : "border-border-hover dark:border-border-subtle"
+                    : "border-ring/60 dark:border-border"
                 }`}
               >
                 {isActive && (

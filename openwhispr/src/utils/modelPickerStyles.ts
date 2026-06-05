@@ -11,13 +11,13 @@ export interface ModelPickerStyles {
 export const MODEL_PICKER_COLORS: Record<ColorScheme, ModelPickerStyles> = {
   purple: {
     container:
-      "bg-surface-1/95 dark:bg-white/[0.03] rounded-lg overflow-hidden border border-border/60 dark:border-white/8 backdrop-blur-xl shadow-(--shadow-metallic-light) dark:shadow-(--shadow-metallic-dark)",
+      "bg-muted/95 dark:bg-white/[0.03] rounded-lg overflow-hidden border border-border/60 dark:border-white/8 backdrop-blur-xl shadow-sm",
     header: "font-medium text-foreground tracking-tight",
     modelCard: {
       selected:
-        "border-primary/40 bg-primary/12 dark:bg-primary/8 shadow-(--shadow-selected-glow) relative before:absolute before:inset-0 before:bg-linear-to-b before:from-white/[0.03] before:to-transparent before:pointer-events-none",
+        "border-primary/40 bg-primary/12 dark:bg-primary/8 shadow-sm relative before:absolute before:inset-0 before:bg-linear-to-b before:from-white/[0.03] before:to-transparent before:pointer-events-none",
       default:
-        "border-border/70 bg-surface-1/50 dark:bg-white/[0.02] hover:border-border-hover hover:bg-surface-raised/60 dark:hover:border-white/20 dark:hover:bg-white/[0.05] hover:-translate-y-[1px] hover:shadow-(--shadow-card-hover-subtle) transition-[background-color,border-color,transform,box-shadow] duration-200 ease-out",
+        "border-border/70 bg-muted/50 dark:bg-white/[0.02] hover:border-ring/60 hover:bg-popover/60 dark:hover:border-white/20 dark:hover:bg-white/[0.05] hover:-translate-y-[1px] hover:shadow-sm transition-[background-color,border-color,transform,box-shadow] duration-200 ease-out",
     },
     badges: {
       selected:
@@ -37,13 +37,13 @@ export const MODEL_PICKER_COLORS: Record<ColorScheme, ModelPickerStyles> = {
   },
   blue: {
     container:
-      "bg-surface-1/95 dark:bg-white/[0.03] rounded-lg overflow-hidden border border-border/60 dark:border-white/8 backdrop-blur-xl shadow-(--shadow-metallic-light) dark:shadow-(--shadow-metallic-dark)",
+      "bg-muted/95 dark:bg-white/[0.03] rounded-lg overflow-hidden border border-border/60 dark:border-white/8 backdrop-blur-xl shadow-sm",
     header: "text-sm font-medium text-foreground tracking-tight",
     modelCard: {
       selected:
-        "border-primary/40 bg-primary/12 dark:bg-primary/8 shadow-(--shadow-selected-glow) relative before:absolute before:inset-0 before:bg-linear-to-b before:from-white/[0.03] before:to-transparent before:pointer-events-none",
+        "border-primary/40 bg-primary/12 dark:bg-primary/8 shadow-sm relative before:absolute before:inset-0 before:bg-linear-to-b before:from-white/[0.03] before:to-transparent before:pointer-events-none",
       default:
-        "border-border/70 bg-surface-1/50 dark:bg-white/[0.02] hover:border-border-hover hover:bg-surface-raised/60 dark:hover:border-white/20 dark:hover:bg-white/[0.05] hover:-translate-y-[1px] hover:shadow-(--shadow-card-hover-subtle) transition-[background-color,border-color,transform,box-shadow] duration-200 ease-out",
+        "border-border/70 bg-muted/50 dark:bg-white/[0.02] hover:border-ring/60 hover:bg-popover/60 dark:hover:border-white/20 dark:hover:bg-white/[0.05] hover:-translate-y-[1px] hover:shadow-sm transition-[background-color,border-color,transform,box-shadow] duration-200 ease-out",
     },
     badges: {
       selected:
@@ -54,11 +54,11 @@ export const MODEL_PICKER_COLORS: Record<ColorScheme, ModelPickerStyles> = {
     buttons: {
       download: "",
       select:
-        "border-border text-foreground hover:bg-surface-raised dark:border-white/10 dark:hover:bg-white/8",
+        "border-border text-foreground hover:bg-popover dark:border-white/10 dark:hover:bg-white/8",
       delete:
         "text-destructive hover:text-destructive/90 hover:bg-destructive/8 border-destructive/25",
       refresh:
-        "border-border text-foreground hover:bg-surface-raised dark:border-white/10 dark:hover:bg-white/8",
+        "border-border text-foreground hover:bg-popover dark:border-white/10 dark:hover:bg-white/8",
     },
   },
 };

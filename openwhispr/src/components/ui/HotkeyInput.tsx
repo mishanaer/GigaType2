@@ -495,7 +495,7 @@ export function HotkeyInput({
               ? "bg-muted/30 border-border cursor-not-allowed opacity-50"
               : isCapturing
                 ? "bg-primary/5 border-primary/30 shadow-[0_0_0_2px_rgba(37,99,212,0.1)]"
-                : "bg-surface-1 border-border hover:border-border-hover hover:bg-surface-2"
+                : "bg-muted border-border hover:border-ring/60 hover:bg-card"
           }
         `}
       >
@@ -549,17 +549,17 @@ export function HotkeyInput({
                     {i > 0 && (
                       <span className="text-muted-foreground/40 text-lg font-light">+</span>
                     )}
-                    <kbd className="px-3 py-1.5 bg-surface-raised border border-border rounded-sm text-sm font-semibold text-foreground shadow-sm">
+                    <kbd className="px-3 py-1.5 bg-popover border border-border rounded-sm text-sm font-semibold text-foreground shadow-sm">
                       {part}
                     </kbd>
                   </React.Fragment>
                 ))
               ) : isGlobe ? (
-                <kbd className="px-3 py-1.5 bg-surface-raised border border-border rounded-sm text-lg shadow-sm">
+                <kbd className="px-3 py-1.5 bg-popover border border-border rounded-sm text-lg shadow-sm">
                   🌐
                 </kbd>
               ) : (
-                <kbd className="px-3 py-1.5 bg-surface-raised border border-border rounded-sm text-sm font-semibold text-foreground shadow-sm">
+                <kbd className="px-3 py-1.5 bg-popover border border-border rounded-sm text-sm font-semibold text-foreground shadow-sm">
                   {displayValue}
                 </kbd>
               )}
@@ -599,7 +599,7 @@ export function HotkeyInput({
             ? "bg-muted/30 border-border cursor-not-allowed opacity-50"
             : isCapturing
               ? "bg-primary/5 border-primary/30 shadow-[0_0_0_2px_rgba(37,99,212,0.1)]"
-              : "bg-surface-1 border-border hover:border-border-hover hover:bg-surface-2"
+              : "bg-muted border-border hover:border-ring/60 hover:bg-card"
         }
       `}
     >
@@ -657,7 +657,7 @@ export function HotkeyInput({
                   {hotkeyParts.map((part, i) => (
                     <React.Fragment key={part}>
                       {i > 0 && <span className="text-muted-foreground/30 text-xs">+</span>}
-                      <kbd className="px-2 py-0.5 bg-surface-raised border border-border rounded-sm text-xs font-semibold text-foreground">
+                      <kbd className="px-2 py-0.5 bg-popover border border-border rounded-sm text-xs font-semibold text-foreground">
                         {part}
                       </kbd>
                     </React.Fragment>
@@ -665,13 +665,13 @@ export function HotkeyInput({
                 </div>
               ) : isGlobe ? (
                 <div className="flex items-center gap-1.5">
-                  <kbd className="px-2 py-0.5 bg-surface-raised border border-border rounded-sm text-base">
+                  <kbd className="px-2 py-0.5 bg-popover border border-border rounded-sm text-base">
                     🌐
                   </kbd>
                   <span className="text-xs text-muted-foreground">{t("hotkeyInput.globe")}</span>
                 </div>
               ) : (
-                <kbd className="px-2.5 py-1 bg-surface-raised border border-border rounded-sm text-xs font-semibold text-foreground">
+                <kbd className="px-2.5 py-1 bg-popover border border-border rounded-sm text-xs font-semibold text-foreground">
                   {displayValue}
                 </kbd>
               )}

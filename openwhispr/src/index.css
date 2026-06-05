@@ -1,143 +1,135 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:is(.dark *));
 
-@theme {
-  /* GigaType Theme — registers color tokens with Tailwind v4.
-     These are the light-mode defaults; .dark overrides them below. */
-  --color-primary: #2563eb;
-  --color-primary-foreground: #ffffff;
-  --color-secondary: #f5f5f5;
-  --color-secondary-foreground: #171717;
-  --color-muted: #f5f5f5;
-  --color-muted-foreground: #525252;
-  --color-accent: oklch(0.55 0.22 285);
-  --color-accent-foreground: #ffffff;
-  --color-destructive: #dc2626;
-  --color-destructive-foreground: #ffffff;
-  --color-border: #e5e5e5;
-  --color-input: #f9f6f1;
-  --color-ring: #2563eb;
-  --color-background: #ffffff;
-  --color-foreground: #171717;
-  --color-card: #ffffff;
-  --color-card-foreground: #171717;
-  --color-popover: #ffffff;
-  --color-popover-foreground: #171717;
-  --color-link: #2563eb;
-  --color-success: #16a34a;
-  --color-success-foreground: #ffffff;
-  --color-warning: #d97706;
-  --color-warning-foreground: #ffffff;
-  --color-info: #2563eb;
-  --color-info-foreground: #ffffff;
-
-  /* Surface hierarchy — light mode equivalents */
-  --color-surface-0: #ffffff;
-  --color-surface-1: #fafafa;
-  --color-surface-2: #ffffff;
-  --color-surface-3: #f5f5f5;
-  --color-surface-raised: #f0f0f0;
-
-  /* Border states — light mode equivalents */
-  --color-border-subtle: #e5e5e5;
-  --color-border-hover: #d4d4d4;
-  --color-border-active: #2563eb;
+@theme inline {
+  --font-sans: var(--font-family-sans);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-link: var(--primary);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 }
 
 :root {
-  /* Typography */
   --font-family-sans:
     "Noto Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
     sans-serif;
 
-  /* Opacities */
   --opacity-subtle: 0.1;
   --opacity-medium: 0.5;
   --opacity-high: 0.9;
 
-  /* Border Radius — ultra-tight, premium macOS-style rounding */
-  --radius: 0.375rem; /* 6px - default for buttons, inputs */
-  --radius-sm: 0.25rem; /* 4px - minimal rounding */
-  --radius-md: 0.375rem; /* 6px - standard */
-  --radius-lg: 0.5rem; /* 8px - cards, panels */
-  --radius-xl: 0.625rem; /* 10px - large cards */
-
-  /* Custom Light Mode Brand Colors (Parchment Theme) */
-  --color-parchment-bg: #f9f6f1;
-  --color-parchment-border: #ddd4c7;
-  --color-parchment-text: #2b1f14;
-  --color-parchment-accent: #c0a77d;
-  --color-brand-primary: #2b1f14;
-  --color-brand-accent: #4b2e2b;
-  --color-brand-highlight: #c0a77d;
-  --color-brand-link: #2e3659;
-  --color-pattern: #e7e5e4;
-
-  /* Model picker premium effects (light mode) */
-  --shadow-metallic-light: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-card-hover-subtle: 0 2px 8px -2px rgba(0, 0, 0, 0.1);
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --success: oklch(0.627 0.194 149.214);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.705 0.213 47.604);
+  --warning-foreground: oklch(0.145 0 0);
+  --info: oklch(0.623 0.214 259.815);
+  --info-foreground: oklch(0.985 0 0);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 .dark {
-  /* Dark mode — charcoal surfaces with clear elevation hierarchy
-     Base L=0.22 (charcoal) with 0.05 steps between layers.
-     Hue 260 (neutral blue) with minimal chroma for sophistication. */
-  --color-background: oklch(0.22 0.006 260);
-  --color-foreground: oklch(0.93 0 0);
-  --color-card: oklch(0.27 0.008 260);
-  --color-card-foreground: oklch(0.93 0 0);
-  --color-popover: oklch(0.29 0.009 260);
-  --color-popover-foreground: oklch(0.93 0 0);
-  --color-primary: oklch(0.65 0.2 260);
-  --color-primary-foreground: oklch(0.99 0 0);
-  --color-secondary: oklch(0.28 0.007 260);
-  --color-secondary-foreground: oklch(0.9 0 0);
-  --color-muted: oklch(0.24 0.006 260);
-  --color-muted-foreground: oklch(0.65 0 0);
-  --color-accent: oklch(0.68 0.18 285);
-  --color-accent-foreground: oklch(0.99 0 0);
-  --color-destructive: oklch(0.62 0.22 25);
-  --color-destructive-foreground: oklch(0.99 0 0);
-  --color-border: oklch(0.35 0.007 260);
-  --color-input: oklch(0.19 0.005 260);
-  --color-ring: oklch(0.65 0.2 260);
-  --color-success: oklch(0.7 0.18 145);
-  --color-success-foreground: oklch(0.99 0 0);
-  --color-warning: oklch(0.75 0.15 70);
-  --color-warning-foreground: oklch(0.15 0 0);
-  --color-info: oklch(0.68 0.18 240);
-  --color-info-foreground: oklch(0.99 0 0);
-
-  /* Surface hierarchy — charcoal depth system (0.22 → 0.33) */
-  --color-surface-0: oklch(0.22 0.006 260);
-  --color-surface-1: oklch(0.25 0.007 260);
-  --color-surface-2: oklch(0.27 0.008 260);
-  --color-surface-3: oklch(0.3 0.009 260);
-  --color-surface-raised: oklch(0.33 0.01 260);
-
-  /* Border states */
-  --color-border-subtle: oklch(0.33 0.006 260);
-  --color-border-hover: oklch(0.42 0.01 260);
-  --color-border-active: oklch(0.5 0.15 260);
-  --color-link: oklch(0.67 0.1 250);
-
-  /* Card depth shadows — softer for charcoal, with top highlight for premium depth */
-  --shadow-card: 0 1px 3px oklch(0 0 0 / 0.2), inset 0 1px 0 oklch(1 0 0 / 0.03);
-  --shadow-card-hover: 0 4px 12px oklch(0 0 0 / 0.25), inset 0 1px 0 oklch(1 0 0 / 0.04);
-  --shadow-elevated: 0 8px 24px oklch(0 0 0 / 0.3);
-  --shadow-modal: 0 24px 48px -12px oklch(0 0 0 / 0.4);
-
-  /* Premium effects */
-  --shadow-metallic-dark: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 8px rgba(0, 0, 0, 0.2);
-  --shadow-selected-glow:
-    inset 0 0 0 1px oklch(0.65 0.2 260 / 0.2), 0 0 16px -4px oklch(0.65 0.2 260 / 0.2);
-  --shadow-card-hover-subtle: 0 2px 8px -2px rgba(0, 0, 0, 0.12);
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --success: oklch(0.696 0.17 162.48);
+  --success-foreground: oklch(0.145 0 0);
+  --warning: oklch(0.769 0.188 70.08);
+  --warning-foreground: oklch(0.145 0 0);
+  --info: oklch(0.707 0.165 254.624);
+  --info-foreground: oklch(0.145 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.922 0 0);
+  --sidebar-primary-foreground: oklch(0.205 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
 
 @layer base {
   * {
-    border-color: var(--color-border);
+    border-color: var(--border);
+    outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
     transition:
       background-color 150ms ease,
       border-color 150ms ease,
@@ -145,8 +137,8 @@
   }
 
   body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
+    background-color: var(--background);
+    color: var(--foreground);
     margin: 0;
     padding: 0;
     font-family: var(--font-family-sans);
@@ -188,23 +180,6 @@
   }
 }
 
-/* GigaType Brand Typography */
-.brand-heading {
-  font-family: var(--font-family-sans);
-  font-weight: 600;
-  letter-spacing: -0.02em;
-}
-
-.brand-body {
-  font-family: var(--font-family-sans);
-  line-height: 1.6;
-}
-
-.brand-script {
-  font-family: var(--font-family-sans);
-  font-style: italic;
-}
-
 h1,
 h2,
 h3,
@@ -213,7 +188,7 @@ h5,
 h6 {
   font-family: var(--font-family-sans);
   font-weight: 600;
-  letter-spacing: -0.025em;
+  letter-spacing: 0;
   line-height: 1.15;
 }
 
@@ -240,142 +215,18 @@ a svg:hover,
   cursor: pointer;
 }
 
-/* Premium input styling with subtle depth */
-input:not(.input-inline),
-textarea:not(.input-inline) {
-  border-radius: var(--radius);
-  transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    color 0.2s ease,
-    box-shadow 0.2s ease;
-  font-family: var(--font-family-sans);
-  box-shadow: inset 0 1px 2px oklch(from var(--color-foreground) l c h / 0.06);
-}
-
-/* Light mode inputs */
-:root input:not(.input-inline),
-:root textarea:not(.input-inline) {
-  background-color: var(--color-background);
-  border: 1px solid var(--color-border);
-  color: var(--color-foreground);
-}
-
-:root input:not(.input-inline):focus,
-:root textarea:not(.input-inline):focus {
-  border-color: var(--color-border-active);
-  box-shadow: 0 0 0 2px oklch(from var(--color-ring) l c h / 0.15);
-  background-color: var(--color-background);
-}
-
-/* Dark mode inputs — flat, no embossed shadow */
-.dark input:not(.input-inline),
-.dark textarea:not(.input-inline) {
-  background-color: var(--color-input);
-  border: 1px solid var(--color-border);
-  color: var(--color-foreground);
-  box-shadow: none;
-}
-
-.dark input:not(.input-inline):focus,
-.dark textarea:not(.input-inline):focus {
-  border-color: var(--color-border-active);
-  box-shadow: 0 0 0 2px oklch(from var(--color-ring) l c h / 0.15);
-}
-
-/* Card styling - elevated parchment */
-.card {
-  background-color: var(--color-card);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card, 0 1px 3px oklch(from var(--color-foreground) l c h / 0.08));
-  transition:
-    box-shadow 0.2s ease,
-    transform 0.2s ease;
-}
-
-.card:hover {
-  box-shadow: var(--shadow-card-hover, 0 4px 12px oklch(from var(--color-foreground) l c h / 0.1));
-  transform: translateY(-1px);
-}
-
-/* Dark mode cards — grounded, no lift, subtle border glow */
-.dark .card {
-  border-color: var(--color-border-subtle);
-  box-shadow: var(--shadow-card);
-}
-
-.dark .card:hover {
-  box-shadow: var(--shadow-card-hover);
-  transform: none;
-  border-color: var(--color-border-hover);
-}
-
 /* Link styling */
 a {
-  color: var(--color-link);
+  color: var(--primary);
   text-decoration: none;
   transition: color 0.2s ease;
   cursor: pointer;
 }
 
 a:hover {
-  color: var(--color-link);
+  color: var(--primary);
   opacity: 0.8;
   cursor: pointer;
-}
-
-/* Status indicators */
-.status-active {
-  color: var(--color-brand-accent);
-  font-weight: 600;
-}
-
-.text-brand-primary {
-  color: var(--color-brand-primary);
-}
-
-.text-brand-accent {
-  color: var(--color-brand-accent);
-}
-
-.text-brand-highlight {
-  color: var(--color-brand-highlight);
-}
-
-.text-brand-link {
-  color: var(--color-brand-link);
-}
-
-/* ---- Premium UI Utilities ---- */
-
-/* Section panel — grouped settings container */
-.section-panel {
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-xl);
-}
-
-/* Gradient accent bar — top border highlight for panels */
-.accent-bar {
-  position: relative;
-}
-
-.dark .accent-bar::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    oklch(0.65 0.2 260 / 0.5),
-    oklch(0.7 0.18 280 / 0.3),
-    transparent 80%
-  );
-  pointer-events: none;
-  z-index: 1;
 }
 
 /* Monochrome icon theming - explicit light/dark handling */
@@ -386,25 +237,6 @@ a:hover {
 
 .dark .icon-monochrome {
   filter: invert(1);
-}
-
-/* Toast — opaque dark HUD surface, same in light & dark mode */
-.toast-surface {
-  background: oklch(0.15 0.006 260);
-  border: 1px solid oklch(0.25 0.006 260);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.04),
-    0 8px 24px -4px oklch(0 0 0 / 0.5),
-    0 2px 8px -2px oklch(0 0 0 / 0.3);
-}
-
-@keyframes toast-progress {
-  from {
-    width: 100%;
-  }
-  to {
-    width: 0%;
-  }
 }
 
 /* Model picker LED pulse animation */
@@ -594,11 +426,11 @@ a:hover {
 }
 
 :hover::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: var(--border);
 }
 
 :hover::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-hover);
+  background: color-mix(in oklab, var(--ring) 60%, transparent);
 }
 
 ::-webkit-scrollbar-corner {
@@ -727,8 +559,8 @@ a:hover {
   padding: 0.75rem 1.25rem 5rem;
   font-size: 0.875rem;
   line-height: 1.7;
-  color: var(--color-foreground);
-  caret-color: var(--color-foreground);
+  color: var(--foreground);
+  caret-color: var(--foreground);
 }
 
 .rich-text-editor-content h1 {
@@ -804,7 +636,7 @@ a:hover {
 
 .rich-text-editor-content hr {
   border: none;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--border);
   margin: 0.75rem 0;
 }
 
@@ -842,8 +674,8 @@ a:hover {
 }
 
 .rich-text-editor-content ul[data-type="taskList"] li > label input[type="checkbox"]:checked {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
+  background-color: var(--primary);
+  border-color: var(--primary);
   background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e");
   background-size: 100% 100%;
 }

@@ -360,9 +360,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       </div>
 
       {/* Unified control surface */}
-      <div className="rounded-lg border border-border-subtle bg-surface-1 overflow-hidden">
+      <div className="rounded-lg border border-border bg-muted overflow-hidden">
         {/* Hotkey section */}
-        <div className="p-4 border-b border-border-subtle">
+        <div className="p-4 border-b border-border">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               {t("onboarding.activation.hotkey")}

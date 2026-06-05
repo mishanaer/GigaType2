@@ -24,7 +24,7 @@ export function ActivationModeSelector({
     <div
       className={`
         relative flex rounded-md border transition-colors duration-200
-        bg-surface-1 border-border-subtle
+        bg-muted border-border
         ${isCompact ? "p-0.5" : "p-0.5"}
         ${disabled ? "opacity-50 cursor-not-allowed" : ""}
       `}
@@ -33,7 +33,7 @@ export function ActivationModeSelector({
       <div
         className={`
           absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] rounded
-          bg-surface-raised border border-border-subtle
+          bg-popover border border-border
           transition-transform duration-200 ease-out
           ${value === "push" ? "translate-x-[calc(100%+4px)]" : "translate-x-0"}
         `}

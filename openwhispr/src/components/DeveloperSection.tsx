@@ -123,7 +123,7 @@ export default function DeveloperSection() {
       </div>
 
       {/* Debug Toggle */}
-      <div className="rounded-xl border border-border/60 dark:border-border-subtle bg-card dark:bg-surface-2 divide-y divide-border/40 dark:divide-border-subtle">
+      <div className="rounded-xl border border-border/60 dark:border-border bg-card dark:bg-card divide-y divide-border/40 dark:divide-border">
         <div className="px-5 py-4">
           <div className="flex items-center justify-between gap-6">
             <div className="min-w-0 flex-1">
@@ -160,7 +160,7 @@ export default function DeveloperSection() {
               {t("developerSection.currentLogFile")}
             </p>
             <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs text-muted-foreground font-mono break-all leading-relaxed bg-muted/30 dark:bg-surface-raised/30 px-3 py-2 rounded-lg border border-border/30">
+              <code className="flex-1 text-xs text-muted-foreground font-mono break-all leading-relaxed bg-muted/30 dark:bg-popover/30 px-3 py-2 rounded-lg border border-border/30">
                 {logPath}
               </code>
               <Button
@@ -197,7 +197,7 @@ export default function DeveloperSection() {
             {t("developerSection.whatGetsLogged.title")}
           </h3>
         </div>
-        <div className="rounded-xl border border-border/60 dark:border-border-subtle bg-card dark:bg-surface-2">
+        <div className="rounded-xl border border-border/60 dark:border-border bg-card dark:bg-card">
           <div className="px-5 py-4">
             <div
               className={`grid gap-y-2 ${isCompact ? "grid-cols-1 gap-x-0" : "grid-cols-2 gap-x-6"}`}
@@ -242,7 +242,7 @@ export default function DeveloperSection() {
               {t("developerSection.sharing.title")}
             </h3>
           </div>
-          <div className="rounded-xl border border-border/60 dark:border-border-subtle bg-card dark:bg-surface-2">
+          <div className="rounded-xl border border-border/60 dark:border-border bg-card dark:bg-card">
             <div className="px-5 py-4">
               <div className="space-y-2">
                 {[

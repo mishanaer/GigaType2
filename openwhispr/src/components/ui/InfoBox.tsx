@@ -9,7 +9,7 @@ const infoBoxVariants = cva("rounded-md border p-4 transition-colors", {
       success: "bg-success/8 border-success/20 dark:bg-success/10 dark:border-success/20",
       warning: "bg-warning/8 border-warning/20 dark:bg-warning/10 dark:border-warning/20",
       info: "bg-info/8 border-info/20 dark:bg-info/10 dark:border-info/20",
-      muted: "bg-surface-1 border-border-subtle",
+      muted: "bg-muted border-border",
     },
   },
   defaultVariants: {

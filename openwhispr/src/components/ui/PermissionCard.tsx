@@ -30,7 +30,7 @@ export default function PermissionCard({
         "border",
         granted
           ? "bg-success/5 border-success/20 dark:bg-success/5 dark:border-success/15"
-          : "bg-surface-1 border-border hover:bg-surface-2 hover:border-border-hover"
+          : "bg-muted border-border hover:bg-card hover:border-ring/60"
       )}
     >
       <div className="flex items-center gap-3">

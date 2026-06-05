@@ -222,7 +222,7 @@ export default function HistoryView({
                   </h3>
                   <div className="flex items-center gap-2 text-xs text-foreground/50 dark:text-foreground/25">
                     <span>{t("controlPanel.history.press")}</span>
-                    <kbd className="inline-flex items-center h-5 px-1.5 rounded-sm bg-surface-1 dark:bg-white/6 border border-border/50 text-xs font-mono font-medium text-foreground/60 dark:text-foreground/40">
+                    <kbd className="inline-flex items-center h-5 px-1.5 rounded-sm bg-muted dark:bg-white/6 border border-border/50 text-xs font-mono font-medium text-foreground/60 dark:text-foreground/40">
                       {formatHotkeyLabel(hotkey)}
                     </kbd>
                     <span>{t("controlPanel.history.toStart")}</span>

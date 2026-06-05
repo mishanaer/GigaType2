@@ -79,12 +79,7 @@ export default defineConfig(({ mode }) => {
         ],
         output: {
           manualChunks(id) {
-            if (
-              id.includes("@radix-ui/react-dialog") ||
-              id.includes("@radix-ui/react-dropdown-menu") ||
-              id.includes("@radix-ui/react-select") ||
-              id.includes("@radix-ui/react-tabs")
-            ) {
+            if (id.includes("radix-ui")) {
               return "vendor-radix";
             }
             if (id.includes("lucide-react")) {

@@ -351,7 +351,7 @@ export default function App() {
                 e.stopPropagation();
                 isRecording ? cancelRecording() : cancelProcessing();
               }}
-              className="group/cancel w-5 h-5 rounded-full bg-surface-2/90 hover:bg-destructive border border-border hover:border-destructive/70 flex items-center justify-center transition-colors duration-150 shadow-sm backdrop-blur-sm"
+              className="group/cancel w-5 h-5 rounded-full bg-card/90 hover:bg-destructive border border-border hover:border-destructive/70 flex items-center justify-center transition-colors duration-150 shadow-sm backdrop-blur-sm"
             >
               <X
                 size={10}

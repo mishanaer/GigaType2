@@ -220,9 +220,9 @@ interface ModeToggleProps {
 function ModeToggle({ useLocalWhisper, onModeChange }: ModeToggleProps) {
   const { t } = useTranslation();
   return (
-    <div className="relative flex p-0.5 rounded-lg bg-surface-1/80 backdrop-blur-xl dark:bg-surface-1 border border-border/60 dark:border-white/8 shadow-(--shadow-metallic-light) dark:shadow-(--shadow-metallic-dark)">
+    <div className="relative flex p-0.5 rounded-lg bg-muted/80 backdrop-blur-xl dark:bg-muted border border-border/60 dark:border-white/8 shadow-sm">
       <div
-        className={`absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] rounded-md bg-card border border-border/60 dark:border-border-subtle shadow-(--shadow-metallic-light) dark:shadow-(--shadow-metallic-dark) transition-transform duration-200 ease-out ${
+        className={`absolute top-0.5 bottom-0.5 w-[calc(50%-2px)] rounded-md bg-card border border-border/60 dark:border-border shadow-sm transition-transform duration-200 ease-out ${
           useLocalWhisper ? "translate-x-[calc(100%)]" : "translate-x-0"
         }`}
       />
@@ -937,7 +937,7 @@ export default function TranscriptionModelPicker({
             !cudaDownloading &&
             getCachedPlatform() !== "darwin" &&
             cudaStatus?.gpuInfo.hasNvidiaGpu && (
-              <div className="rounded-md border border-border bg-surface-1 p-2.5">
+              <div className="rounded-md border border-border bg-muted p-2.5">
                 {cudaStatus.downloaded ? (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">

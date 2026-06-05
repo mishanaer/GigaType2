@@ -235,12 +235,12 @@ export default function TranscriptionPreviewOverlay() {
         className={[
           "relative overflow-hidden rounded-xl border bg-card/92 p-3 backdrop-blur-xl",
           "shadow-[0_8px_24px_rgba(0,0,0,0.14)]",
-          "dark:bg-surface-2/92",
+          "dark:bg-card/92",
           phase === "final"
             ? "border-emerald-500/18 dark:border-emerald-500/20"
             : phase === "cleanup"
               ? "border-accent/22 dark:border-accent/25"
-              : "border-border/40 dark:border-border-subtle/45",
+              : "border-border/40 dark:border-border/45",
           "transition-all duration-200 ease-out",
           isVisible
             ? "translate-y-0 opacity-100 scale-100"
@@ -308,7 +308,7 @@ export default function TranscriptionPreviewOverlay() {
         {activeText && (
           <div className="relative mt-2">
             {hasOverflow && (
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 rounded-t-lg bg-gradient-to-b from-background/60 to-transparent dark:from-surface-2/60" />
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 rounded-t-lg bg-gradient-to-b from-background/60 to-transparent dark:from-card/60" />
             )}
 
             <div
