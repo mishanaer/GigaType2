@@ -112,6 +112,25 @@ async function downloadBinary(platformArch, config, release, isForce = false) {
 }
 
 async function main() {
+  fs.mkdirSync(BIN_DIR, { recursive: true });
+
+  const args = parseArgs();
+
+  if (args.isCurrent) {
+    const config = BINARIES[args.platformArch];
+    if (!config) {
+      console.error(`Unsupported platform/arch: ${args.platformArch}`);
+      process.exitCode = 1;
+      return;
+    }
+
+    const outputPath = path.join(BIN_DIR, config.outputName);
+    if (fs.existsSync(outputPath) && !args.isForce) {
+      console.log(`\n[qdrant] ${config.outputName} already exists, skipping download`);
+      return;
+    }
+  }
+
   if (VERSION_OVERRIDE) {
     console.log(`\n[qdrant] Using pinned version: ${VERSION_OVERRIDE}`);
   } else {
@@ -127,10 +146,6 @@ async function main() {
   }
 
   console.log(`\nDownloading qdrant binaries (${release.tag})...\n`);
-
-  fs.mkdirSync(BIN_DIR, { recursive: true });
-
-  const args = parseArgs();
 
   if (args.isCurrent) {
     if (!BINARIES[args.platformArch]) {

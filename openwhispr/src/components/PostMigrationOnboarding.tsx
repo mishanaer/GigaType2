@@ -10,7 +10,6 @@ import {
 import { Button } from "./ui/button";
 import PermissionsSection from "./ui/PermissionsSection";
 import { usePermissions } from "../hooks/usePermissions";
-import { useSystemAudioPermission } from "../hooks/useSystemAudioPermission";
 
 interface PostMigrationOnboardingProps {
   open: boolean;
@@ -25,7 +24,6 @@ export default function PostMigrationOnboarding({
 }: PostMigrationOnboardingProps) {
   const { t } = useTranslation();
   const permissions = usePermissions();
-  const systemAudio = useSystemAudioPermission();
 
   const remindLater = () => {
     window.electronAPI?.markBundleMigrationDismissed?.();
@@ -40,7 +38,7 @@ export default function PostMigrationOnboarding({
           <DialogDescription>{t("postMigration.description")}</DialogDescription>
         </DialogHeader>
 
-        <PermissionsSection permissions={permissions} systemAudio={systemAudio} />
+        <PermissionsSection permissions={permissions} />
 
         <DialogFooter>
           <Button variant="ghost" onClick={remindLater}>

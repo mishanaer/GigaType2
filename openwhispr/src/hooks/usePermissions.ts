@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import type { PasteToolsResult } from "../types/electron";
@@ -12,7 +12,6 @@ export interface UsePermissionsReturn {
   micPermissionError: string | null;
   pasteToolsInfo: PasteToolsResult | null;
   isCheckingPasteTools: boolean;
-  accessibilityTroubleshooting: boolean;
 
   requestMicPermission: () => Promise<void>;
   requestAccessibilityPermission: () => Promise<void>;
@@ -125,8 +124,6 @@ export const usePermissions = (
   );
   const [pasteToolsInfo, setPasteToolsInfo] = useState<PasteToolsResult | null>(null);
   const [isCheckingPasteTools, setIsCheckingPasteTools] = useState(false);
-  const [accessibilityTroubleshooting, setAccessibilityTroubleshooting] = useState(false);
-  const accessibilityPollCount = useRef(0);
 
   const openSystemSettings = useCallback(
     async (
@@ -250,8 +247,14 @@ export const usePermissions = (
         return;
       }
 
-      // Open System Settings directly — avoids the undismissable macOS TCC dialog
-      // that isTrustedAccessibilityClient(true) would show.
+      await window.electronAPI?.promptAccessibilityPermission?.();
+
+      const grantedAfterPrompt = await window.electronAPI?.checkAccessibilityPermission?.(true);
+      if (grantedAfterPrompt) {
+        setAccessibilityPermissionGranted(true);
+        return;
+      }
+
       await openSystemSettings("accessibility", window.electronAPI?.openAccessibilitySettings);
       return;
     }
@@ -295,24 +298,12 @@ export const usePermissions = (
   // Poll for accessibility permission changes on macOS (e.g. user grants in System Settings)
   useEffect(() => {
     if (getPlatform() !== "darwin") return;
-    if (accessibilityPermissionGranted) {
-      setAccessibilityTroubleshooting(false);
-      accessibilityPollCount.current = 0;
-      return;
-    }
+    if (accessibilityPermissionGranted) return;
 
     const interval = setInterval(() => {
       window.electronAPI?.checkAccessibilityPermission?.(true).then((granted) => {
         if (granted) {
           setAccessibilityPermissionGranted(true);
-          setAccessibilityTroubleshooting(false);
-          accessibilityPollCount.current = 0;
-        } else {
-          accessibilityPollCount.current += 1;
-          // After ~10s of failed polls, show troubleshooting tips
-          if (accessibilityPollCount.current >= 5) {
-            setAccessibilityTroubleshooting(true);
-          }
         }
       });
     }, 2000);
@@ -326,7 +317,6 @@ export const usePermissions = (
     micPermissionError,
     pasteToolsInfo,
     isCheckingPasteTools,
-    accessibilityTroubleshooting,
     requestMicPermission,
     requestAccessibilityPermission,
     checkPasteToolsAvailability,

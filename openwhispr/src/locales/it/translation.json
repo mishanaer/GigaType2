@@ -906,7 +906,6 @@
     "groups": {
       "account": "Account",
       "app": "App",
-      "aiModels": "Modelli IA",
       "system": "Sistema"
     },
     "sections": {
@@ -921,14 +920,6 @@
       "general": {
         "description": "Aspetto, suoni e avvio",
         "label": "Preferenze"
-      },
-      "hotkeys": {
-        "description": "Scorciatoia di dettatura e attivazione",
-        "label": "Scorciatoie"
-      },
-      "speechToText": {
-        "description": "Motori per dettatura e registrazione di note",
-        "label": "Riconoscimento vocale"
       },
       "privacyData": {
         "description": "Privacy, permessi e analisi",
@@ -1220,15 +1211,6 @@
       "resetAppDataDescription": "Eliminare permanentemente tutte le impostazioni locali, trascrizioni, registrazioni audio, modelli scaricati e dati memorizzati nella cache"
     },
     "general": {
-      "appearance": {
-        "auto": "Automatico",
-        "dark": "Scuro",
-        "description": "Personalizza l'aspetto di GigaType",
-        "light": "Chiaro",
-        "theme": "Tema",
-        "themeDescription": "Scegli chiaro, scuro o in base al sistema",
-        "title": "Aspetto"
-      },
       "floatingIcon": {
         "autoHide": "Nascondi automaticamente quando inattivo",
         "autoHideDescription": "Mantieni l'icona nascosta finché non inizi a dettare",
@@ -1475,15 +1457,6 @@
     "prompts": {
       "description": "Visualizza, personalizza e testa il prompt di sistema unificato che gestisce la correzione del testo e il rilevamento delle istruzioni",
       "title": "Prompt Studio"
-    },
-    "speechToText": {
-      "title": "Riconoscimento vocale",
-      "description": "Scegli un motore per dettatura e registrazione di note",
-      "tabs": {
-        "dictation": "Dettatura",
-        "noteRecording": "Registrazione note"
-      },
-      "selfHostedStreamingNote": "Richiede un server che supporti la trascrizione in streaming."
     },
     "noteFormatting": {
       "autoGenerateTitle": "Genera automaticamente i titoli delle note",

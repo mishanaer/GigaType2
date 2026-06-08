@@ -300,6 +300,47 @@ function initializeCoreManagers() {
   });
 }
 
+function logStartupState() {
+  if (!debugLogger) {
+    return;
+  }
+
+  let microphoneStatus = "unsupported";
+  let accessibilityTrusted = null;
+
+  if (process.platform === "darwin") {
+    try {
+      microphoneStatus = systemPreferences.getMediaAccessStatus("microphone");
+    } catch (error) {
+      microphoneStatus = `error:${error.message}`;
+    }
+
+    try {
+      accessibilityTrusted = systemPreferences.isTrustedAccessibilityClient(false);
+    } catch (error) {
+      accessibilityTrusted = `error:${error.message}`;
+    }
+  }
+
+  debugLogger.info(
+    "GigaType startup state",
+    {
+      appChannel: APP_CHANNEL,
+      nodeEnv: process.env.NODE_ENV || null,
+      isPackaged: app.isPackaged,
+      isDefaultApp: Boolean(process.defaultApp),
+      appName: app.getName(),
+      appVersion: app.getVersion(),
+      userDataPath: app.getPath("userData"),
+      appPath: app.getAppPath(),
+      microphoneStatus,
+      accessibilityTrusted,
+      startupUpdateChecksEnabled: updateManager?.startupUpdateChecksEnabled ?? null,
+    },
+    "startup"
+  );
+}
+
 function registerSidecars() {
   if (whisperManager) sidecarRegistry.register("whisper", () => whisperManager.stopServer());
   if (parakeetManager) sidecarRegistry.register("parakeet", () => parakeetManager.stopServer());
@@ -417,6 +458,7 @@ async function startApp() {
   // Phase 1: Core managers + IPC handlers before windows
   initializeCoreManagers();
   await environmentManager.init();
+  logStartupState();
   registerSidecars();
   setupGigaamSidecarIpc();
 
@@ -1064,7 +1106,6 @@ if (gotSingleInstanceLock) {
     } else {
       windowManager.createMainWindow();
     }
-
   });
 
   app

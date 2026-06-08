@@ -26,20 +26,15 @@ export default function PermissionCard({
   return (
     <div
       className={cn(
-        "group relative rounded-md p-3 transition-colors duration-150",
-        "border",
-        granted
-          ? "bg-success/5 border-success/20 dark:bg-success/5 dark:border-success/15"
-          : "bg-muted border-border hover:bg-card hover:border-ring/60"
+        "group relative rounded-md border bg-transparent p-3 transition-colors duration-150",
+        granted ? "border-success/20 text-success" : "border-border text-foreground"
       )}
     >
       <div className="flex items-center gap-3">
         <div
           className={cn(
             "w-8 h-8 rounded-md flex items-center justify-center shrink-0 transition-colors duration-150",
-            granted
-              ? "bg-success/10 dark:bg-success/15"
-              : "bg-primary/10 dark:bg-primary/15 group-hover:bg-primary/15"
+            granted ? "text-success" : "text-muted-foreground"
           )}
         >
           {granted ? (
@@ -53,7 +48,7 @@ export default function PermissionCard({
           <h3 className="text-xs font-medium text-foreground">
             {title}
             {badge && (
-              <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded bg-muted text-muted-foreground">
+              <span className="ml-1.5 inline-flex items-center text-[10px] font-medium text-muted-foreground">
                 {badge}
               </span>
             )}

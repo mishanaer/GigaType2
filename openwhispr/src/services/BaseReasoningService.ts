@@ -17,11 +17,11 @@ export abstract class BaseReasoningService {
   protected isProcessing = false;
 
   protected getPreferredLanguage(): string {
-    return getSettings().preferredLanguage || "auto";
+    return getSettings().preferredLanguage || "ru";
   }
 
   protected getUiLanguage(): string {
-    return getSettings().uiLanguage || "en";
+    return getSettings().uiLanguage || "ru";
   }
 
   protected getSystemPrompt(agentName: string | null): string {

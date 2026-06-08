@@ -954,7 +954,6 @@
     "groups": {
       "account": "Cuenta",
       "app": "Aplicación",
-      "aiModels": "Modelos de IA",
       "system": "Sistema"
     },
     "sections": {
@@ -969,14 +968,6 @@
       "general": {
         "description": "Apariencia, sonidos e inicio",
         "label": "Preferencias"
-      },
-      "hotkeys": {
-        "description": "Atajo de dictado y activación",
-        "label": "Atajos"
-      },
-      "speechToText": {
-        "description": "Motores para dictado y grabación de notas",
-        "label": "Conversión de voz a texto"
       },
       "privacyData": {
         "description": "Privacidad, permisos y análisis",
@@ -1268,15 +1259,6 @@
       "resetAppDataDescription": "Eliminar permanentemente todas las configuraciones locales, transcripciones, grabaciones de audio, modelos descargados y datos en caché"
     },
     "general": {
-      "appearance": {
-        "auto": "Auto",
-        "dark": "Oscuro",
-        "description": "Controla el aspecto de GigaType",
-        "light": "Claro",
-        "theme": "Tema",
-        "themeDescription": "Elige claro, oscuro o según tu sistema",
-        "title": "Apariencia"
-      },
       "floatingIcon": {
         "autoHide": "Ocultar automáticamente cuando está inactivo",
         "autoHideDescription": "Mantén el ícono oculto hasta que comiences a dictar",
@@ -1523,15 +1505,6 @@
     "prompts": {
       "description": "Visualiza, personaliza y prueba el prompt de sistema unificado que impulsa la corrección de texto y la detección de instrucciones",
       "title": "Estudio de prompts"
-    },
-    "speechToText": {
-      "title": "Conversión de voz a texto",
-      "description": "Elige un motor para dictado y grabación de notas",
-      "tabs": {
-        "dictation": "Dictado",
-        "noteRecording": "Grabación de notas"
-      },
-      "selfHostedStreamingNote": "Requiere un servidor que admita transcripción en streaming."
     },
     "noteFormatting": {
       "autoGenerateTitle": "Generar títulos de notas automáticamente",

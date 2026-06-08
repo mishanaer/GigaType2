@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Card, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Textarea } from "./ui/textarea";
-import { ChevronRight, ChevronLeft, Check, Shield, Command } from "lucide-react";
+import { Check, Shield, Command } from "lucide-react";
 import TitleBar from "./TitleBar";
 import PermissionsSection from "./ui/PermissionsSection";
 import StepProgress from "./ui/StepProgress";
@@ -12,7 +11,6 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useDialogs } from "../hooks/useDialogs";
 import { usePermissions } from "../hooks/usePermissions";
 import { useClipboard } from "../hooks/useClipboard";
-import { useSystemAudioPermission } from "../hooks/useSystemAudioPermission";
 import { useSettings } from "../hooks/useSettings";
 import { setAgentName as saveAgentName } from "../utils/agentName";
 import { formatHotkeyLabel, getDefaultHotkey, isGlobeLikeHotkey } from "../utils/hotkeys";
@@ -22,7 +20,10 @@ import { getValidationMessage } from "../utils/hotkeyValidator";
 import { getCachedPlatform, getPlatform } from "../utils/platform";
 import logger from "../utils/logger";
 import { ActivationModeSelector } from "./ui/ActivationModeSelector";
-import { ACCESSIBILITY_SKIPPED_KEY, areRequiredPermissionsMet } from "../utils/permissions";
+import {
+  ONBOARDING_CURRENT_STEP_KEY,
+  markGigaTypeOnboardingCompleted,
+} from "../utils/onboardingState";
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -34,7 +35,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const getMaxStep = () => 1;
 
   const [currentStep, setCurrentStep, removeCurrentStep] = useLocalStorage(
-    "onboardingCurrentStep",
+    ONBOARDING_CURRENT_STEP_KEY,
     0,
     {
       serialize: String,
@@ -49,21 +50,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       },
     }
   );
-  const [accessibilitySkipped, setAccessibilitySkipped] = useLocalStorage(
-    ACCESSIBILITY_SKIPPED_KEY,
-    false,
-    {
-      serialize: String,
-      deserialize: (value) => value === "true",
-    }
-  );
-
-  const {
-    dictationKey,
-    activationMode,
-    setActivationMode,
-    setDictationKey,
-  } = useSettings();
+  const { dictationKey, activationMode, setActivationMode, setDictationKey } = useSettings();
 
   const [hotkey, setHotkey] = useState(dictationKey || getDefaultHotkey());
   const [agentName, setAgentName] = useState("GigaType");
@@ -91,8 +78,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const permissionsHook = usePermissions(showAlertDialog);
   useClipboard(showAlertDialog); // Initialize clipboard hook for permission checks
 
-  const systemAudio = useSystemAudioPermission();
-
   useEffect(() => {
     const migrationKey = "onboardingSetupStepRemoved";
     if (localStorage.getItem(migrationKey) === "1") return;
@@ -104,16 +89,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     }
     localStorage.setItem(migrationKey, "1");
   }, [setCurrentStep]);
-
-  useEffect(() => {
-    if (permissionsHook.accessibilityPermissionGranted && accessibilitySkipped) {
-      setAccessibilitySkipped(false);
-    }
-  }, [
-    permissionsHook.accessibilityPermissionGranted,
-    accessibilitySkipped,
-    setAccessibilitySkipped,
-  ]);
 
   const steps = useMemo(
     () => [
@@ -242,7 +217,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     saveAgentName(agentName);
 
     localStorage.setItem("authenticationSkipped", "true");
-    localStorage.setItem("onboardingCompleted", "true");
+    markGigaTypeOnboardingCompleted();
     localStorage.setItem("skipAuth", "true");
     localStorage.setItem("isSignedIn", "false");
 
@@ -259,26 +234,17 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     }
 
     return true;
-  }, [
-    hotkey,
-    agentName,
-    setDictationKey,
-    ensureHotkeyRegistered,
-  ]);
+  }, [hotkey, agentName, setDictationKey, ensureHotkeyRegistered]);
+
+  const arePermissionsReady = useCallback(() => {
+    if (!permissionsHook.micPermissionGranted) return false;
+    if (getPlatform() !== "darwin") return true;
+    return permissionsHook.accessibilityPermissionGranted;
+  }, [permissionsHook.micPermissionGranted, permissionsHook.accessibilityPermissionGranted]);
 
   const nextStep = useCallback(async () => {
     if (currentStep >= steps.length - 1) {
       return;
-    }
-
-    const currentStepId = steps[currentStep]?.id;
-    const isPermissionsGate = currentStepId === "permissions";
-    if (
-      getPlatform() === "darwin" &&
-      isPermissionsGate &&
-      !permissionsHook.accessibilityPermissionGranted
-    ) {
-      setAccessibilitySkipped(true);
     }
 
     const newStep = currentStep + 1;
@@ -290,21 +256,12 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         window.electronAPI.showDictationPanel();
       }
     }
-  }, [
-    currentStep,
-    setCurrentStep,
-    steps,
-    activationStepIndex,
-    permissionsHook.accessibilityPermissionGranted,
-    setAccessibilitySkipped,
-  ]);
+  }, [currentStep, setCurrentStep, steps.length, activationStepIndex]);
 
-  const prevStep = useCallback(() => {
-    if (currentStep > 0) {
-      const newStep = currentStep - 1;
-      setCurrentStep(newStep);
-    }
-  }, [currentStep, setCurrentStep]);
+  useEffect(() => {
+    if (currentStep !== 0 || !arePermissionsReady()) return;
+    void nextStep();
+  }, [currentStep, arePermissionsReady, nextStep]);
 
   const finishOnboarding = useCallback(async () => {
     const saved = await saveSettings();
@@ -318,28 +275,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const renderStep = () => {
     switch (currentStep) {
-      case 0: {
-        const platform = permissionsHook.pasteToolsInfo?.platform;
-        const isMacOS = platform === "darwin";
-
-        return (
-          <div className="space-y-4">
-            {/* Header - compact */}
-            <div className="text-center">
-              <h2 className="text-lg font-semibold text-foreground tracking-tight">
-                {t("onboarding.permissions.title")}
-              </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {isMacOS
-                  ? t("onboarding.permissions.requiredForApp")
-                  : t("onboarding.permissions.microphoneRequired")}
-              </p>
-            </div>
-
-            <PermissionsSection permissions={permissionsHook} systemAudio={systemAudio} />
-          </div>
-        );
-      }
+      case 0:
+        return <PermissionsSection permissions={permissionsHook} />;
 
       case 1:
         return renderActivationStep();
@@ -428,7 +365,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const canProceed = () => {
     switch (currentStep) {
       case 0:
-        return areRequiredPermissionsMet(permissionsHook.micPermissionGranted);
+        return arePermissionsReady();
       case 1:
         return hotkey.trim() !== "";
       default:
@@ -487,51 +424,26 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         </div>
       )}
 
-      {/* Content - This will grow to fill available space */}
-      <div className="flex-1 px-6 md:px-12 overflow-y-auto py-6">
-        <div className="w-full max-w-3xl mx-auto">
-          <Card className="bg-card/90 backdrop-blur-2xl border border-border/50 dark:border-white/5 shadow-lg rounded-xl overflow-hidden">
-            <CardContent className="p-6 md:p-8">{renderStep()}</CardContent>
-          </Card>
+      {/* Content */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-10 md:px-12">
+        <div className="mx-auto flex min-h-full w-full max-w-3xl items-center justify-center">
+          <div className="w-full">{renderStep()}</div>
         </div>
       </div>
 
       {/* Footer Navigation */}
-      {showProgress && (
+      {showProgress && currentStep === steps.length - 1 && (
         <div className="shrink-0 bg-background/80 backdrop-blur-2xl border-t border-white/5 px-6 md:px-12 py-3 z-10">
-          <div className="max-w-3xl mx-auto flex items-center justify-between">
+          <div className="max-w-3xl mx-auto flex items-center justify-end">
             <Button
-              onClick={prevStep}
-              variant="outline"
-              disabled={currentStep === 0}
-              className="h-8 px-5 rounded-full text-xs"
+              onClick={finishOnboarding}
+              disabled={!canProceed()}
+              variant="success"
+              className="h-8 px-6 rounded-full text-xs"
             >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              {t("common.back")}
+              <Check className="w-3.5 h-3.5" />
+              {t("common.complete")}
             </Button>
-
-            <div className="flex items-center gap-2">
-              {currentStep === steps.length - 1 ? (
-                <Button
-                  onClick={finishOnboarding}
-                  disabled={!canProceed()}
-                  variant="success"
-                  className="h-8 px-6 rounded-full text-xs"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  {t("common.complete")}
-                </Button>
-              ) : (
-                <Button
-                  onClick={nextStep}
-                  disabled={!canProceed()}
-                  className="h-8 px-6 rounded-full text-xs"
-                >
-                  {t("common.next")}
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </Button>
-              )}
-            </div>
           </div>
         </div>
       )}

@@ -4,6 +4,7 @@ interface UpdateStatus {
   updateAvailable: boolean;
   updateDownloaded: boolean;
   isDevelopment: boolean;
+  startupUpdateChecksEnabled?: boolean;
 }
 
 interface UpdateInfo {

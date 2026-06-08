@@ -20,7 +20,7 @@ export function resolvePrompt(kind: PromptKind, opts: ResolvePromptOptions): str
 export function getDefaultPromptText(kind: PromptKind, uiLanguage?: string): string {
   const def = PROMPT_KINDS[kind];
   if (!def.i18nKey) return def.fallback;
-  const locale = normalizeUiLanguage(uiLanguage || "en");
+  const locale = normalizeUiLanguage(uiLanguage || "ru");
   const t = i18n.getFixedT(locale, "prompts");
   return t(def.i18nKey, { defaultValue: def.fallback });
 }

@@ -5,10 +5,93 @@ import MeetingNotificationOverlay from "./components/MeetingNotificationOverlay.
 import TranscriptionPreviewOverlay from "./components/TranscriptionPreviewOverlay.tsx";
 import UpdateNotificationOverlay from "./components/UpdateNotificationOverlay.tsx";
 import { useTheme } from "./hooks/useTheme";
+import logger from "./utils/logger";
+import {
+  GIGATYPE_ONBOARDING_COMPLETED_KEY,
+  LEGACY_ONBOARDING_COMPLETED_KEY,
+  ONBOARDING_CURRENT_STEP_KEY,
+  isGigaTypeOnboardingCompleted,
+  markGigaTypeOnboardingCompleted,
+  resetOnboardingToPermissionsStep,
+} from "./utils/onboardingState";
 
 const ControlPanel = React.lazy(() => import("./components/ControlPanel.tsx"));
 const OnboardingFlow = React.lazy(() => import("./components/OnboardingFlow.tsx"));
 const ONBOARDING_ACTIVATION_STEP_INDEX = 1;
+
+const getPlatform = () => window.electronAPI?.getPlatform?.() || "browser";
+
+async function resolveOnboardingRequirement() {
+  const platform = getPlatform();
+  const completed = isGigaTypeOnboardingCompleted();
+  const legacyCompleted = localStorage.getItem(LEGACY_ONBOARDING_COMPLETED_KEY) === "true";
+  const state = {
+    key: GIGATYPE_ONBOARDING_COMPLETED_KEY,
+    completed,
+    legacyCompleted,
+    platform,
+    microphone: null,
+    accessibilityGranted: null,
+    reason: "completed",
+  };
+
+  if (!completed) {
+    state.reason = legacyCompleted ? "missing-gigatype-completion" : "not-completed";
+    await logger.info("Onboarding required", state, "onboarding");
+    return true;
+  }
+
+  if (platform !== "darwin") {
+    await logger.info("Onboarding skipped", state, "onboarding");
+    return false;
+  }
+
+  const checkMicrophone = async () => {
+    if (!window.electronAPI?.checkMicrophoneAccess) {
+      return null;
+    }
+    try {
+      return await window.electronAPI.checkMicrophoneAccess();
+    } catch (error) {
+      await logger.warn("Microphone permission check failed", { error }, "onboarding");
+      return null;
+    }
+  };
+
+  const checkAccessibility = async () => {
+    if (!window.electronAPI?.checkAccessibilityPermission) {
+      return null;
+    }
+    try {
+      return await window.electronAPI.checkAccessibilityPermission(true);
+    } catch (error) {
+      await logger.warn("Accessibility permission check failed", { error }, "onboarding");
+      return null;
+    }
+  };
+
+  const [micResult, accessibilityGranted] = await Promise.all([
+    checkMicrophone(),
+    checkAccessibility(),
+  ]);
+
+  state.microphone = micResult;
+  state.accessibilityGranted = accessibilityGranted;
+
+  const micGranted = micResult ? micResult.granted === true : true;
+  const accessibilityOk =
+    typeof accessibilityGranted === "boolean" ? accessibilityGranted === true : true;
+
+  if (!micGranted || !accessibilityOk) {
+    state.reason = !micGranted ? "microphone-missing" : "accessibility-missing";
+    resetOnboardingToPermissionsStep();
+    await logger.warn("Onboarding required because permissions are missing", state, "onboarding");
+    return true;
+  }
+
+  await logger.info("Onboarding skipped", state, "onboarding");
+  return false;
+}
 
 export default function AppRouter() {
   useTheme();
@@ -34,42 +117,53 @@ function MainApp() {
   const [isLoading, setIsLoading] = useState(true);
 
   const isControlPanel =
-    (window.location.pathname.includes("control") || window.location.search.includes("panel=true"));
+    window.location.pathname.includes("control") || window.location.search.includes("panel=true");
   const isDictationPanel = !isControlPanel;
 
   useEffect(() => {
     if (isControlPanel) {
       import("./components/ControlPanel.tsx").catch(() => {});
 
-      if (!localStorage.getItem("onboardingCompleted")) {
+      if (!isGigaTypeOnboardingCompleted()) {
         import("./components/OnboardingFlow.tsx").catch(() => {});
       }
     }
   }, [isControlPanel]);
 
   useEffect(() => {
-    const onboardingCompleted = localStorage.getItem("onboardingCompleted") === "true";
+    let cancelled = false;
 
-    if (isControlPanel) {
-      if (!onboardingCompleted) {
-        setShowOnboarding(true);
+    const checkOnboarding = async () => {
+      const onboardingRequired = await resolveOnboardingRequirement();
+      if (cancelled) {
+        return;
       }
-    }
 
-    if (isDictationPanel && !onboardingCompleted) {
-      const rawStep = parseInt(localStorage.getItem("onboardingCurrentStep") || "0");
-      const currentStep = Math.max(0, Math.min(rawStep, ONBOARDING_ACTIVATION_STEP_INDEX));
-      if (currentStep < ONBOARDING_ACTIVATION_STEP_INDEX) {
-        window.electronAPI?.hideWindow?.();
+      if (isControlPanel) {
+        setShowOnboarding(onboardingRequired);
       }
-    }
 
-    setIsLoading(false);
+      if (isDictationPanel && onboardingRequired) {
+        const rawStep = parseInt(localStorage.getItem(ONBOARDING_CURRENT_STEP_KEY) || "0");
+        const currentStep = Math.max(0, Math.min(rawStep, ONBOARDING_ACTIVATION_STEP_INDEX));
+        if (currentStep < ONBOARDING_ACTIVATION_STEP_INDEX) {
+          window.electronAPI?.hideWindow?.();
+        }
+      }
+
+      setIsLoading(false);
+    };
+
+    checkOnboarding();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isControlPanel, isDictationPanel]);
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
-    localStorage.setItem("onboardingCompleted", "true");
+    markGigaTypeOnboardingCompleted();
   };
 
   if (isLoading) {

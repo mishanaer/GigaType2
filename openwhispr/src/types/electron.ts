@@ -323,6 +323,7 @@ export interface UpdateStatusResult {
   updateAvailable: boolean;
   updateDownloaded: boolean;
   isDevelopment: boolean;
+  startupUpdateChecksEnabled?: boolean;
 }
 
 export interface UpdateInfoResult {

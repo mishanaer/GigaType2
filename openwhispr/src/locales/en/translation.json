@@ -1002,7 +1002,6 @@
     "groups": {
       "account": "Account",
       "app": "App",
-      "aiModels": "AI Models",
       "system": "System"
     },
     "sections": {
@@ -1021,14 +1020,6 @@
       "general": {
         "description": "Appearance, sounds & startup",
         "label": "Preferences"
-      },
-      "hotkeys": {
-        "description": "Dictation hotkey & activation",
-        "label": "Hotkeys"
-      },
-      "speechToText": {
-        "description": "Engines for dictation & note recording",
-        "label": "Speech-to-Text"
       },
       "privacyData": {
         "description": "Privacy, permissions & analytics",
@@ -1400,15 +1391,6 @@
       "resetAppDataDescription": "Permanently delete all local settings, transcriptions, audio recordings, downloaded models, and cached data"
     },
     "general": {
-      "appearance": {
-        "auto": "Auto",
-        "dark": "Dark",
-        "description": "Control how GigaType looks",
-        "light": "Light",
-        "theme": "Theme",
-        "themeDescription": "Choose light, dark, or match your system",
-        "title": "Appearance"
-      },
       "floatingIcon": {
         "autoHide": "Auto-hide when idle",
         "autoHideDescription": "Keep the icon hidden until you start dictating",
@@ -1655,15 +1637,6 @@
     "prompts": {
       "description": "View, customize, and test the unified system prompt that powers text cleanup and instruction detection",
       "title": "Prompt Studio"
-    },
-    "speechToText": {
-      "title": "Speech-to-Text",
-      "description": "Pick an engine for dictation and note recording",
-      "tabs": {
-        "dictation": "Dictation",
-        "noteRecording": "Note Recording"
-      },
-      "selfHostedStreamingNote": "Requires a server that supports streaming transcription."
     },
     "noteFormatting": {
       "autoGenerateTitle": "Auto-generate note titles",

@@ -6,7 +6,8 @@
 //
 // 1. Strips non-target platform/arch binaries from onnxruntime-node
 //    (saves 150–180 MB per build).
-// 2. Wraps the Linux binary in a shell script that forces XWayland and
+// 2. Removes macOS extended attributes that break Developer ID signing.
+// 3. Wraps the Linux binary in a shell script that forces XWayland and
 //    reads user flags from ~/.config/open-whispr-flags.conf.
 
 const fs = require("fs");
@@ -98,6 +99,27 @@ function registerMacResourceBinariesForSigning(context) {
   console.log(
     `  afterPack: registered ${machOFiles.length} Mach-O files under Contents/Resources for signing`
   );
+}
+
+function clearMacExtendedAttributes(context) {
+  if (context.electronPlatformName !== "darwin") {
+    return;
+  }
+
+  const appPath = resolveAppPath(context);
+  if (!fs.existsSync(appPath)) {
+    return;
+  }
+
+  try {
+    execFileSync("xattr", ["-cr", appPath], {
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    console.log("  afterPack: cleared macOS extended attributes before signing");
+  } catch (error) {
+    const detail = error.stderr?.toString().trim() || error.message;
+    throw new Error(`Failed to clear macOS extended attributes: ${detail}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -227,6 +249,7 @@ function verifyMeetingAecHelper(context) {
 
 exports.default = async function (context) {
   stripOnnxruntimeBinaries(context);
+  clearMacExtendedAttributes(context);
   wrapLinuxBinary(context);
   verifyMeetingAecHelper(context);
   registerMacResourceBinariesForSigning(context);

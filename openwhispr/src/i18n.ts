@@ -33,7 +33,7 @@ export function normalizeUiLanguage(language: string | null | undefined): UiLang
     return base;
   }
 
-  return "en";
+  return "ru";
 }
 
 const resources = {
@@ -79,18 +79,12 @@ const resources = {
   },
 } as const;
 
-const browserLanguage =
-  typeof navigator !== "undefined" ? navigator.language || navigator.languages?.[0] : undefined;
-
-const storageLanguage =
-  typeof window !== "undefined" ? window.localStorage.getItem("uiLanguage") : undefined;
-
-const initialLanguage = normalizeUiLanguage(storageLanguage || browserLanguage || "en");
+const initialLanguage = normalizeUiLanguage("ru");
 
 void i18n.use(initReactI18next).init({
   resources,
   lng: initialLanguage,
-  fallbackLng: "en",
+  fallbackLng: ["ru", "en"],
   ns: ["translation", "prompts"],
   defaultNS: "translation",
   interpolation: {

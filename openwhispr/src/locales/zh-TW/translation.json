@@ -906,7 +906,6 @@
     "groups": {
       "account": "帳戶",
       "app": "應用程式",
-      "aiModels": "AI 模型",
       "system": "系統"
     },
     "sections": {
@@ -921,14 +920,6 @@
       "general": {
         "description": "外觀、音效與啟動",
         "label": "偏好設定"
-      },
-      "hotkeys": {
-        "description": "聽寫快捷鍵與啟用模式",
-        "label": "快捷鍵"
-      },
-      "speechToText": {
-        "description": "聽寫與筆記錄音引擎",
-        "label": "語音轉文字"
       },
       "privacyData": {
         "description": "隱私、權限與資料分析",
@@ -1220,15 +1211,6 @@
       "resetAppDataDescription": "永久刪除所有本地設定、轉錄、音訊錄製、下載的模型和快取資料"
     },
     "general": {
-      "appearance": {
-        "auto": "自動",
-        "dark": "深色",
-        "description": "控制 GigaType 的外觀",
-        "light": "淺色",
-        "theme": "主題",
-        "themeDescription": "選擇淺色、深色或跟隨系統",
-        "title": "外觀"
-      },
       "floatingIcon": {
         "autoHide": "閒置時自動隱藏",
         "autoHideDescription": "在開始語音輸入前保持圖示隱藏",
@@ -1475,15 +1457,6 @@
     "prompts": {
       "description": "檢視、自訂和測試用於文字整理和指令偵測的統一系統提示詞",
       "title": "提示詞工作室"
-    },
-    "speechToText": {
-      "title": "語音轉文字",
-      "description": "為聽寫和筆記錄音選擇一個引擎",
-      "tabs": {
-        "dictation": "聽寫",
-        "noteRecording": "筆記錄音"
-      },
-      "selfHostedStreamingNote": "需要支援串流轉錄的伺服器。"
     },
     "noteFormatting": {
       "autoGenerateTitle": "自動產生筆記標題",

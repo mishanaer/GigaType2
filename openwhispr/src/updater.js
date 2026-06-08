@@ -1,5 +1,16 @@
 const { autoUpdater } = require("electron-updater");
 
+const TRUE_VALUES = new Set(["1", "true", "yes", "on"]);
+
+function isStartupUpdateCheckEnabled() {
+  const raw =
+    process.env.GIGATYPE_ENABLE_STARTUP_UPDATE_CHECKS ||
+    process.env.GIGATYPE_ENABLE_AUTO_UPDATES ||
+    process.env.OPENWHISPR_ENABLE_AUTO_UPDATES ||
+    "";
+  return TRUE_VALUES.has(String(raw).trim().toLowerCase());
+}
+
 class UpdateManager {
   constructor() {
     this.mainWindow = null;
@@ -13,6 +24,7 @@ class UpdateManager {
     this.updateCheckInterval = null;
     this.windowManager = null;
     this._suppressNotification = false;
+    this.startupUpdateChecksEnabled = isStartupUpdateCheckEnabled();
 
     this.setupAutoUpdater();
   }
@@ -290,6 +302,7 @@ class UpdateManager {
         updateAvailable: this.updateAvailable,
         updateDownloaded: this.updateDownloaded,
         isDevelopment: process.env.NODE_ENV === "development",
+        startupUpdateChecksEnabled: this.startupUpdateChecksEnabled,
       };
     } catch (error) {
       console.error("❌ Error getting update status:", error);
@@ -307,22 +320,31 @@ class UpdateManager {
   }
 
   checkForUpdatesOnStartup() {
-    if (process.env.NODE_ENV !== "development") {
-      setTimeout(() => {
-        console.log("🔄 Checking for updates on startup...");
-        autoUpdater.checkForUpdates().catch((err) => {
-          console.error("Startup update check failed:", err);
-        });
-      }, 3000);
-
-      const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
-      this.updateCheckInterval = setInterval(() => {
-        console.log("🔄 Periodic update check...");
-        autoUpdater.checkForUpdates().catch((err) => {
-          console.error("Periodic update check failed:", err);
-        });
-      }, FOUR_HOURS_MS);
+    if (process.env.NODE_ENV === "development") {
+      return;
     }
+
+    if (!this.startupUpdateChecksEnabled) {
+      console.log(
+        "Automatic update checks are disabled. Set GIGATYPE_ENABLE_STARTUP_UPDATE_CHECKS=true to enable them."
+      );
+      return;
+    }
+
+    setTimeout(() => {
+      console.log("🔄 Checking for updates on startup...");
+      autoUpdater.checkForUpdates().catch((err) => {
+        console.error("Startup update check failed:", err);
+      });
+    }, 3000);
+
+    const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
+    this.updateCheckInterval = setInterval(() => {
+      console.log("🔄 Periodic update check...");
+      autoUpdater.checkForUpdates().catch((err) => {
+        console.error("Periodic update check failed:", err);
+      });
+    }, FOUR_HOURS_MS);
   }
 
   cleanup() {

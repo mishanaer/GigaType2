@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { API_ENDPOINTS } from "../config/constants";
-import i18n, { normalizeUiLanguage } from "../i18n";
+import i18n from "../i18n";
 import { useStreamingProvidersStore } from "./streamingProvidersStore";
 import logger from "../utils/logger";
 import whisperVadConstants from "../constants/whisperVad.json";
@@ -30,6 +30,9 @@ import type {
 } from "../hooks/useSettings";
 
 const isBrowser = typeof window !== "undefined";
+const FIXED_UI_LANGUAGE = "ru";
+const FIXED_TRANSCRIPTION_LANGUAGE = "ru";
+const FIXED_THEME = "auto";
 const AUTH_BACKED_INFERENCE_MODE_KEYS = new Set([
   "transcriptionMode",
   "meetingTranscriptionMode",
@@ -225,9 +228,17 @@ function migratePreferredLanguage() {
 
 migratePreferredLanguage();
 
+function enforceFixedUiSettings() {
+  if (!isBrowser) return;
+  localStorage.setItem("uiLanguage", FIXED_UI_LANGUAGE);
+  localStorage.setItem("preferredLanguage", FIXED_TRANSCRIPTION_LANGUAGE);
+  localStorage.setItem("theme", FIXED_THEME);
+}
+
+enforceFixedUiSettings();
+
 const GIGATYPE_TRANSCRIPTION_SETTING_KEYS = [
   "useLocalWhisper",
-  "preferredLanguage",
   "cloudTranscriptionProvider",
   "cloudTranscriptionModel",
   "cloudTranscriptionBaseUrl",
@@ -677,6 +688,18 @@ function shouldSyncGigaamApiBase(value: string | null | undefined): boolean {
   return !trimmed || isLocalGigaamApiBase(trimmed);
 }
 
+function hasPartialGigaamAsrConfig(): boolean {
+  if (!isBrowser) return false;
+
+  const transcriptionMode = localStorage.getItem("transcriptionMode");
+  if (transcriptionMode === "self-hosted") return false;
+
+  return (
+    isLocalGigaamApiBase(localStorage.getItem("remoteTranscriptionUrl")) ||
+    isLocalGigaamApiBase(localStorage.getItem("cloudTranscriptionBaseUrl"))
+  );
+}
+
 function persistSettingsPatch(patch: Partial<SettingsState>) {
   if (!isBrowser || Object.keys(patch).length === 0) return;
 
@@ -710,9 +733,11 @@ async function syncGigaTypeAsrSettings(status?: GigaamSidecarStatus | null): Pro
   const isFreshProfile =
     localStorage.getItem(GIGATYPE_ASR_DEFAULTS_APPLIED_KEY) !== "1" &&
     !hadUserTranscriptionSettingsBeforeProviderMigration;
+  const shouldRepairPartialGigaamConfig =
+    localStorage.getItem(GIGATYPE_ASR_DEFAULTS_APPLIED_KEY) !== "1" && hasPartialGigaamAsrConfig();
   const patch: Partial<SettingsState> = {};
 
-  if (isFreshProfile) {
+  if (isFreshProfile || shouldRepairPartialGigaamConfig) {
     Object.assign(patch, {
       transcriptionMode: "self-hosted" as InferenceMode,
       remoteTranscriptionType: "openai-compatible" as SelfHostedType,
@@ -737,7 +762,7 @@ async function syncGigaTypeAsrSettings(status?: GigaamSidecarStatus | null): Pro
 
   persistSettingsPatch(patch);
 
-  if (isFreshProfile) {
+  if (isFreshProfile || shouldRepairPartialGigaamConfig) {
     localStorage.setItem(GIGATYPE_ASR_DEFAULTS_APPLIED_KEY, "1");
   }
 }
@@ -818,7 +843,7 @@ function invalidateApiKeyCaches(
 }
 
 export const useSettingsStore = create<SettingsState>()((set, get) => ({
-  uiLanguage: normalizeUiLanguage(isBrowser ? localStorage.getItem("uiLanguage") : null),
+  uiLanguage: FIXED_UI_LANGUAGE,
   useLocalWhisper: readBoolean("useLocalWhisper", false),
   whisperModel: readString("whisperModel", "base"),
   localTranscriptionProvider: (readString("localTranscriptionProvider", "whisper") === "nvidia"
@@ -828,7 +853,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   allowOpenAIFallback: readBoolean("allowOpenAIFallback", false),
   allowLocalFallback: readBoolean("allowLocalFallback", false),
   fallbackWhisperModel: readString("fallbackWhisperModel", "base"),
-  preferredLanguage: readString("preferredLanguage", "auto"),
+  preferredLanguage: FIXED_TRANSCRIPTION_LANGUAGE,
   cloudTranscriptionProvider: readString("cloudTranscriptionProvider", "openai"),
   cloudTranscriptionModel: readString("cloudTranscriptionModel", "gpt-4o-mini-transcribe"),
   cloudTranscriptionBaseUrl: readString(
@@ -885,11 +910,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   preferBuiltInMic: readBoolean("preferBuiltInMic", true),
   selectedMicDeviceId: readString("selectedMicDeviceId", ""),
 
-  theme: (() => {
-    const v = readString("theme", "auto");
-    if (v === "light" || v === "dark" || v === "auto") return v;
-    return "auto" as const;
-  })(),
+  theme: FIXED_THEME,
   cloudBackupEnabled: false,
   telemetryEnabled: readBoolean("telemetryEnabled", false),
   audioRetentionDays: (() => {
@@ -1115,7 +1136,10 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setAllowOpenAIFallback: createBooleanSetter("allowOpenAIFallback"),
   setAllowLocalFallback: createBooleanSetter("allowLocalFallback"),
   setFallbackWhisperModel: createStringSetter("fallbackWhisperModel"),
-  setPreferredLanguage: createStringSetter("preferredLanguage"),
+  setPreferredLanguage: () => {
+    if (isBrowser) localStorage.setItem("preferredLanguage", FIXED_TRANSCRIPTION_LANGUAGE);
+    set({ preferredLanguage: FIXED_TRANSCRIPTION_LANGUAGE });
+  },
   setCloudTranscriptionProvider: createStringSetter("cloudTranscriptionProvider"),
   setCloudTranscriptionModel: createStringSetter("cloudTranscriptionModel"),
   setCloudTranscriptionBaseUrl: createStringSetter("cloudTranscriptionBaseUrl"),
@@ -1129,13 +1153,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setCleanupProvider: createStringSetter("cleanupProvider"),
   setCleanupModel: createStringSetter("cleanupModel"),
 
-  setUiLanguage: (language: string) => {
-    const normalized = normalizeUiLanguage(language);
-    if (isBrowser) localStorage.setItem("uiLanguage", normalized);
-    set({ uiLanguage: normalized });
-    void i18n.changeLanguage(normalized);
+  setUiLanguage: () => {
+    if (isBrowser) localStorage.setItem("uiLanguage", FIXED_UI_LANGUAGE);
+    set({ uiLanguage: FIXED_UI_LANGUAGE });
+    void i18n.changeLanguage(FIXED_UI_LANGUAGE);
     if (isBrowser && window.electronAPI?.setUiLanguage) {
-      window.electronAPI.setUiLanguage(normalized).catch((err) => {
+      window.electronAPI.setUiLanguage(FIXED_UI_LANGUAGE).catch((err) => {
         logger.warn(
           "Failed to sync UI language to main process",
           { error: (err as Error).message },
@@ -1287,9 +1310,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setPreferBuiltInMic: createBooleanSetter("preferBuiltInMic"),
   setSelectedMicDeviceId: createStringSetter("selectedMicDeviceId"),
 
-  setTheme: (value: "light" | "dark" | "auto") => {
-    if (isBrowser) localStorage.setItem("theme", value);
-    set({ theme: value });
+  setTheme: () => {
+    if (isBrowser) localStorage.setItem("theme", FIXED_THEME);
+    set({ theme: FIXED_THEME });
   },
 
   setCloudBackupEnabled: () => {
@@ -1862,27 +1885,24 @@ export async function initializeSettings(): Promise<void> {
       );
     }
 
-    // Sync UI language from main process
+    // UI and transcription languages are fixed to Russian in GigaType.
     try {
-      const envLanguage = await window.electronAPI.getUiLanguage?.();
-      const resolved = normalizeUiLanguage(envLanguage || state.uiLanguage);
-      if (resolved !== state.uiLanguage) {
-        if (isBrowser) localStorage.setItem("uiLanguage", resolved);
-        useSettingsStore.setState({ uiLanguage: resolved });
+      enforceFixedUiSettings();
+      if (state.uiLanguage !== FIXED_UI_LANGUAGE) {
+        useSettingsStore.setState({ uiLanguage: FIXED_UI_LANGUAGE });
       }
-      await i18n.changeLanguage(resolved);
+      if (state.preferredLanguage !== FIXED_TRANSCRIPTION_LANGUAGE) {
+        useSettingsStore.setState({ preferredLanguage: FIXED_TRANSCRIPTION_LANGUAGE });
+      }
+      await i18n.changeLanguage(FIXED_UI_LANGUAGE);
+      await window.electronAPI.setUiLanguage?.(FIXED_UI_LANGUAGE);
     } catch (err) {
       logger.warn(
         "Failed to sync UI language on startup",
         { error: (err as Error).message },
         "settings"
       );
-      void i18n.changeLanguage(normalizeUiLanguage(state.uiLanguage));
-    }
-
-    const migratedLang = isBrowser ? localStorage.getItem("preferredLanguage") : null;
-    if (migratedLang && migratedLang !== state.preferredLanguage) {
-      useSettingsStore.setState({ preferredLanguage: migratedLang });
+      void i18n.changeLanguage(FIXED_UI_LANGUAGE);
     }
 
     await syncGigaTypeAsrSettings();
@@ -1970,6 +1990,17 @@ export async function initializeSettings(): Promise<void> {
 
     const { key, newValue } = event;
 
+    if (key === "uiLanguage" || key === "preferredLanguage" || key === "theme") {
+      enforceFixedUiSettings();
+      useSettingsStore.setState({
+        uiLanguage: FIXED_UI_LANGUAGE,
+        preferredLanguage: FIXED_TRANSCRIPTION_LANGUAGE,
+        theme: FIXED_THEME,
+      });
+      void i18n.changeLanguage(FIXED_UI_LANGUAGE);
+      return;
+    }
+
     if (key.startsWith("customPrompt.")) {
       const kind = key.slice("customPrompt.".length) as PromptKind;
       if (!PROMPT_KIND_LIST.includes(kind)) return;
@@ -2016,7 +2047,7 @@ export async function initializeSettings(): Promise<void> {
     }
 
     if (key === "uiLanguage" && typeof value === "string") {
-      void i18n.changeLanguage(value);
+      void i18n.changeLanguage(FIXED_UI_LANGUAGE);
     }
   });
 
@@ -2032,6 +2063,16 @@ export async function initializeSettings(): Promise<void> {
       data.key in state &&
       typeof (state as unknown as Record<string, unknown>)[data.key] !== "function"
     ) {
+      if (data.key === "uiLanguage" || data.key === "preferredLanguage" || data.key === "theme") {
+        enforceFixedUiSettings();
+        useSettingsStore.setState({
+          uiLanguage: FIXED_UI_LANGUAGE,
+          preferredLanguage: FIXED_TRANSCRIPTION_LANGUAGE,
+          theme: FIXED_THEME,
+        });
+        void i18n.changeLanguage(FIXED_UI_LANGUAGE);
+        return;
+      }
       localStorage.setItem(
         data.key,
         typeof data.value === "string" ? data.value : JSON.stringify(data.value)

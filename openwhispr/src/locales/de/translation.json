@@ -906,7 +906,6 @@
     "groups": {
       "account": "Konto",
       "app": "App",
-      "aiModels": "KI-Modelle",
       "system": "System"
     },
     "sections": {
@@ -921,14 +920,6 @@
       "general": {
         "description": "Darstellung, Töne & Start",
         "label": "Einstellungen"
-      },
-      "hotkeys": {
-        "description": "Diktat-Hotkey & Aktivierung",
-        "label": "Hotkeys"
-      },
-      "speechToText": {
-        "description": "Engines für Diktat & Notizaufnahme",
-        "label": "Spracherkennung"
       },
       "privacyData": {
         "description": "Datenschutz, Berechtigungen & Analyse",
@@ -1220,15 +1211,6 @@
       "resetAppDataDescription": "Alle lokalen Einstellungen, Transkriptionen, Audioaufnahmen, heruntergeladene Modelle und zwischengespeicherte Daten dauerhaft löschen"
     },
     "general": {
-      "appearance": {
-        "auto": "Auto",
-        "dark": "Dunkel",
-        "description": "Steuern Sie das Erscheinungsbild von GigaType",
-        "light": "Hell",
-        "theme": "Design",
-        "themeDescription": "Wählen Sie zwischen Hell, Dunkel oder Systemstandard",
-        "title": "Darstellung"
-      },
       "floatingIcon": {
         "autoHide": "Automatisch ausblenden bei Inaktivität",
         "autoHideDescription": "Symbol ausblenden, bis Sie mit dem Diktieren beginnen",
@@ -1475,15 +1457,6 @@
     "prompts": {
       "description": "Den einheitlichen System-Prompt anzeigen, anpassen und testen, der Textbereinigung und Anweisungserkennung steuert",
       "title": "Prompt-Studio"
-    },
-    "speechToText": {
-      "title": "Spracherkennung",
-      "description": "Wählen Sie eine Engine für Diktat und Notizaufnahme",
-      "tabs": {
-        "dictation": "Diktat",
-        "noteRecording": "Notizaufnahme"
-      },
-      "selfHostedStreamingNote": "Erfordert einen Server, der Streaming-Transkription unterstützt."
     },
     "noteFormatting": {
       "autoGenerateTitle": "Notiztitel automatisch generieren",

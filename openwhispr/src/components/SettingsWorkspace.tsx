@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useEffect, useMemo } from "react"
 import { useTranslation } from "react-i18next"
-import { Keyboard, Mic, Shield, Sliders, Wrench } from "lucide-react"
+import { Shield, Sliders, Wrench } from "lucide-react"
 
 import SettingsPage, { SettingsSectionType } from "./SettingsPage"
 import {
@@ -31,15 +31,13 @@ interface SidebarItem<T extends string> {
 }
 
 const SECTION_ALIASES: Record<string, SettingsSectionType> = {
-  transcription: "speechToText",
+  hotkeys: "general",
+  speechToText: "general",
+  transcription: "general",
   softwareUpdates: "system",
   privacy: "privacyData",
   permissions: "privacyData",
   developer: "system",
-}
-
-const LEGACY_SUB_TAB: Record<string, string> = {
-  transcription: "dictation",
 }
 
 const REMOVED_SECTIONS = new Set([
@@ -83,20 +81,6 @@ export default function SettingsWorkspace({
         group: t("settingsModal.groups.app"),
       },
       {
-        id: "hotkeys",
-        label: t("settingsModal.sections.hotkeys.label"),
-        icon: Keyboard,
-        description: t("settingsModal.sections.hotkeys.description"),
-        group: t("settingsModal.groups.app"),
-      },
-      {
-        id: "speechToText",
-        label: t("settingsModal.sections.speechToText.label"),
-        icon: Mic,
-        description: t("settingsModal.sections.speechToText.description"),
-        group: t("settingsModal.groups.aiModels"),
-      },
-      {
         id: "privacyData",
         label: t("settingsModal.sections.privacyData.label"),
         icon: Shield,
@@ -124,14 +108,10 @@ export default function SettingsWorkspace({
   const [activeSection, setActiveSection] = React.useState<SettingsSectionType>(() =>
     resolveSection(requestedSection)
   )
-  const [initialSubTab, setInitialSubTab] = useState<string | undefined>(() =>
-    requestedSection ? LEGACY_SUB_TAB[requestedSection] : undefined
-  )
 
   useEffect(() => {
     if (requestId === undefined) return
     setActiveSection(resolveSection(requestedSection))
-    setInitialSubTab(requestedSection ? LEGACY_SUB_TAB[requestedSection] : undefined)
   }, [requestedSection, requestId])
 
   const groupedItems = React.useMemo(() => {
@@ -167,7 +147,6 @@ export default function SettingsWorkspace({
 
   const handleSectionChange = (section: SettingsSectionType) => {
     setActiveSection(section)
-    setInitialSubTab(undefined)
   }
 
   const renderBadge = (item: SidebarItem<SettingsSectionType>) => {
@@ -241,7 +220,6 @@ export default function SettingsWorkspace({
               <SettingsPage
                 activeSection={activeSection}
                 onNavigateToSection={handleSectionChange}
-                initialSubTab={initialSubTab}
               />
             </div>
           </SettingsLayoutProvider>

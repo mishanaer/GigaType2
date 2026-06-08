@@ -906,7 +906,6 @@
     "groups": {
       "account": "账户",
       "app": "应用",
-      "aiModels": "AI 模型",
       "system": "系统"
     },
     "sections": {
@@ -921,14 +920,6 @@
       "general": {
         "description": "外观、声音与启动",
         "label": "偏好设置"
-      },
-      "hotkeys": {
-        "description": "听写快捷键与激活模式",
-        "label": "快捷键"
-      },
-      "speechToText": {
-        "description": "听写与笔记录音引擎",
-        "label": "语音转文字"
       },
       "privacyData": {
         "description": "隐私、权限与数据分析",
@@ -1220,15 +1211,6 @@
       "resetAppDataDescription": "永久删除所有本地设置、转录、音频录制、下载的模型和缓存数据"
     },
     "general": {
-      "appearance": {
-        "auto": "自动",
-        "dark": "深色",
-        "description": "控制 GigaType 的外观",
-        "light": "浅色",
-        "theme": "主题",
-        "themeDescription": "选择浅色、深色或跟随系统",
-        "title": "外观"
-      },
       "floatingIcon": {
         "autoHide": "空闲时自动隐藏",
         "autoHideDescription": "在开始听写前保持图标隐藏",
@@ -1475,15 +1457,6 @@
     "prompts": {
       "description": "查看、自定义和测试用于文本整理和指令识别的统一系统提示词",
       "title": "提示词工作室"
-    },
-    "speechToText": {
-      "title": "语音转文字",
-      "description": "为听写和笔记录音选择一个引擎",
-      "tabs": {
-        "dictation": "听写",
-        "noteRecording": "笔记录音"
-      },
-      "selfHostedStreamingNote": "需要支持流式转录的服务器。"
     },
     "noteFormatting": {
       "autoGenerateTitle": "自动生成笔记标题",

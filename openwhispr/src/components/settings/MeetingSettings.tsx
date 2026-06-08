@@ -129,7 +129,10 @@ export function MeetingTranscriptionPanel() {
             onUrlChange={setMeetingRemoteTranscriptionUrl}
           />
           <p className="text-xs text-muted-foreground/80 px-1">
-            {t("settingsPage.speechToText.selfHostedStreamingNote")}
+            {t("settingsPage.transcription.selfHostedStreamingNote", {
+              defaultValue:
+                "Self-hosted streaming transcription requires a compatible streaming endpoint.",
+            })}
           </p>
         </>
       )}

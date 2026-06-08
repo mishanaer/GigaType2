@@ -906,7 +906,6 @@
     "groups": {
       "account": "アカウント",
       "app": "アプリ",
-      "aiModels": "AIモデル",
       "system": "システム"
     },
     "sections": {
@@ -921,14 +920,6 @@
       "general": {
         "description": "外観、サウンド、起動設定",
         "label": "環境設定"
-      },
-      "hotkeys": {
-        "description": "ディクテーションホットキーと起動モード",
-        "label": "ホットキー"
-      },
-      "speechToText": {
-        "description": "ディクテーションとノート録音用エンジン",
-        "label": "音声認識"
       },
       "privacyData": {
         "description": "プライバシー、権限、分析",
@@ -1220,15 +1211,6 @@
       "resetAppDataDescription": "すべてのローカル設定、文字起こし、音声録音、ダウンロード済みモデル、キャッシュデータを完全に削除"
     },
     "general": {
-      "appearance": {
-        "auto": "自動",
-        "dark": "ダーク",
-        "description": "GigaType の外観を設定",
-        "light": "ライト",
-        "theme": "テーマ",
-        "themeDescription": "ライト、ダーク、またはシステムに合わせる",
-        "title": "外観"
-      },
       "floatingIcon": {
         "autoHide": "使用していないときに自動で非表示",
         "autoHideDescription": "ディクテーション開始までアイコンを非表示にする",
@@ -1475,15 +1457,6 @@
     "prompts": {
       "description": "テキスト補正と指示検出を行う統合システムプロンプトの表示、カスタマイズ、テスト",
       "title": "プロンプトスタジオ"
-    },
-    "speechToText": {
-      "title": "音声認識",
-      "description": "ディクテーションとノート録音用のエンジンを選択",
-      "tabs": {
-        "dictation": "ディクテーション",
-        "noteRecording": "ノート録音"
-      },
-      "selfHostedStreamingNote": "ストリーミング文字起こしに対応したサーバーが必要です。"
     },
     "noteFormatting": {
       "autoGenerateTitle": "ノートのタイトルを自動生成",

@@ -954,7 +954,6 @@
     "groups": {
       "account": "Compte",
       "app": "Application",
-      "aiModels": "Modèles IA",
       "system": "Système"
     },
     "sections": {
@@ -969,14 +968,6 @@
       "general": {
         "description": "Apparence, sons & démarrage",
         "label": "Préférences"
-      },
-      "hotkeys": {
-        "description": "Raccourci de dictée et activation",
-        "label": "Raccourcis"
-      },
-      "speechToText": {
-        "description": "Moteurs pour dictée et enregistrement de notes",
-        "label": "Reconnaissance vocale"
       },
       "privacyData": {
         "description": "Confidentialité, permissions & analytique",
@@ -1268,15 +1259,6 @@
       "resetAppDataDescription": "Supprimer définitivement tous les paramètres locaux, transcriptions, enregistrements audio, modèles téléchargés et données en cache"
     },
     "general": {
-      "appearance": {
-        "auto": "Auto",
-        "dark": "Sombre",
-        "description": "Contrôlez l'apparence d'GigaType",
-        "light": "Clair",
-        "theme": "Thème",
-        "themeDescription": "Choisissez clair, sombre ou suivre le système",
-        "title": "Apparence"
-      },
       "floatingIcon": {
         "autoHide": "Masquer automatiquement au repos",
         "autoHideDescription": "Garder l'icône masquée jusqu'au début de la dictée",
@@ -1523,15 +1505,6 @@
     "prompts": {
       "description": "Affichez, personnalisez et testez le prompt système unifié qui gère la correction du texte et la détection des instructions",
       "title": "Studio de prompts"
-    },
-    "speechToText": {
-      "title": "Reconnaissance vocale",
-      "description": "Choisissez un moteur pour la dictée et l'enregistrement de notes",
-      "tabs": {
-        "dictation": "Dictée",
-        "noteRecording": "Enregistrement de notes"
-      },
-      "selfHostedStreamingNote": "Nécessite un serveur qui prend en charge la transcription en streaming."
     },
     "noteFormatting": {
       "autoGenerateTitle": "Générer automatiquement les titres des notes",
