@@ -17,9 +17,8 @@ import { formatHotkeyLabel, getDefaultHotkey, isGlobeLikeHotkey } from "../utils
 import { HotkeyInput } from "./ui/HotkeyInput";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { getValidationMessage } from "../utils/hotkeyValidator";
-import { getCachedPlatform, getPlatform } from "../utils/platform";
+import { getPlatform } from "../utils/platform";
 import logger from "../utils/logger";
-import { ActivationModeSelector } from "./ui/ActivationModeSelector";
 import {
   ONBOARDING_CURRENT_STEP_KEY,
   markGigaTypeOnboardingCompleted,
@@ -50,11 +49,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       },
     }
   );
-  const { dictationKey, activationMode, setActivationMode, setDictationKey } = useSettings();
+  const { dictationKey, setDictationKey } = useSettings();
 
   const [hotkey, setHotkey] = useState(dictationKey || getDefaultHotkey());
   const [agentName, setAgentName] = useState("GigaType");
-  const [isUsingNativeShortcut, setIsUsingNativeShortcut] = useState(false);
   const readableHotkey = formatHotkeyLabel(hotkey);
   const { alertDialog, confirmDialog, showAlertDialog, hideAlertDialog, hideConfirmDialog } =
     useDialogs();
@@ -99,23 +97,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   );
 
   const showProgress = true;
-
-  useEffect(() => {
-    const checkHotkeyMode = async () => {
-      try {
-        const info = await window.electronAPI?.getHotkeyModeInfo();
-        if (info?.isUsingNativeShortcut) {
-          setIsUsingNativeShortcut(true);
-          if (!info.supportsPushToTalk) {
-            setActivationMode("tap");
-          }
-        }
-      } catch (error) {
-        logger.error("Failed to check hotkey mode", { error }, "onboarding");
-      }
-    };
-    checkHotkeyMode();
-  }, [setActivationMode]);
 
   // Update wizard UI when backend falls back to a different hotkey.
   // Only update local state — don't persist to localStorage so the app
@@ -242,6 +223,27 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     return permissionsHook.accessibilityPermissionGranted;
   }, [permissionsHook.micPermissionGranted, permissionsHook.accessibilityPermissionGranted]);
 
+  useEffect(() => {
+    if (currentStep === 0 || arePermissionsReady()) return;
+
+    void logger.warn(
+      "Resetting onboarding to permissions step because permissions are missing",
+      {
+        currentStep,
+        micPermissionGranted: permissionsHook.micPermissionGranted,
+        accessibilityPermissionGranted: permissionsHook.accessibilityPermissionGranted,
+      },
+      "onboarding"
+    );
+    setCurrentStep(0);
+  }, [
+    currentStep,
+    arePermissionsReady,
+    permissionsHook.micPermissionGranted,
+    permissionsHook.accessibilityPermissionGranted,
+    setCurrentStep,
+  ]);
+
   const nextStep = useCallback(async () => {
     if (currentStep >= steps.length - 1) {
       return;
@@ -318,27 +320,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             validate={validateHotkeyForInput}
           />
         </div>
-
-        {/* Mode section - inline with hotkey */}
-        {(!isUsingNativeShortcut || getCachedPlatform() === "linux") && (
-          <div className="p-4 flex items-center justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                {t("onboarding.activation.mode")}
-              </span>
-              <p className="text-xs text-muted-foreground/70 mt-0.5">
-                {activationMode === "tap"
-                  ? t("onboarding.activation.tapDescription")
-                  : t("onboarding.activation.holdDescription")}
-              </p>
-            </div>
-            <ActivationModeSelector
-              value={activationMode}
-              onChange={setActivationMode}
-              variant="compact"
-            />
-          </div>
-        )}
       </div>
 
       {/* Test area - minimal chrome */}
@@ -348,9 +329,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             {t("onboarding.activation.test")}
           </span>
           <span className="text-xs text-muted-foreground/60">
-            {activationMode === "tap" || (isUsingNativeShortcut && getCachedPlatform() !== "linux")
-              ? t("onboarding.activation.hotkeyToStartStop", { hotkey: readableHotkey })
-              : t("onboarding.activation.holdHotkey", { hotkey: readableHotkey })}
+            {t("onboarding.activation.holdHotkey", { hotkey: readableHotkey })}
           </span>
         </div>
         <Textarea

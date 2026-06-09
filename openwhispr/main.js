@@ -47,6 +47,7 @@ try {
 
 const VALID_CHANNELS = new Set(["development", "staging", "production"]);
 const BASE_WINDOWS_APP_ID = "com.gizmolabs.openwhispr";
+const PRODUCT_NAME = "GigaType";
 
 function isElectronBinaryExec() {
   const execPath = (process.execPath || "").toLowerCase();
@@ -79,13 +80,13 @@ function resolveAppChannel() {
 const APP_CHANNEL = resolveAppChannel();
 process.env.OPENWHISPR_CHANNEL = APP_CHANNEL;
 
-function configureChannelUserDataPath() {
-  if (APP_CHANNEL === "production") {
-    return;
-  }
+if (app.getName() !== PRODUCT_NAME) {
+  app.setName(PRODUCT_NAME);
+}
 
-  const isolatedPath = path.join(app.getPath("appData"), `GigaType-${APP_CHANNEL}`);
-  app.setPath("userData", isolatedPath);
+function configureChannelUserDataPath() {
+  const userDataDir = APP_CHANNEL === "production" ? PRODUCT_NAME : `${PRODUCT_NAME}-${APP_CHANNEL}`;
+  app.setPath("userData", path.join(app.getPath("appData"), userDataDir));
 }
 
 configureChannelUserDataPath();
@@ -133,11 +134,6 @@ if (!gotSingleInstanceLock) {
 }
 
 const isLiveWindow = (window) => window && !window.isDestroyed();
-
-// Ensure macOS menus use the proper casing for the app name
-if (process.platform === "darwin" && app.getName() !== "GigaType") {
-  app.setName("GigaType");
-}
 
 // Add global error handling for uncaught exceptions
 process.on("uncaughtException", (error) => {
@@ -956,10 +952,11 @@ async function startApp() {
     const STARTUP_DELAY_MS = 3000;
     setTimeout(startWindowsKeyListener, STARTUP_DELAY_MS);
 
-    ipcMain.on("activation-mode-changed", (_event, mode) => {
+    ipcMain.on("activation-mode-changed", () => {
       windowManager.resetWindowsPushState();
+      const activationMode = windowManager.getActivationMode();
       const currentHotkey = hotkeyManager.getCurrentHotkey();
-      if (needsNativeListener(currentHotkey, mode)) {
+      if (needsNativeListener(currentHotkey, activationMode)) {
         windowsKeyManager.start(currentHotkey);
       } else {
         windowsKeyManager.stop();
@@ -1051,10 +1048,11 @@ async function startApp() {
     const STARTUP_DELAY_MS = 3000;
     setTimeout(startLinuxKeyListener, STARTUP_DELAY_MS);
 
-    ipcMain.on("activation-mode-changed", (_event, mode) => {
+    ipcMain.on("activation-mode-changed", () => {
       windowManager.resetWindowsPushState();
+      const activationMode = windowManager.getActivationMode();
       const currentHotkey = hotkeyManager.getCurrentHotkey();
-      if (needsNativeListener(currentHotkey, mode)) {
+      if (needsNativeListener(currentHotkey, activationMode)) {
         linuxKeyManager.start(currentHotkey);
       } else {
         linuxKeyManager.stop();

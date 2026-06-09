@@ -21,29 +21,9 @@ const ONBOARDING_ACTIVATION_STEP_INDEX = 1;
 
 const getPlatform = () => window.electronAPI?.getPlatform?.() || "browser";
 
-async function resolveOnboardingRequirement() {
-  const platform = getPlatform();
-  const completed = isGigaTypeOnboardingCompleted();
-  const legacyCompleted = localStorage.getItem(LEGACY_ONBOARDING_COMPLETED_KEY) === "true";
-  const state = {
-    key: GIGATYPE_ONBOARDING_COMPLETED_KEY,
-    completed,
-    legacyCompleted,
-    platform,
-    microphone: null,
-    accessibilityGranted: null,
-    reason: "completed",
-  };
-
-  if (!completed) {
-    state.reason = legacyCompleted ? "missing-gigatype-completion" : "not-completed";
-    await logger.info("Onboarding required", state, "onboarding");
-    return true;
-  }
-
+async function checkOnboardingPermissions(platform, state) {
   if (platform !== "darwin") {
-    await logger.info("Onboarding skipped", state, "onboarding");
-    return false;
+    return true;
   }
 
   const checkMicrophone = async () => {
@@ -85,6 +65,39 @@ async function resolveOnboardingRequirement() {
   if (!micGranted || !accessibilityOk) {
     state.reason = !micGranted ? "microphone-missing" : "accessibility-missing";
     resetOnboardingToPermissionsStep();
+    return false;
+  }
+
+  return true;
+}
+
+async function resolveOnboardingRequirement() {
+  const platform = getPlatform();
+  const completed = isGigaTypeOnboardingCompleted();
+  const legacyCompleted = localStorage.getItem(LEGACY_ONBOARDING_COMPLETED_KEY) === "true";
+  const state = {
+    key: GIGATYPE_ONBOARDING_COMPLETED_KEY,
+    completed,
+    legacyCompleted,
+    platform,
+    microphone: null,
+    accessibilityGranted: null,
+    reason: "completed",
+  };
+
+  if (!completed) {
+    state.reason = legacyCompleted ? "missing-gigatype-completion" : "not-completed";
+    await checkOnboardingPermissions(platform, state);
+    await logger.info("Onboarding required", state, "onboarding");
+    return true;
+  }
+
+  if (platform !== "darwin") {
+    await logger.info("Onboarding skipped", state, "onboarding");
+    return false;
+  }
+
+  if (!(await checkOnboardingPermissions(platform, state))) {
     await logger.warn("Onboarding required because permissions are missing", state, "onboarding");
     return true;
   }

@@ -33,6 +33,10 @@ const isBrowser = typeof window !== "undefined";
 const FIXED_UI_LANGUAGE = "ru";
 const FIXED_TRANSCRIPTION_LANGUAGE = "ru";
 const FIXED_THEME = "auto";
+const FIXED_ACTIVATION_MODE = "push" as const;
+const FIXED_AUDIO_CUES_ENABLED = true;
+const FIXED_PAUSE_MEDIA_ON_DICTATION = false;
+const FIXED_NOTIFICATIONS_ENABLED = false;
 const AUTH_BACKED_INFERENCE_MODE_KEYS = new Set([
   "transcriptionMode",
   "meetingTranscriptionMode",
@@ -237,6 +241,19 @@ function enforceFixedUiSettings() {
 
 enforceFixedUiSettings();
 
+function enforceFixedBehaviorSettings() {
+  if (!isBrowser) return;
+  localStorage.setItem("activationMode", FIXED_ACTIVATION_MODE);
+  localStorage.setItem("audioCuesEnabled", String(FIXED_AUDIO_CUES_ENABLED));
+  localStorage.setItem("pauseMediaOnDictation", String(FIXED_PAUSE_MEDIA_ON_DICTATION));
+  localStorage.setItem("notificationsEnabled", String(FIXED_NOTIFICATIONS_ENABLED));
+  localStorage.setItem("notifyMeetingDetection", String(FIXED_NOTIFICATIONS_ENABLED));
+  localStorage.setItem("notifyCalendarReminders", String(FIXED_NOTIFICATIONS_ENABLED));
+  localStorage.setItem("notifyUpdates", String(FIXED_NOTIFICATIONS_ENABLED));
+}
+
+enforceFixedBehaviorSettings();
+
 const GIGATYPE_TRANSCRIPTION_SETTING_KEYS = [
   "useLocalWhisper",
   "cloudTranscriptionProvider",
@@ -250,7 +267,8 @@ const GIGATYPE_TRANSCRIPTION_SETTING_KEYS = [
   "remoteTranscriptionUrl",
 ] as const;
 const hadUserTranscriptionSettingsBeforeProviderMigration =
-  isBrowser && GIGATYPE_TRANSCRIPTION_SETTING_KEYS.some((key) => localStorage.getItem(key) !== null);
+  isBrowser &&
+  GIGATYPE_TRANSCRIPTION_SETTING_KEYS.some((key) => localStorage.getItem(key) !== null);
 
 function migrateProviderSettings() {
   if (!isBrowser) return;
@@ -903,9 +921,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   meetingHotkeyLayoutMode: (readString("meetingHotkeyLayoutMode", "full-width") === "side-panel"
     ? "side-panel"
     : "full-width") as "side-panel" | "full-width",
-  activationMode: (readString("activationMode", "tap") === "push" ? "push" : "tap") as
-    | "tap"
-    | "push",
+  activationMode: FIXED_ACTIVATION_MODE,
 
   preferBuiltInMic: readBoolean("preferBuiltInMic", true),
   selectedMicDeviceId: readString("selectedMicDeviceId", ""),
@@ -921,14 +937,14 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     return isNaN(parsed) ? 30 : parsed;
   })(),
   dataRetentionEnabled: readBoolean("dataRetentionEnabled", true),
-  audioCuesEnabled: readBoolean("audioCuesEnabled", true),
-  pauseMediaOnDictation: readBoolean("pauseMediaOnDictation", false),
+  audioCuesEnabled: FIXED_AUDIO_CUES_ENABLED,
+  pauseMediaOnDictation: FIXED_PAUSE_MEDIA_ON_DICTATION,
   floatingIconAutoHide: readBoolean("floatingIconAutoHide", false),
   startMinimized: readBoolean("startMinimized", false),
-  notificationsEnabled: readBoolean("notificationsEnabled", true),
-  notifyMeetingDetection: readBoolean("notifyMeetingDetection", true),
-  notifyCalendarReminders: readBoolean("notifyCalendarReminders", true),
-  notifyUpdates: readBoolean("notifyUpdates", true),
+  notificationsEnabled: FIXED_NOTIFICATIONS_ENABLED,
+  notifyMeetingDetection: FIXED_NOTIFICATIONS_ENABLED,
+  notifyCalendarReminders: FIXED_NOTIFICATIONS_ENABLED,
+  notifyUpdates: FIXED_NOTIFICATIONS_ENABLED,
   ...(() => {
     let accounts: GoogleCalendarAccount[] = [];
     try {
@@ -1081,13 +1097,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   dictationAgentMode: (() => {
     const v = readString("dictationAgentMode", "");
-    if (
-      v === "providers" ||
-      v === "local" ||
-      v === "self-hosted" ||
-      v === "enterprise"
-    )
-      return v;
+    if (v === "providers" || v === "local" || v === "self-hosted" || v === "enterprise") return v;
     return "providers" as InferenceMode;
   })(),
   dictationAgentProvider: readString("dictationAgentProvider", ""),
@@ -1299,11 +1309,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ meetingHotkeyLayoutMode: mode });
   },
 
-  setActivationMode: (mode: "tap" | "push") => {
-    if (isBrowser) localStorage.setItem("activationMode", mode);
-    set({ activationMode: mode });
+  setActivationMode: () => {
+    if (isBrowser) localStorage.setItem("activationMode", FIXED_ACTIVATION_MODE);
+    set({ activationMode: FIXED_ACTIVATION_MODE });
     if (isBrowser) {
-      window.electronAPI?.notifyActivationModeChanged?.(mode);
+      window.electronAPI?.notifyActivationModeChanged?.(FIXED_ACTIVATION_MODE);
     }
   },
 
@@ -1335,8 +1345,16 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       "settings"
     );
   },
-  setAudioCuesEnabled: createBooleanSetter("audioCuesEnabled"),
-  setPauseMediaOnDictation: createBooleanSetter("pauseMediaOnDictation"),
+  setAudioCuesEnabled: () => {
+    if (isBrowser) localStorage.setItem("audioCuesEnabled", String(FIXED_AUDIO_CUES_ENABLED));
+    set({ audioCuesEnabled: FIXED_AUDIO_CUES_ENABLED });
+  },
+  setPauseMediaOnDictation: () => {
+    if (isBrowser) {
+      localStorage.setItem("pauseMediaOnDictation", String(FIXED_PAUSE_MEDIA_ON_DICTATION));
+    }
+    set({ pauseMediaOnDictation: FIXED_PAUSE_MEDIA_ON_DICTATION });
+  },
 
   setFloatingIconAutoHide: (enabled: boolean) => {
     if (get().floatingIconAutoHide === enabled) return;
@@ -1364,10 +1382,27 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       gcalEmail: accounts[0]?.email ?? "",
     });
   },
-  setNotificationsEnabled: createBooleanSetter("notificationsEnabled"),
-  setNotifyMeetingDetection: createBooleanSetter("notifyMeetingDetection"),
-  setNotifyCalendarReminders: createBooleanSetter("notifyCalendarReminders"),
-  setNotifyUpdates: createBooleanSetter("notifyUpdates"),
+  setNotificationsEnabled: () => {
+    if (isBrowser)
+      localStorage.setItem("notificationsEnabled", String(FIXED_NOTIFICATIONS_ENABLED));
+    useSettingsStore.setState({ notificationsEnabled: FIXED_NOTIFICATIONS_ENABLED });
+  },
+  setNotifyMeetingDetection: () => {
+    if (isBrowser) {
+      localStorage.setItem("notifyMeetingDetection", String(FIXED_NOTIFICATIONS_ENABLED));
+    }
+    useSettingsStore.setState({ notifyMeetingDetection: FIXED_NOTIFICATIONS_ENABLED });
+  },
+  setNotifyCalendarReminders: () => {
+    if (isBrowser) {
+      localStorage.setItem("notifyCalendarReminders", String(FIXED_NOTIFICATIONS_ENABLED));
+    }
+    useSettingsStore.setState({ notifyCalendarReminders: FIXED_NOTIFICATIONS_ENABLED });
+  },
+  setNotifyUpdates: () => {
+    if (isBrowser) localStorage.setItem("notifyUpdates", String(FIXED_NOTIFICATIONS_ENABLED));
+    useSettingsStore.setState({ notifyUpdates: FIXED_NOTIFICATIONS_ENABLED });
+  },
   setGcalPrimaryOnly: (value: boolean) => {
     if (isBrowser) localStorage.setItem("gcalPrimaryOnly", String(value));
     useSettingsStore.setState({ gcalPrimaryOnly: value });
@@ -1588,8 +1623,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
 export const selectIsCloudCleanupMode = (_state: SettingsState) => false;
 
-export const selectEffectiveCleanupProvider = (state: SettingsState) =>
-  state.cleanupProvider;
+export const selectEffectiveCleanupProvider = (state: SettingsState) => state.cleanupProvider;
 
 export const selectIsCloudChatAgentMode = (_state: SettingsState) => false;
 
@@ -1695,8 +1729,7 @@ export const selectResolvedLLMConfig = (
     cloudMode:
       (def.storeKeys.cloudMode
         ? normalizeAuthBackedSetting(def.storeKeys.cloudMode as string, read("cloudMode") || "")
-        : undefined) ||
-      fallback?.cloudMode,
+        : undefined) || fallback?.cloudMode,
     cloudBaseUrl: read("cloudBaseUrl") || fallback?.cloudBaseUrl,
     remoteUrl: read("remoteUrl") || fallback?.remoteUrl,
     customApiKey: read("customApiKey"),
@@ -1872,14 +1905,21 @@ export async function initializeSettings(): Promise<void> {
     }
 
     try {
-      let envMode = await window.electronAPI.getActivationMode?.();
-      if (envMode && envMode !== state.activationMode) {
-        if (isBrowser) localStorage.setItem("activationMode", envMode);
-        useSettingsStore.setState({ activationMode: envMode });
-      }
+      enforceFixedBehaviorSettings();
+      useSettingsStore.setState({
+        activationMode: FIXED_ACTIVATION_MODE,
+        audioCuesEnabled: FIXED_AUDIO_CUES_ENABLED,
+        pauseMediaOnDictation: FIXED_PAUSE_MEDIA_ON_DICTATION,
+        notificationsEnabled: FIXED_NOTIFICATIONS_ENABLED,
+        notifyMeetingDetection: FIXED_NOTIFICATIONS_ENABLED,
+        notifyCalendarReminders: FIXED_NOTIFICATIONS_ENABLED,
+        notifyUpdates: FIXED_NOTIFICATIONS_ENABLED,
+      });
+      await window.electronAPI.saveActivationMode?.(FIXED_ACTIVATION_MODE);
+      window.electronAPI.notifyActivationModeChanged?.(FIXED_ACTIVATION_MODE);
     } catch (err) {
       logger.warn(
-        "Failed to sync activation mode on startup",
+        "Failed to sync fixed runtime settings on startup",
         { error: (err as Error).message },
         "settings"
       );
@@ -1923,12 +1963,11 @@ export async function initializeSettings(): Promise<void> {
     }
 
     try {
-      const currentState = useSettingsStore.getState();
       await window.electronAPI.syncNotificationPreferences?.({
-        notificationsEnabled: currentState.notificationsEnabled,
-        notifyMeetingDetection: currentState.notifyMeetingDetection,
-        notifyCalendarReminders: currentState.notifyCalendarReminders,
-        notifyUpdates: currentState.notifyUpdates,
+        notificationsEnabled: FIXED_NOTIFICATIONS_ENABLED,
+        notifyMeetingDetection: FIXED_NOTIFICATIONS_ENABLED,
+        notifyCalendarReminders: FIXED_NOTIFICATIONS_ENABLED,
+        notifyUpdates: FIXED_NOTIFICATIONS_ENABLED,
       });
     } catch (err) {
       logger.warn(

@@ -27,10 +27,10 @@ class WindowManager {
     this.updateNotificationWindow = null;
     this._updateNotificationDismissed = false;
     this.notificationPrefs = {
-      notificationsEnabled: true,
-      notifyMeetingDetection: true,
-      notifyCalendarReminders: true,
-      notifyUpdates: true,
+      notificationsEnabled: false,
+      notifyMeetingDetection: false,
+      notifyCalendarReminders: false,
+      notifyUpdates: false,
     };
     this.tray = null;
     this.hotkeyManager = new HotkeyManager();
@@ -39,7 +39,7 @@ class WindowManager {
     this.loadErrorShown = false;
     this.macCompoundPushState = null;
     this.winPushState = null;
-    this._cachedActivationMode = "tap";
+    this._cachedActivationMode = "push";
     this._floatingIconAutoHide = false;
     this._panelStartPosition = "bottom-right";
     this._isDictatingToggle = false;
@@ -465,11 +465,11 @@ class WindowManager {
   }
 
   getActivationMode() {
-    return this._cachedActivationMode;
+    return "push";
   }
 
-  setActivationModeCache(mode) {
-    this._cachedActivationMode = mode === "push" ? "push" : "tap";
+  setActivationModeCache() {
+    this._cachedActivationMode = "push";
   }
 
   setFloatingIconAutoHide(enabled) {
@@ -1153,7 +1153,6 @@ class WindowManager {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.setTitle(i18nMain.t("window.voiceRecorderTitle"));
     }
-
   }
 
   async openSettings() {

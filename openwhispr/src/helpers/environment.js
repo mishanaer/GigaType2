@@ -435,13 +435,11 @@ class EnvironmentManager {
   }
 
   getActivationMode() {
-    const mode = this._getKey("ACTIVATION_MODE");
-    return mode === "push" ? "push" : "tap";
+    return "push";
   }
 
-  saveActivationMode(mode) {
-    const validMode = mode === "push" ? "push" : "tap";
-    const result = this._saveKey("ACTIVATION_MODE", validMode);
+  saveActivationMode(_mode) {
+    const result = this._saveKey("ACTIVATION_MODE", "push");
     this.saveAllKeysToEnvFile().catch(() => {});
     return result;
   }

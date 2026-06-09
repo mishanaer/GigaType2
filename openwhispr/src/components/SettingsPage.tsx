@@ -19,7 +19,6 @@ import {
   Copy,
 } from "lucide-react";
 import MicPermissionWarning from "./ui/MicPermissionWarning";
-import MicrophoneSettings from "./ui/MicrophoneSettings";
 import PermissionCard from "./ui/PermissionCard";
 import PasteToolsInfo from "./ui/PasteToolsInfo";
 import NixOsPasteInfo from "./ui/NixOsPasteInfo";
@@ -45,10 +44,8 @@ import { useUpdater } from "../hooks/useUpdater";
 import { HotkeyInput } from "./ui/HotkeyInput";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { validateHotkeyForSlot } from "../utils/hotkeyValidation";
-import { getPlatform, getCachedPlatform } from "../utils/platform";
+import { getCachedPlatform } from "../utils/platform";
 import { formatHotkeyLabel } from "../utils/hotkeys";
-import { ActivationModeSelector } from "./ui/ActivationModeSelector";
-import LinuxPttSetupInfo from "./ui/LinuxPttSetupInfo";
 import { Toggle } from "./ui/toggle";
 import DeveloperSection from "./DeveloperSection";
 import { Skeleton } from "./ui/skeleton";
@@ -60,10 +57,7 @@ import { useSettingsLayout } from "./ui/useSettingsLayout";
 import { formatBytes } from "../utils/formatBytes";
 import { canManageSystemAudioInApp } from "../utils/systemAudioAccess";
 
-export type SettingsSectionType =
-  | "general"
-  | "privacyData"
-  | "system";
+export type SettingsSectionType = "general" | "privacyData" | "system";
 
 interface SettingsPageProps {
   activeSection?: SettingsSectionType;
@@ -127,21 +121,7 @@ export default function SettingsPage({
 
   const {
     dictationKey,
-    activationMode,
-    setActivationMode,
-    preferBuiltInMic,
-    selectedMicDeviceId,
-    setPreferBuiltInMic,
-    setSelectedMicDeviceId,
     setDictationKey,
-    notificationsEnabled,
-    setNotificationsEnabled,
-    notifyUpdates,
-    setNotifyUpdates,
-    audioCuesEnabled,
-    setAudioCuesEnabled,
-    pauseMediaOnDictation,
-    setPauseMediaOnDictation,
     showTranscriptionPreview,
     setShowTranscriptionPreview,
     autoPasteEnabled,
@@ -266,9 +246,7 @@ export default function SettingsPage({
     [t]
   );
 
-  const [isUsingNativeShortcut, setIsUsingNativeShortcut] = useState(false);
   const [effectiveDefaultHotkey, setEffectiveDefaultHotkey] = useState<string | null>(null);
-  const [linuxPttAvailable, setLinuxPttAvailable] = useState(true);
 
   const platform = getCachedPlatform();
 
@@ -293,15 +271,6 @@ export default function SettingsPage({
     };
     loadAutoStart();
   }, [platform]);
-
-  useEffect(() => {
-    window.electronAPI?.syncNotificationPreferences?.({
-      notificationsEnabled,
-      notifyMeetingDetection: false,
-      notifyCalendarReminders: false,
-      notifyUpdates,
-    });
-  }, [notificationsEnabled, notifyUpdates]);
 
   const handleAutoStartChange = async (enabled: boolean) => {
     if (window.electronAPI?.setAutoStartEnabled) {
@@ -340,18 +309,7 @@ export default function SettingsPage({
   }, [checkWhisperInstallation, getAppVersion]);
 
   useEffect(() => {
-    const checkHotkeyMode = async () => {
-      try {
-        const info = await window.electronAPI?.getHotkeyModeInfo();
-        if (info?.isUsingNativeShortcut) {
-          setIsUsingNativeShortcut(true);
-          if (!info.supportsPushToTalk) {
-            setActivationMode("tap");
-          }
-        }
-      } catch (error) {
-        logger.error("Failed to check hotkey mode", error, "settings");
-      }
+    const loadEffectiveDefaultHotkey = async () => {
       try {
         const key = await window.electronAPI?.getEffectiveDefaultHotkey?.();
         if (key) setEffectiveDefaultHotkey(key);
@@ -359,22 +317,8 @@ export default function SettingsPage({
         logger.error("Failed to get effective default hotkey", error, "settings");
       }
     };
-    checkHotkeyMode();
-  }, [setActivationMode]);
-
-  useEffect(() => {
-    const cleanup = window.electronAPI?.onLinuxPttPermissionDenied?.(() => {
-      setLinuxPttAvailable(false);
-      toast({
-        title: t("settingsPage.general.hotkey.linuxPttPermissionTitle"),
-        description: t("settingsPage.general.hotkey.linuxPttPermissionDescription"),
-        variant: "destructive",
-        duration: 15000,
-      });
-      setActivationMode("tap");
-    });
-    return () => cleanup?.();
-  }, [toast, t, setActivationMode]);
+    loadEffectiveDefaultHotkey();
+  }, []);
 
   useEffect(() => {
     if (updateError) {
@@ -484,32 +428,18 @@ export default function SettingsPage({
             disabled={isHotkeyRegistering}
             validate={validateDictationHotkey}
           />
-          {effectiveDefaultHotkey &&
-            dictationKey &&
-            dictationKey !== effectiveDefaultHotkey && (
-              <button
-                onClick={() => registerHotkey(effectiveDefaultHotkey)}
-                disabled={isHotkeyRegistering}
-                className="mt-2 text-xs text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
-              >
-                {t("settingsPage.general.hotkey.resetToDefault", {
-                  hotkey: formatHotkeyLabel(effectiveDefaultHotkey),
-                })}
-              </button>
-            )}
+          {effectiveDefaultHotkey && dictationKey && dictationKey !== effectiveDefaultHotkey && (
+            <button
+              onClick={() => registerHotkey(effectiveDefaultHotkey)}
+              disabled={isHotkeyRegistering}
+              className="mt-2 text-xs text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
+            >
+              {t("settingsPage.general.hotkey.resetToDefault", {
+                hotkey: formatHotkeyLabel(effectiveDefaultHotkey),
+              })}
+            </button>
+          )}
         </SettingsPanelRow>
-
-        {(!isUsingNativeShortcut || getCachedPlatform() === "linux") && (
-          <SettingsPanelRow>
-            <p className="text-xs font-medium text-muted-foreground/80 mb-2">
-              {t("settingsPage.general.hotkey.activationMode")}
-            </p>
-            <ActivationModeSelector value={activationMode} onChange={setActivationMode} />
-            {getCachedPlatform() === "linux" && activationMode === "push" && (
-              <LinuxPttSetupInfo isAvailable={linuxPttAvailable} />
-            )}
-          </SettingsPanelRow>
-        )}
       </SettingsPanel>
     </div>
   );
@@ -520,62 +450,6 @@ export default function SettingsPage({
         return (
           <div className="space-y-6">
             {renderDictationHotkeySettings()}
-
-            {/* Sound Effects */}
-            <div>
-              <SectionHeader title={t("settingsPage.general.soundEffects.title")} />
-              <SettingsPanel>
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.general.soundEffects.dictationSounds")}
-                    description={t("settingsPage.general.soundEffects.dictationSoundsDescription")}
-                  >
-                    <Toggle checked={audioCuesEnabled} onChange={setAudioCuesEnabled} />
-                  </SettingsRow>
-                </SettingsPanelRow>
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.general.soundEffects.pauseMedia")}
-                    description={t("settingsPage.general.soundEffects.pauseMediaDescription")}
-                  >
-                    <Toggle checked={pauseMediaOnDictation} onChange={setPauseMediaOnDictation} />
-                  </SettingsRow>
-                </SettingsPanelRow>
-              </SettingsPanel>
-            </div>
-
-            {/* Notifications */}
-            <div>
-              <SectionHeader
-                title={t("settingsPage.general.notifications.title")}
-                description={t("settingsPage.general.notifications.description")}
-              />
-              <SettingsPanel>
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.general.notifications.disableAll")}
-                    description={t("settingsPage.general.notifications.disableAllDescription")}
-                  >
-                    <Toggle
-                      checked={!notificationsEnabled}
-                      onChange={(v) => setNotificationsEnabled(!v)}
-                    />
-                  </SettingsRow>
-                </SettingsPanelRow>
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.general.notifications.updates")}
-                    description={t("settingsPage.general.notifications.updatesDescription")}
-                  >
-                    <Toggle
-                      checked={notifyUpdates}
-                      onChange={setNotifyUpdates}
-                      disabled={!notificationsEnabled}
-                    />
-                  </SettingsRow>
-                </SettingsPanelRow>
-              </SettingsPanel>
-            </div>
 
             {/* Clipboard */}
             <div>
@@ -675,24 +549,6 @@ export default function SettingsPage({
                   >
                     <Toggle checked={startMinimized} onChange={setStartMinimized} />
                   </SettingsRow>
-                </SettingsPanelRow>
-              </SettingsPanel>
-            </div>
-
-            {/* Microphone */}
-            <div>
-              <SectionHeader
-                title={t("settingsPage.general.microphone.title")}
-                description={t("settingsPage.general.microphone.description")}
-              />
-              <SettingsPanel>
-                <SettingsPanelRow>
-                  <MicrophoneSettings
-                    preferBuiltInMic={preferBuiltInMic}
-                    selectedMicDeviceId={selectedMicDeviceId}
-                    onPreferBuiltInChange={setPreferBuiltInMic}
-                    onDeviceSelect={setSelectedMicDeviceId}
-                  />
                 </SettingsPanelRow>
               </SettingsPanel>
             </div>

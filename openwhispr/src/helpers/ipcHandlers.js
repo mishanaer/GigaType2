@@ -5925,10 +5925,8 @@ class IPCHandlers {
         if (!prefs || typeof prefs !== "object") {
           return { success: false, error: "Invalid preferences" };
         }
-        for (const [k, v] of Object.entries(prefs)) {
-          if (NOTIFICATION_PREF_KEYS.has(k)) {
-            this.windowManager.notificationPrefs[k] = !!v;
-          }
+        for (const k of NOTIFICATION_PREF_KEYS) {
+          this.windowManager.notificationPrefs[k] = false;
         }
         return { success: true };
       } catch (error) {
