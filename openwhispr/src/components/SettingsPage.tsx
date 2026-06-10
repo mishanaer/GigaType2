@@ -1,15 +1,10 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Badge } from "./ui/badge";
 import {
-  RefreshCw,
-  Download,
   Mic,
   Shield,
-  FolderOpen,
-  Monitor,
   AlertTriangle,
   Check,
   CircleCheck,
@@ -23,43 +18,31 @@ import PermissionCard from "./ui/PermissionCard";
 import PasteToolsInfo from "./ui/PasteToolsInfo";
 import NixOsPasteInfo from "./ui/NixOsPasteInfo";
 import {
-  ConfirmDialog,
   AlertDialog,
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "./ui/dialog";
-import { Alert, AlertTitle, AlertDescription } from "./ui/alert";
 import { useSettings } from "../hooks/useSettings";
 import { useDialogs } from "../hooks/useDialogs";
-import { useWhisper } from "../hooks/useWhisper";
 import { usePermissions } from "../hooks/usePermissions";
-import { useSystemAudioPermission } from "../hooks/useSystemAudioPermission";
 import { useClipboard } from "../hooks/useClipboard";
-import { useUpdater } from "../hooks/useUpdater";
 
 import { HotkeyInput } from "./ui/HotkeyInput";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { validateHotkeyForSlot } from "../utils/hotkeyValidation";
 import { getCachedPlatform } from "../utils/platform";
 import { Toggle } from "./ui/toggle";
-import DeveloperSection from "./DeveloperSection";
-import { Skeleton } from "./ui/skeleton";
-import { Progress } from "./ui/progress";
-import { useToast } from "./ui/useToast";
 import logger from "../utils/logger";
 import { SettingsRow } from "./ui/SettingsSection";
 import { useSettingsLayout } from "./ui/useSettingsLayout";
-import { canManageSystemAudioInApp } from "../utils/systemAudioAccess";
 
-export type SettingsSectionType = "general" | "privacyData" | "system";
+export type SettingsSectionType = "general" | "privacyData";
 
 interface SettingsPageProps {
   activeSection?: SettingsSectionType;
-  onNavigateToSection?: (section: SettingsSectionType) => void;
 }
 
 function SettingsPanel({
@@ -105,15 +88,11 @@ function SectionHeader({ title, description }: { title: string; description?: st
 
 export default function SettingsPage({
   activeSection = "general",
-  onNavigateToSection,
 }: SettingsPageProps) {
   const { isCompact } = useSettingsLayout();
   const {
-    confirmDialog,
     alertDialog,
-    showConfirmDialog,
     showAlertDialog,
-    hideConfirmDialog,
     hideAlertDialog,
   } = useDialogs();
 
@@ -135,36 +114,7 @@ export default function SettingsPage({
   } = useSettings();
 
   const { t } = useTranslation();
-  const { toast } = useToast();
-
-  const [currentVersion, setCurrentVersion] = useState<string>("");
-  const [isRemovingModels, setIsRemovingModels] = useState(false);
-  const cachePathHint =
-    typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent)
-      ? "%USERPROFILE%\\.cache\\openwhispr"
-      : "~/.cache/openwhispr";
-
-  const {
-    status: updateStatus,
-    info: updateInfo,
-    downloadProgress: updateDownloadProgress,
-    isChecking: checkingForUpdates,
-    isDownloading: downloadingUpdate,
-    isInstalling: installInitiated,
-    checkForUpdates,
-    downloadUpdate,
-    installUpdate: installUpdateAction,
-    getAppVersion,
-    error: updateError,
-    clearError: clearUpdateError,
-  } = useUpdater();
-
-  const isUpdateAvailable =
-    !updateStatus.isDevelopment && (updateStatus.updateAvailable || updateStatus.updateDownloaded);
-
-  const { checkWhisperInstallation } = useWhisper();
   const permissionsHook = usePermissions(showAlertDialog);
-  const systemAudio = useSystemAudioPermission();
   useClipboard(showAlertDialog);
 
   // ydotool status for Wayland paste diagnostics
@@ -197,8 +147,6 @@ export default function SettingsPage({
     refreshYdotoolStatus();
   }, [refreshYdotoolStatus]);
 
-  const installTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const { registerHotkey, isRegistering: isHotkeyRegistering } = useHotkeyRegistration({
     onSuccess: (registeredHotkey) => {
       setDictationKey(registeredHotkey);
@@ -214,6 +162,16 @@ export default function SettingsPage({
   );
 
   const platform = getCachedPlatform();
+  const shouldShowMicrophonePermission = !permissionsHook.micPermissionGranted;
+  const shouldShowAccessibilityPermission =
+    platform === "darwin" && !permissionsHook.accessibilityPermissionGranted;
+  const shouldShowPasteToolsInfo = Boolean(
+    platform === "linux" &&
+    permissionsHook.pasteToolsInfo &&
+    !permissionsHook.pasteToolsInfo.available
+  );
+  const shouldShowPermissionsSection =
+    shouldShowMicrophonePermission || shouldShowAccessibilityPermission || shouldShowPasteToolsInfo;
 
   const [autoStartEnabled, setAutoStartEnabled] = useState(false);
   const [autoStartLoading, setAutoStartLoading] = useState(true);
@@ -252,106 +210,6 @@ export default function SettingsPage({
       }
     }
   };
-
-  useEffect(() => {
-    let mounted = true;
-
-    const timer = setTimeout(async () => {
-      if (!mounted) return;
-
-      const version = await getAppVersion();
-      if (version && mounted) setCurrentVersion(version);
-
-      if (mounted) {
-        checkWhisperInstallation();
-      }
-    }, 100);
-
-    return () => {
-      mounted = false;
-      clearTimeout(timer);
-    };
-  }, [checkWhisperInstallation, getAppVersion]);
-
-  useEffect(() => {
-    if (updateError) {
-      showAlertDialog({
-        title: t("settingsPage.general.updates.dialogs.updateError.title"),
-        description: t("settingsPage.general.updates.dialogs.updateError.description"),
-      });
-      clearUpdateError();
-    }
-  }, [updateError, showAlertDialog, clearUpdateError, t]);
-
-  useEffect(() => {
-    if (installInitiated) {
-      if (installTimeoutRef.current) {
-        clearTimeout(installTimeoutRef.current);
-      }
-      installTimeoutRef.current = setTimeout(() => {
-        showAlertDialog({
-          title: t("settingsPage.general.updates.dialogs.almostThere.title"),
-          description: t("settingsPage.general.updates.dialogs.almostThere.description"),
-        });
-      }, 10000);
-    } else if (installTimeoutRef.current) {
-      clearTimeout(installTimeoutRef.current);
-      installTimeoutRef.current = null;
-    }
-
-    return () => {
-      if (installTimeoutRef.current) {
-        clearTimeout(installTimeoutRef.current);
-        installTimeoutRef.current = null;
-      }
-    };
-  }, [installInitiated, showAlertDialog, t]);
-
-  const handleRemoveModels = useCallback(() => {
-    if (isRemovingModels) return;
-
-    showConfirmDialog({
-      title: t("settingsPage.developer.removeModels.title"),
-      description: t("settingsPage.developer.removeModels.description", { path: cachePathHint }),
-      confirmText: t("settingsPage.developer.removeModels.confirmText"),
-      variant: "destructive",
-      onConfirm: async () => {
-        setIsRemovingModels(true);
-        try {
-          const results = await Promise.allSettled([
-            window.electronAPI?.deleteAllWhisperModels?.(),
-            window.electronAPI?.deleteAllParakeetModels?.(),
-            window.electronAPI?.modelDeleteAll?.(),
-          ]);
-
-          const anyFailed = results.some(
-            (r) =>
-              r.status === "rejected" || (r.status === "fulfilled" && r.value && !r.value.success)
-          );
-
-          if (anyFailed) {
-            showAlertDialog({
-              title: t("settingsPage.developer.removeModels.failedTitle"),
-              description: t("settingsPage.developer.removeModels.failedDescription"),
-            });
-          } else {
-            window.dispatchEvent(new Event("openwhispr-models-cleared"));
-            showAlertDialog({
-              title: t("settingsPage.developer.removeModels.successTitle"),
-              description: t("settingsPage.developer.removeModels.successDescription"),
-            });
-          }
-        } catch {
-          showAlertDialog({
-            title: t("settingsPage.developer.removeModels.failedTitle"),
-            description: t("settingsPage.developer.removeModels.failedDescriptionShort"),
-          });
-        } finally {
-          setIsRemovingModels(false);
-        }
-      },
-    });
-  }, [isRemovingModels, cachePathHint, showConfirmDialog, showAlertDialog, t]);
 
   const renderDictationHotkeySettings = () => (
     <div>
@@ -951,331 +809,51 @@ EOF`,
         return (
           <div className="space-y-6">
             {/* Permissions */}
-            <div>
-              <SectionHeader title={t("settingsPage.permissions.title")} />
+            {shouldShowPermissionsSection && (
+              <div>
+                <SectionHeader title={t("settingsPage.permissions.title")} />
 
-              <div className="space-y-3">
-                <PermissionCard
-                  icon={Mic}
-                  title={t("settingsPage.permissions.microphoneTitle")}
-                  description={t("settingsPage.permissions.microphoneDescription")}
-                  granted={permissionsHook.micPermissionGranted}
-                  onRequest={permissionsHook.requestMicPermission}
-                  buttonText={t("settingsPage.permissions.grantAccess")}
-                />
+                <div className="space-y-3">
+                  {shouldShowMicrophonePermission && (
+                    <PermissionCard
+                      icon={Mic}
+                      title={t("settingsPage.permissions.microphoneTitle")}
+                      description={t("settingsPage.permissions.microphoneDescription")}
+                      granted={permissionsHook.micPermissionGranted}
+                      onRequest={permissionsHook.requestMicPermission}
+                      buttonText={t("settingsPage.permissions.grantAccess")}
+                    />
+                  )}
 
-                {(platform === "darwin" || canManageSystemAudioInApp(systemAudio)) && (
-                  <>
-                    {platform === "darwin" && (
-                      <PermissionCard
-                        icon={Shield}
-                        title={t("settingsPage.permissions.accessibilityTitle")}
-                        description={t("settingsPage.permissions.accessibilityDescription")}
-                        granted={permissionsHook.accessibilityPermissionGranted}
-                        onRequest={permissionsHook.requestAccessibilityPermission}
-                        buttonText={t("settingsPage.permissions.grantAccess")}
-                      />
-                    )}
-                    {canManageSystemAudioInApp(systemAudio) && (
-                      <PermissionCard
-                        icon={Monitor}
-                        title={t("settingsPage.permissions.systemAudioTitle")}
-                        description={t("settingsPage.permissions.systemAudioDescription")}
-                        granted={systemAudio.granted}
-                        onRequest={systemAudio.request}
-                        buttonText={t("settingsPage.permissions.grantAccess")}
-                        badge={t("settingsPage.permissions.optional")}
-                      />
-                    )}
-                  </>
+                  {shouldShowAccessibilityPermission && (
+                    <PermissionCard
+                      icon={Shield}
+                      title={t("settingsPage.permissions.accessibilityTitle")}
+                      description={t("settingsPage.permissions.accessibilityDescription")}
+                      granted={permissionsHook.accessibilityPermissionGranted}
+                      onRequest={permissionsHook.requestAccessibilityPermission}
+                      buttonText={t("settingsPage.permissions.grantAccess")}
+                    />
+                  )}
+                </div>
+
+                {shouldShowMicrophonePermission && permissionsHook.micPermissionError && (
+                  <MicPermissionWarning
+                    error={permissionsHook.micPermissionError}
+                    onOpenSoundSettings={permissionsHook.openSoundInputSettings}
+                    onOpenPrivacySettings={permissionsHook.openMicPrivacySettings}
+                  />
                 )}
-              </div>
 
-              {!permissionsHook.micPermissionGranted && permissionsHook.micPermissionError && (
-                <MicPermissionWarning
-                  error={permissionsHook.micPermissionError}
-                  onOpenSoundSettings={permissionsHook.openSoundInputSettings}
-                  onOpenPrivacySettings={permissionsHook.openMicPrivacySettings}
-                />
-              )}
-
-              {platform === "linux" &&
-                permissionsHook.pasteToolsInfo &&
-                !permissionsHook.pasteToolsInfo.available && (
+                {shouldShowPasteToolsInfo && permissionsHook.pasteToolsInfo && (
                   <PasteToolsInfo
                     pasteToolsInfo={permissionsHook.pasteToolsInfo}
                     isChecking={permissionsHook.isCheckingPasteTools}
                     onCheck={permissionsHook.checkPasteToolsAvailability}
                   />
                 )}
-            </div>
-          </div>
-        );
-
-      case "system":
-        return (
-          <div className="space-y-6">
-            {/* Software Updates */}
-            <div>
-              <SectionHeader title={t("settingsPage.general.updates.title")} />
-              <SettingsPanel>
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.general.updates.currentVersion")}
-                    description={
-                      updateStatus.isDevelopment
-                        ? t("settingsPage.general.updates.devMode")
-                        : isUpdateAvailable
-                          ? t("settingsPage.general.updates.newVersionAvailable")
-                          : t("settingsPage.general.updates.latestVersion")
-                    }
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-xs tabular-nums text-muted-foreground font-mono">
-                        {currentVersion || t("settingsPage.general.updates.versionPlaceholder")}
-                      </span>
-                      {updateStatus.isDevelopment ? (
-                        <Badge variant="warning">
-                          {t("settingsPage.general.updates.badges.dev")}
-                        </Badge>
-                      ) : isUpdateAvailable ? (
-                        <Badge variant="success">
-                          {t("settingsPage.general.updates.badges.update")}
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline">
-                          {t("settingsPage.general.updates.badges.latest")}
-                        </Badge>
-                      )}
-                    </div>
-                  </SettingsRow>
-                </SettingsPanelRow>
-
-                <SettingsPanelRow>
-                  <div className="space-y-2.5">
-                    <Button
-                      onClick={async () => {
-                        try {
-                          const result = await checkForUpdates();
-                          if (result && !result.updateAvailable) {
-                            toast({
-                              title: t("settingsPage.general.updates.dialogs.noUpdates.title"),
-                              description: t(
-                                "settingsPage.general.updates.dialogs.noUpdates.description"
-                              ),
-                            });
-                          }
-                        } catch {}
-                      }}
-                      disabled={checkingForUpdates || updateStatus.isDevelopment}
-                      variant="outline"
-                      className="w-full"
-                      size="sm"
-                    >
-                      <RefreshCw
-                        size={13}
-                        className={`mr-1.5 ${checkingForUpdates ? "animate-spin" : ""}`}
-                      />
-                      {checkingForUpdates
-                        ? t("settingsPage.general.updates.checking")
-                        : t("settingsPage.general.updates.checkForUpdates")}
-                    </Button>
-
-                    {isUpdateAvailable && !updateStatus.updateDownloaded && (
-                      <div className="space-y-2">
-                        <Button
-                          onClick={async () => {
-                            try {
-                              await downloadUpdate();
-                            } catch {
-                              showAlertDialog({
-                                title: t(
-                                  "settingsPage.general.updates.dialogs.downloadFailed.title"
-                                ),
-                                description: t(
-                                  "settingsPage.general.updates.dialogs.downloadFailed.description"
-                                ),
-                              });
-                            }
-                          }}
-                          disabled={downloadingUpdate}
-                          variant="success"
-                          className="w-full"
-                          size="sm"
-                        >
-                          <Download
-                            size={13}
-                            className={`mr-1.5 ${downloadingUpdate ? "animate-pulse" : ""}`}
-                          />
-                          {downloadingUpdate
-                            ? t("settingsPage.general.updates.downloading", {
-                                progress: Math.round(updateDownloadProgress),
-                              })
-                            : t("settingsPage.general.updates.downloadUpdate", {
-                                version: updateInfo?.version || "",
-                              })}
-                        </Button>
-
-                        {downloadingUpdate && (
-                          <div className="h-1 w-full overflow-hidden rounded-full bg-muted/50">
-                            <div
-                              className="h-full bg-success transition-[width] duration-200 rounded-full"
-                              style={{
-                                width: `${Math.min(100, Math.max(0, updateDownloadProgress))}%`,
-                              }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {updateStatus.updateDownloaded && (
-                      <Button
-                        onClick={() => {
-                          showConfirmDialog({
-                            title: t("settingsPage.general.updates.dialogs.installUpdate.title"),
-                            description: t(
-                              "settingsPage.general.updates.dialogs.installUpdate.description",
-                              { version: updateInfo?.version || "" }
-                            ),
-                            confirmText: t(
-                              "settingsPage.general.updates.dialogs.installUpdate.confirmText"
-                            ),
-                            onConfirm: async () => {
-                              try {
-                                await installUpdateAction();
-                              } catch {
-                                showAlertDialog({
-                                  title: t(
-                                    "settingsPage.general.updates.dialogs.installFailed.title"
-                                  ),
-                                  description: t(
-                                    "settingsPage.general.updates.dialogs.installFailed.description"
-                                  ),
-                                });
-                              }
-                            },
-                          });
-                        }}
-                        disabled={installInitiated}
-                        className="w-full"
-                        size="sm"
-                      >
-                        <RefreshCw
-                          size={14}
-                          className={`mr-2 ${installInitiated ? "animate-spin" : ""}`}
-                        />
-                        {installInitiated
-                          ? t("settingsPage.general.updates.restarting")
-                          : t("settingsPage.general.updates.installAndRestart")}
-                      </Button>
-                    )}
-                  </div>
-
-                  {updateInfo?.releaseNotes && (
-                    <div className="mt-4 pt-4 border-t border-border/30">
-                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                        {t("settingsPage.general.updates.whatsNew", {
-                          version: updateInfo.version,
-                        })}
-                      </p>
-                      <div
-                        className="text-xs text-muted-foreground [&_ul]:list-disc [&_ul]:pl-4 [&_ul]:space-y-1 [&_ol]:list-decimal [&_ol]:pl-4 [&_ol]:space-y-1 [&_li]:pl-1 [&_p]:mb-2 [&_p:last-child]:mb-0 [&_a]:text-link [&_a]:underline"
-                        dangerouslySetInnerHTML={{ __html: updateInfo.releaseNotes }}
-                      />
-                    </div>
-                  )}
-                </SettingsPanelRow>
-              </SettingsPanel>
-            </div>
-
-            {/* Developer Tools */}
-            <div className="border-t border-border/40 pt-6">
-              <DeveloperSection />
-            </div>
-
-            {/* Data Management */}
-            <div className="border-t border-border/40 pt-6">
-              <SectionHeader title={t("settingsPage.developer.dataManagementTitle")} />
-
-              <div className="space-y-4">
-                <SettingsPanel>
-                  <SettingsPanelRow>
-                    <SettingsRow
-                      label={t("settingsPage.developer.modelCache")}
-                      description={cachePathHint}
-                    >
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => window.electronAPI?.openWhisperModelsFolder?.()}
-                        >
-                          <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
-                          {t("settingsPage.developer.open")}
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={handleRemoveModels}
-                          disabled={isRemovingModels}
-                        >
-                          {isRemovingModels
-                            ? t("settingsPage.developer.removing")
-                            : t("settingsPage.developer.clearCache")}
-                        </Button>
-                      </div>
-                    </SettingsRow>
-                  </SettingsPanelRow>
-                </SettingsPanel>
-
-                <SettingsPanel>
-                  <SettingsPanelRow>
-                    <SettingsRow
-                      label={t("settingsPage.developer.resetAppData")}
-                      description={t("settingsPage.developer.resetAppDataDescription")}
-                    >
-                      <Button
-                        onClick={() => {
-                          showConfirmDialog({
-                            title: t("settingsPage.developer.resetAll.title"),
-                            description: t("settingsPage.developer.resetAll.description"),
-                            onConfirm: async () => {
-                              try {
-                                await window.electronAPI?.cleanupApp();
-                                showAlertDialog({
-                                  title: t("settingsPage.developer.resetAll.successTitle"),
-                                  description: t(
-                                    "settingsPage.developer.resetAll.successDescription"
-                                  ),
-                                });
-                                setTimeout(() => {
-                                  window.location.reload();
-                                }, 1000);
-                              } catch {
-                                showAlertDialog({
-                                  title: t("settingsPage.developer.resetAll.failedTitle"),
-                                  description: t(
-                                    "settingsPage.developer.resetAll.failedDescription"
-                                  ),
-                                });
-                              }
-                            },
-                            variant: "destructive",
-                            confirmText: t("settingsPage.developer.resetAll.confirmText"),
-                          });
-                        }}
-                        variant="outline"
-                        size="sm"
-                        className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:border-destructive"
-                      >
-                        {t("common.reset")}
-                      </Button>
-                    </SettingsRow>
-                  </SettingsPanelRow>
-                </SettingsPanel>
               </div>
-            </div>
+            )}
           </div>
         );
 
@@ -1286,17 +864,6 @@ EOF`,
 
   return (
     <>
-      <ConfirmDialog
-        open={confirmDialog.open}
-        onOpenChange={(open) => !open && hideConfirmDialog()}
-        title={confirmDialog.title}
-        description={confirmDialog.description}
-        onConfirm={confirmDialog.onConfirm}
-        variant={confirmDialog.variant}
-        confirmText={confirmDialog.confirmText}
-        cancelText={confirmDialog.cancelText}
-      />
-
       <AlertDialog
         open={alertDialog.open}
         onOpenChange={(open) => !open && hideAlertDialog()}

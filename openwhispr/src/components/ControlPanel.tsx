@@ -6,10 +6,13 @@ import { Button } from "./ui/button";
 import PostMigrationOnboarding from "./PostMigrationOnboarding";
 import WindowControls from "./WindowControls";
 import GigaamAsrStatusPanel from "./GigaamAsrStatusPanel";
+import GigaamModelPreparationStep from "./GigaamModelPreparationStep";
 import SettingsWorkspace from "./SettingsWorkspace";
 import { useToast } from "./ui/useToast";
 import { useUpdater } from "../hooks/useUpdater";
 import { useSettings } from "../hooks/useSettings";
+import { useGigaamSidecarStatus } from "../hooks/useGigaamSidecarStatus";
+import { shouldShowGigaamModelPreparation } from "../utils/gigaamModelStatus";
 import { getCachedPlatform } from "../utils/platform";
 import { isAccessibilitySkipped } from "../utils/permissions";
 import { fetchProviders as fetchStreamingProviders } from "../stores/streamingProvidersStore";
@@ -26,6 +29,11 @@ export default function ControlPanel() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { useLocalWhisper, localTranscriptionProvider } = useSettings();
+  const {
+    status: gigaamStatus,
+    restart: restartGigaam,
+    isRestarting: isRestartingGigaam,
+  } = useGigaamSidecarStatus();
   const { status: updateStatus, isDownloading, error: updateError } = useUpdater();
   const [showPostMigration, setShowPostMigration] = useState(false);
   const [settingsNavigation, setSettingsNavigation] = useState<SettingsNavigation>({
@@ -128,7 +136,7 @@ export default function ControlPanel() {
       if (isAccessibilitySkipped()) return;
       const migration = await window.electronAPI?.getPostMigrationState?.();
       if (migration?.justMigrated) return;
-      navigateToSettings("privacyData");
+      navigateToSettings("general");
       toast({
         title: t("controlPanel.accessibilityMissing.title"),
         description: t("controlPanel.accessibilityMissing.description"),
@@ -145,6 +153,8 @@ export default function ControlPanel() {
   useEffect(() => {
     fetchStreamingProviders();
   }, []);
+
+  const showGigaamPreparation = shouldShowGigaamModelPreparation(gigaamStatus);
 
   return (
     <div className="flex h-screen flex-col bg-background">
@@ -167,57 +177,69 @@ export default function ControlPanel() {
           )}
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="shrink-0 space-y-3 px-6 pb-3 pt-1">
-            <GigaamAsrStatusPanel className="mx-auto w-full max-w-3xl" />
+        {showGigaamPreparation ? (
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-10 md:px-12">
+            <div className="mx-auto flex min-h-full w-full max-w-3xl items-center justify-center">
+              <GigaamModelPreparationStep
+                status={gigaamStatus}
+                restart={restartGigaam}
+                isRestarting={isRestartingGigaam}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="shrink-0 space-y-3 px-6 pb-3 pt-1">
+              <GigaamAsrStatusPanel className="mx-auto w-full max-w-3xl" />
 
-            {gpuAccelAvailable.cuda && !gpuBannerDismissed && (
-              <div className="mx-auto w-full max-w-3xl">
-                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 dark:border-primary/15">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 dark:bg-primary/15">
-                      <Zap size={16} className="text-primary" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="mb-0.5 text-xs font-medium text-foreground">
-                        {t("controlPanel.gpu.bannerTitle")}
-                      </p>
-                      <p className="mb-2 text-xs text-muted-foreground">
-                        {t("controlPanel.gpu.bannerDescription")}
-                      </p>
-                      <div className="flex items-center gap-3">
-                        <Button
-                          variant="default"
-                          size="sm"
-                          className="h-7 text-xs"
-                          onClick={() => navigateToSettings("transcription")}
-                        >
-                          {t("controlPanel.gpu.enableButton")}
-                        </Button>
-                        <button
-                          onClick={() => {
-                            setGpuBannerDismissed(true);
-                            localStorage.setItem("gpuBannerDismissedUnified", "true");
-                          }}
-                          className="text-xs text-muted-foreground transition-colors hover:text-foreground"
-                        >
-                          {t("controlPanel.gpu.dismissButton")}
-                        </button>
+              {gpuAccelAvailable.cuda && !gpuBannerDismissed && (
+                <div className="mx-auto w-full max-w-3xl">
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 dark:border-primary/15">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 dark:bg-primary/15">
+                        <Zap size={16} className="text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="mb-0.5 text-xs font-medium text-foreground">
+                          {t("controlPanel.gpu.bannerTitle")}
+                        </p>
+                        <p className="mb-2 text-xs text-muted-foreground">
+                          {t("controlPanel.gpu.bannerDescription")}
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => navigateToSettings("transcription")}
+                          >
+                            {t("controlPanel.gpu.enableButton")}
+                          </Button>
+                          <button
+                            onClick={() => {
+                              setGpuBannerDismissed(true);
+                              localStorage.setItem("gpuBannerDismissedUnified", "true");
+                            }}
+                            className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            {t("controlPanel.gpu.dismissButton")}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          <div className="min-h-0 flex-1 overflow-hidden border-t border-border/50">
-            <SettingsWorkspace
-              requestedSection={settingsNavigation.section}
-              requestId={settingsNavigation.requestId}
-            />
+            <div className="min-h-0 flex-1 overflow-hidden border-t border-border/50">
+              <SettingsWorkspace
+                requestedSection={settingsNavigation.section}
+                requestId={settingsNavigation.requestId}
+              />
+            </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   );

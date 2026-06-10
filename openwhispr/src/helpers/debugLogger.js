@@ -107,7 +107,7 @@ class DebugLogger {
       return envLevel;
     }
 
-    return "info";
+    return "debug";
   }
 
   refreshLogLevel() {

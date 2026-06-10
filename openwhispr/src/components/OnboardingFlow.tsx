@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "./ui/button";
-import { Progress } from "./ui/progress";
-import { AlertTriangle, Loader2, RotateCw } from "lucide-react";
 import TitleBar from "./TitleBar";
 import PermissionsSection from "./ui/PermissionsSection";
 import { AlertDialog, ConfirmDialog } from "./ui/dialog";
@@ -17,6 +14,7 @@ import { getDefaultHotkey, isGlobeLikeHotkey } from "../utils/hotkeys";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { getPlatform } from "../utils/platform";
 import logger from "../utils/logger";
+import GigaamModelPreparationStep from "./GigaamModelPreparationStep";
 import {
   ONBOARDING_CURRENT_STEP_KEY,
   markGigaTypeOnboardingCompleted,
@@ -24,13 +22,6 @@ import {
 
 interface OnboardingFlowProps {
   onComplete: () => void;
-}
-
-function formatBytes(bytes?: number | null) {
-  if (!bytes || bytes <= 0) return "0 МБ";
-  const mb = bytes / 1_000_000;
-  if (mb < 1000) return `${Math.round(mb)} МБ`;
-  return `${(mb / 1000).toFixed(1)} ГБ`;
 }
 
 export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
@@ -55,8 +46,11 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     }
   );
   const { dictationKey, setDictationKey } = useSettings();
-  const { status: gigaamStatus, restart: restartGigaam, isRestarting: isRestartingGigaam } =
-    useGigaamSidecarStatus();
+  const {
+    status: gigaamStatus,
+    restart: restartGigaam,
+    isRestarting: isRestartingGigaam,
+  } = useGigaamSidecarStatus();
 
   const [hotkey, setHotkey] = useState(dictationKey || getDefaultHotkey());
   const { alertDialog, confirmDialog, showAlertDialog, hideAlertDialog, hideConfirmDialog } =
@@ -253,7 +247,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
     const newStep = currentStep + 1;
     setCurrentStep(newStep);
-
   }, [currentStep, setCurrentStep]);
 
   useEffect(() => {
@@ -285,94 +278,15 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   };
 
   const renderModelStep = () => {
-    const isReady = gigaamStatus?.healthStatus === "ok" || gigaamStatus?.modelStage === "ready";
-    const isError = gigaamStatus?.healthStatus === "error" || gigaamStatus?.modelStage === "error";
-    const progress = isReady
-      ? 100
-      : Math.max(0, Math.min(99, Math.floor(gigaamStatus?.modelProgress ?? 0)));
-    const downloadedBytes = isReady
-      ? gigaamStatus?.modelTotalBytes
-      : gigaamStatus?.modelDownloadedBytes;
-    const totalBytes = gigaamStatus?.modelTotalBytes;
-
-    let title = "Проверяем модель";
-    let description = "GigaType готовит локальную GigaAM для распознавания речи.";
-
-    if (!gigaamStatus) {
-      title = "Проверяем модель";
-      description = "Получаем статус локальной GigaAM.";
-    } else if (!gigaamStatus.available) {
-      title = "GigaAM недоступна";
-      description = "Локальная модель доступна только в macOS сборке для Apple Silicon.";
-    } else if (isError) {
-      title = "Не удалось подготовить модель";
-      description = gigaamStatus.healthDetail || "Проверьте подключение к интернету и попробуйте ещё раз.";
-    } else if (isReady) {
-      title = "Модель готова";
-      description = "GigaAM загружена и готова к диктовке.";
-    } else if (gigaamStatus.modelStage === "loading" || gigaamStatus.modelCacheComplete) {
-      title = "Загружаем модель в память";
-      description = "Файлы уже на компьютере. Осталось дождаться запуска GigaAM.";
-    } else if (gigaamStatus.modelStage === "downloading") {
-      title = "Загружаем модель";
-      description = "Первый запуск может занять несколько минут.";
-    }
-
     return (
-      <div className="mx-auto w-full max-w-[500px] space-y-5">
-        <div className="text-center space-y-1">
-          <h2 className="text-xl font-semibold text-foreground tracking-tight">{title}</h2>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
-
-        <div className="rounded-lg border border-border bg-neutral-50 p-5">
-          <div className="mb-3 flex items-center justify-between gap-4">
-            <div className="flex min-w-0 items-center gap-2">
-              {isError ? (
-                <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
-              ) : !isReady ? (
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
-              ) : null}
-              <span className="truncate text-sm font-medium text-foreground">GigaAM e2e RNNT</span>
-            </div>
-            <span className="shrink-0 text-sm font-medium tabular-nums text-muted-foreground">
-              {progress}%
-            </span>
-          </div>
-
-          <Progress value={progress} className="h-2" />
-
-          <div className="mt-3 flex items-center justify-between gap-4 text-xs text-muted-foreground">
-            <span>{isReady ? "Готово" : isError ? "Ошибка" : "Подготовка"}</span>
-            {totalBytes ? (
-              <span className="tabular-nums">
-                {formatBytes(downloadedBytes)} / {formatBytes(totalBytes)}
-              </span>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex justify-center">
-          {isReady ? (
-            <Button onClick={finishOnboarding} size="xl">
-              Начать
-            </Button>
-          ) : isError || gigaamStatus?.healthStatus === "stopped" ? (
-            <Button
-              onClick={() => restartGigaam()}
-              disabled={isRestartingGigaam}
-              className="h-10 rounded-full px-7"
-            >
-              {isRestartingGigaam ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RotateCw className="h-4 w-4" />
-              )}
-              Повторить
-            </Button>
-          ) : null}
-        </div>
-      </div>
+      <GigaamModelPreparationStep
+        status={gigaamStatus}
+        restart={restartGigaam}
+        isRestarting={isRestartingGigaam}
+        showReadyAction
+        readyActionLabel="Начать"
+        onReadyAction={finishOnboarding}
+      />
     );
   };
 
@@ -425,7 +339,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           <div className="w-full">{renderStep()}</div>
         </div>
       </div>
-
     </div>
   );
 }
