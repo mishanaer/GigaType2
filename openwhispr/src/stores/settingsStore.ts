@@ -166,7 +166,6 @@ const BOOLEAN_SETTINGS = new Set([
   "useDictationAgent",
   "preferBuiltInMic",
   "cloudBackupEnabled",
-  "telemetryEnabled",
   "audioCuesEnabled",
   "pauseMediaOnDictation",
   "floatingIconAutoHide",
@@ -180,7 +179,6 @@ const BOOLEAN_SETTINGS = new Set([
   "isSignedIn",
   "autoPasteEnabled",
   "keepTranscriptionInClipboard",
-  "dataRetentionEnabled",
   "noteFilesEnabled",
   "showTranscriptionPreview",
   "cleanupDisableThinking",
@@ -197,7 +195,6 @@ const BOOLEAN_SETTINGS = new Set([
 const ARRAY_SETTINGS = new Set(["gcalAccounts"]);
 
 const NUMERIC_SETTINGS = new Set([
-  "audioRetentionDays",
   "whisperVadThreshold",
   "whisperVadMinSpeechDurationMs",
   "whisperVadMinSilenceDurationMs",
@@ -928,15 +925,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   theme: FIXED_THEME,
   cloudBackupEnabled: false,
-  telemetryEnabled: readBoolean("telemetryEnabled", false),
-  audioRetentionDays: (() => {
-    if (!isBrowser) return 30;
-    const stored = localStorage.getItem("audioRetentionDays");
-    if (stored === null) return 30;
-    const parsed = parseInt(stored, 10);
-    return isNaN(parsed) ? 30 : parsed;
-  })(),
-  dataRetentionEnabled: readBoolean("dataRetentionEnabled", true),
+  telemetryEnabled: false,
+  audioRetentionDays: 0,
+  dataRetentionEnabled: false,
   audioCuesEnabled: FIXED_AUDIO_CUES_ENABLED,
   pauseMediaOnDictation: FIXED_PAUSE_MEDIA_ON_DICTATION,
   floatingIconAutoHide: readBoolean("floatingIconAutoHide", false),
@@ -1329,18 +1320,19 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (isBrowser) localStorage.setItem("cloudBackupEnabled", "false");
     set({ cloudBackupEnabled: false });
   },
-  setTelemetryEnabled: createBooleanSetter("telemetryEnabled"),
-  setAudioRetentionDays: (days: number) => {
-    if (isBrowser) localStorage.setItem("audioRetentionDays", String(days));
-    set({ audioRetentionDays: days });
+  setTelemetryEnabled: () => {
+    if (isBrowser) localStorage.setItem("telemetryEnabled", "false");
+    set({ telemetryEnabled: false });
   },
-  setDataRetentionEnabled: (value: boolean) => {
-    if (isBrowser) localStorage.setItem("dataRetentionEnabled", String(value));
-    set({ dataRetentionEnabled: value });
+  setAudioRetentionDays: () => {
+    if (isBrowser) localStorage.setItem("audioRetentionDays", "0");
+    set({ audioRetentionDays: 0 });
+  },
+  setDataRetentionEnabled: () => {
+    if (isBrowser) localStorage.setItem("dataRetentionEnabled", "false");
+    set({ dataRetentionEnabled: false });
     logger.info(
-      value
-        ? "Data retention enabled — transcriptions and audio will be saved"
-        : "Data retention disabled — transcriptions and audio will not be saved",
+      "Data retention disabled — transcriptions and audio will not be saved",
       {},
       "settings"
     );
@@ -2066,10 +2058,9 @@ export async function initializeSettings(): Promise<void> {
     } else if (NUMERIC_SETTINGS.has(key)) {
       const parsed = Number(newValue);
       if (Number.isNaN(parsed)) {
-        value =
-          key === "audioRetentionDays" ? 30 : (state as unknown as Record<string, unknown>)[key];
+        value = (state as unknown as Record<string, unknown>)[key];
       } else {
-        value = key === "audioRetentionDays" ? Math.round(parsed) : parsed;
+        value = parsed;
       }
     } else {
       value = newValue;

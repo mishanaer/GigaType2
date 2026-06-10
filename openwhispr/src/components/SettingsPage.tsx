@@ -45,7 +45,6 @@ import { HotkeyInput } from "./ui/HotkeyInput";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { validateHotkeyForSlot } from "../utils/hotkeyValidation";
 import { getCachedPlatform } from "../utils/platform";
-import { formatHotkeyLabel } from "../utils/hotkeys";
 import { Toggle } from "./ui/toggle";
 import DeveloperSection from "./DeveloperSection";
 import { Skeleton } from "./ui/skeleton";
@@ -54,7 +53,6 @@ import { useToast } from "./ui/useToast";
 import logger from "../utils/logger";
 import { SettingsRow } from "./ui/SettingsSection";
 import { useSettingsLayout } from "./ui/useSettingsLayout";
-import { formatBytes } from "../utils/formatBytes";
 import { canManageSystemAudioInApp } from "../utils/systemAudioAccess";
 
 export type SettingsSectionType = "general" | "privacyData" | "system";
@@ -134,12 +132,6 @@ export default function SettingsPage({
     setStartMinimized,
     panelStartPosition,
     setPanelStartPosition,
-    telemetryEnabled,
-    setTelemetryEnabled,
-    audioRetentionDays,
-    setAudioRetentionDays,
-    dataRetentionEnabled,
-    setDataRetentionEnabled,
   } = useSettings();
 
   const { t } = useTranslation();
@@ -174,31 +166,6 @@ export default function SettingsPage({
   const permissionsHook = usePermissions(showAlertDialog);
   const systemAudio = useSystemAudioPermission();
   useClipboard(showAlertDialog);
-  const [audioStorageUsage, setAudioStorageUsage] = useState<{
-    fileCount: number;
-    totalBytes: number;
-  }>({ fileCount: 0, totalBytes: 0 });
-
-  useEffect(() => {
-    if (activeSection !== "privacyData") return;
-    window.electronAPI
-      ?.getAudioStorageUsage?.()
-      .then((usage: { fileCount: number; totalBytes: number }) => {
-        if (usage) setAudioStorageUsage(usage);
-      })
-      .catch(() => {});
-  }, [activeSection]);
-
-  const handleClearAllAudio = async () => {
-    if (!window.electronAPI?.deleteAllAudio) return;
-    try {
-      await window.electronAPI.deleteAllAudio();
-      setAudioStorageUsage({ fileCount: 0, totalBytes: 0 });
-      toast({ title: t("settingsPage.privacy.clearAllAudio"), variant: "default" });
-    } catch {
-      // silent fail
-    }
-  };
 
   // ydotool status for Wayland paste diagnostics
   const [ydotoolStatus, setYdotoolStatus] = useState<{
@@ -245,8 +212,6 @@ export default function SettingsPage({
     (hotkey: string) => validateHotkeyForSlot(hotkey, {}, t),
     [t]
   );
-
-  const [effectiveDefaultHotkey, setEffectiveDefaultHotkey] = useState<string | null>(null);
 
   const platform = getCachedPlatform();
 
@@ -309,18 +274,6 @@ export default function SettingsPage({
   }, [checkWhisperInstallation, getAppVersion]);
 
   useEffect(() => {
-    const loadEffectiveDefaultHotkey = async () => {
-      try {
-        const key = await window.electronAPI?.getEffectiveDefaultHotkey?.();
-        if (key) setEffectiveDefaultHotkey(key);
-      } catch (error) {
-        logger.error("Failed to get effective default hotkey", error, "settings");
-      }
-    };
-    loadEffectiveDefaultHotkey();
-  }, []);
-
-  useEffect(() => {
     if (updateError) {
       showAlertDialog({
         title: t("settingsPage.general.updates.dialogs.updateError.title"),
@@ -353,18 +306,6 @@ export default function SettingsPage({
       }
     };
   }, [installInitiated, showAlertDialog, t]);
-
-  const resetAccessibilityPermissions = () => {
-    const message = t("settingsPage.permissions.resetAccessibility.description");
-
-    showConfirmDialog({
-      title: t("settingsPage.permissions.resetAccessibility.title"),
-      description: message,
-      onConfirm: () => {
-        permissionsHook.requestAccessibilityPermission();
-      },
-    });
-  };
 
   const handleRemoveModels = useCallback(() => {
     if (isRemovingModels) return;
@@ -415,29 +356,14 @@ export default function SettingsPage({
   const renderDictationHotkeySettings = () => (
     <div>
       <SectionHeader title={t("settingsPage.general.hotkey.title")} />
-      <SettingsPanel>
-        <SettingsPanelRow>
-          <HotkeyInput
-            value={dictationKey}
-            onChange={async (newHotkey) => {
-              await registerHotkey(newHotkey);
-            }}
-            disabled={isHotkeyRegistering}
-            validate={validateDictationHotkey}
-          />
-          {effectiveDefaultHotkey && dictationKey && dictationKey !== effectiveDefaultHotkey && (
-            <button
-              onClick={() => registerHotkey(effectiveDefaultHotkey)}
-              disabled={isHotkeyRegistering}
-              className="mt-2 text-xs text-muted-foreground/70 hover:text-foreground transition-colors disabled:opacity-50"
-            >
-              {t("settingsPage.general.hotkey.resetToDefault", {
-                hotkey: formatHotkeyLabel(effectiveDefaultHotkey),
-              })}
-            </button>
-          )}
-        </SettingsPanelRow>
-      </SettingsPanel>
+      <HotkeyInput
+        value={dictationKey}
+        onChange={async (newHotkey) => {
+          await registerHotkey(newHotkey);
+        }}
+        disabled={isHotkeyRegistering}
+        validate={validateDictationHotkey}
+      />
     </div>
   );
 
@@ -1024,97 +950,8 @@ EOF`,
       case "privacyData":
         return (
           <div className="space-y-6">
-            {/* Privacy */}
-            <div>
-              <SectionHeader title={t("settingsPage.privacy.title")} />
-
-              <SettingsPanel>
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.privacy.usageAnalytics")}
-                    description={t("settingsPage.privacy.usageAnalyticsDescription")}
-                  >
-                    <Toggle checked={telemetryEnabled} onChange={setTelemetryEnabled} />
-                  </SettingsRow>
-                </SettingsPanelRow>
-              </SettingsPanel>
-            </div>
-
-            {/* Audio Retention */}
-            <div className="border-t border-border/40 pt-6">
-              <SectionHeader title={t("settingsPage.privacy.audioRetention")} />
-
-              <SettingsPanel>
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.privacy.audioRetention")}
-                  >
-                    <select
-                      value={audioRetentionDays}
-                      onChange={(e) => setAudioRetentionDays(parseInt(e.target.value, 10))}
-                      className="h-7 rounded border border-border/70 bg-muted/80 px-2.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm hover:border-ring/60 hover:bg-card/70 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-1 transition-colors duration-200"
-                    >
-                      <option value={0}>{t("settingsPage.privacy.audioRetentionDisabled")}</option>
-                      <option value={7}>
-                        {t("settingsPage.privacy.audioRetentionDays", { count: 7 })}
-                      </option>
-                      <option value={14}>
-                        {t("settingsPage.privacy.audioRetentionDays", { count: 14 })}
-                      </option>
-                      <option value={30}>
-                        {t("settingsPage.privacy.audioRetentionDays", { count: 30 })}
-                      </option>
-                      <option value={60}>
-                        {t("settingsPage.privacy.audioRetentionDays", { count: 60 })}
-                      </option>
-                      <option value={90}>
-                        {t("settingsPage.privacy.audioRetentionDays", { count: 90 })}
-                      </option>
-                    </select>
-                  </SettingsRow>
-                </SettingsPanelRow>
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.privacy.audioStorageUsage")}
-                    description={
-                      audioStorageUsage.fileCount > 0
-                        ? t("settingsPage.privacy.audioStorageFiles", {
-                            count: audioStorageUsage.fileCount,
-                            size: formatBytes(audioStorageUsage.totalBytes),
-                          })
-                        : t("settingsPage.privacy.audioStorageEmpty")
-                    }
-                  >
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      disabled={audioStorageUsage.fileCount === 0}
-                      onClick={handleClearAllAudio}
-                    >
-                      {t("settingsPage.privacy.clearAllAudio")}
-                    </Button>
-                  </SettingsRow>
-                </SettingsPanelRow>
-              </SettingsPanel>
-            </div>
-
-            {/* Data Retention */}
-            <div className="border-t border-border/40 pt-6">
-              <SettingsPanel>
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.privacy.dataRetention")}
-                    description={t("settingsPage.privacy.dataRetentionDescription")}
-                  >
-                    <Toggle checked={dataRetentionEnabled} onChange={setDataRetentionEnabled} />
-                  </SettingsRow>
-                </SettingsPanelRow>
-              </SettingsPanel>
-            </div>
-
             {/* Permissions */}
-            <div className="border-t border-border/40 pt-6">
+            <div>
               <SectionHeader title={t("settingsPage.permissions.title")} />
 
               <div className="space-y-3">
@@ -1171,33 +1008,6 @@ EOF`,
                     onCheck={permissionsHook.checkPasteToolsAvailability}
                   />
                 )}
-
-              {platform === "darwin" && (
-                <div className="mt-5">
-                  <p className="text-xs font-medium text-foreground mb-3">
-                    {t("settingsPage.permissions.troubleshootingTitle")}
-                  </p>
-                  <SettingsPanel>
-                    <SettingsPanelRow>
-                      <SettingsRow
-                        label={t("settingsPage.permissions.resetAccessibility.label")}
-                        description={t(
-                          "settingsPage.permissions.resetAccessibility.rowDescription"
-                        )}
-                      >
-                        <Button
-                          onClick={resetAccessibilityPermissions}
-                          variant="ghost"
-                          size="sm"
-                          className="text-foreground/70 hover:text-foreground"
-                        >
-                          {t("settingsPage.permissions.troubleshoot")}
-                        </Button>
-                      </SettingsRow>
-                    </SettingsPanelRow>
-                  </SettingsPanel>
-                </div>
-              )}
             </div>
           </div>
         );

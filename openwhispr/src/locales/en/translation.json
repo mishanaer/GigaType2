@@ -1592,21 +1592,13 @@
       "description": "Test and manage system permissions required for GigaType to function correctly",
       "microphoneDescription": "Captures your voice for dictation and transcription",
       "microphoneTitle": "Microphone",
-      "resetAccessibility": {
-        "description": "This will remove GigaType from accessibility permissions. You'll need to re-grant access in System Settings > Privacy & Security > Accessibility.",
-        "label": "Reset accessibility permissions",
-        "rowDescription": "Fix issues after reinstalling or rebuilding the app by removing and re-adding GigaType in System Settings",
-        "title": "Reset Accessibility Permissions"
-      },
       "optional": "Optional",
       "systemAudioTitle": "System Audio",
       "systemAudioDescription": "Transcribe meetings, calls, lectures, podcasts, and other system audio.",
       "grantAccess": "Grant Access",
       "test": "Test",
       "testAndGrant": "Test & Grant",
-      "title": "Permissions",
-      "troubleshoot": "Troubleshoot",
-      "troubleshootingTitle": "Troubleshooting"
+      "title": "Permissions"
     },
     "privacy": {
       "cloudBackup": "Cloud backup",
