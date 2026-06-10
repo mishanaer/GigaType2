@@ -66,6 +66,36 @@ function collectFiles(rootDir) {
   return files;
 }
 
+function collectPaths(rootDir) {
+  if (!fs.existsSync(rootDir)) {
+    return [];
+  }
+
+  const paths = [];
+  const queue = [rootDir];
+
+  while (queue.length > 0) {
+    const currentDir = queue.pop();
+    paths.push(currentDir);
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+
+      if (entry.isDirectory()) {
+        queue.push(fullPath);
+        continue;
+      }
+
+      if (entry.isFile()) {
+        paths.push(fullPath);
+      }
+    }
+  }
+
+  return paths;
+}
+
 function isMachOBinary(filePath) {
   try {
     const description = execFileSync("file", ["-b", filePath], {
@@ -115,6 +145,26 @@ function clearMacExtendedAttributes(context) {
     execFileSync("xattr", ["-cr", appPath], {
       stdio: ["ignore", "ignore", "pipe"],
     });
+
+    const disallowedAttrs = [
+      "com.apple.FinderInfo",
+      "com.apple.fileprovider.fpfs#P",
+      "com.apple.ResourceFork",
+      "com.apple.quarantine",
+    ];
+
+    for (const filePath of collectPaths(appPath)) {
+      for (const attr of disallowedAttrs) {
+        try {
+          execFileSync("xattr", ["-d", attr, filePath], {
+            stdio: ["ignore", "ignore", "ignore"],
+          });
+        } catch {
+          // Missing xattrs are expected for almost every file.
+        }
+      }
+    }
+
     console.log("  afterPack: cleared macOS extended attributes before signing");
   } catch (error) {
     const detail = error.stderr?.toString().trim() || error.message;
