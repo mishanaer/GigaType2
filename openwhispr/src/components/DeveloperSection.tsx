@@ -117,13 +117,10 @@ export default function DeveloperSection() {
         <h3 className="text-[15px] font-semibold text-foreground tracking-tight">
           {t("developerSection.title")}
         </h3>
-        <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-          {t("developerSection.description")}
-        </p>
       </div>
 
       {/* Debug Toggle */}
-      <div className="rounded-xl border border-border/60 dark:border-border bg-card dark:bg-card divide-y divide-border/40 dark:divide-border">
+      <div className="rounded-xl border border-border/60 bg-neutral-50 dark:border-border dark:bg-card divide-y divide-border/40 dark:divide-border">
         <div className="px-5 py-4">
           <div className="flex items-center justify-between gap-6">
             <div className="min-w-0 flex-1">
@@ -137,11 +134,6 @@ export default function DeveloperSection() {
                   }`}
                 />
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                {debugEnabled
-                  ? t("developerSection.debugMode.enabledDescription")
-                  : t("developerSection.debugMode.disabledDescription")}
-              </p>
             </div>
             <div className="shrink-0">
               <Toggle
@@ -197,7 +189,7 @@ export default function DeveloperSection() {
             {t("developerSection.whatGetsLogged.title")}
           </h3>
         </div>
-        <div className="rounded-xl border border-border/60 dark:border-border bg-card dark:bg-card">
+        <div className="rounded-xl border border-border/60 bg-neutral-50 dark:border-border dark:bg-card">
           <div className="px-5 py-4">
             <div
               className={`grid gap-y-2 ${isCompact ? "grid-cols-1 gap-x-0" : "grid-cols-2 gap-x-6"}`}

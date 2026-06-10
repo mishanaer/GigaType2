@@ -73,7 +73,7 @@ function SettingsPanel({
 }) {
   return (
     <div
-      className={`rounded-lg border border-border/50 dark:border-border/70 bg-card/50 dark:bg-card/50 backdrop-blur-sm divide-y divide-border/30 dark:divide-border/50 ${className}`}
+      className={`rounded-lg border border-border/50 bg-neutral-50 dark:border-border/70 dark:bg-card/50 backdrop-blur-sm divide-y divide-border/30 dark:divide-border/50 ${className}`}
     >
       {children}
     </div>
@@ -414,10 +414,7 @@ export default function SettingsPage({
 
   const renderDictationHotkeySettings = () => (
     <div>
-      <SectionHeader
-        title={t("settingsPage.general.hotkey.title")}
-        description={t("settingsPage.general.hotkey.description")}
-      />
+      <SectionHeader title={t("settingsPage.general.hotkey.title")} />
       <SettingsPanel>
         <SettingsPanelRow>
           <HotkeyInput
@@ -479,10 +476,7 @@ export default function SettingsPage({
 
             {/* Floating Icon */}
             <div>
-              <SectionHeader
-                title={t("settingsPage.general.floatingIcon.title")}
-                description={t("settingsPage.general.floatingIcon.description")}
-              />
+              <SectionHeader title={t("settingsPage.general.floatingIcon.title")} />
               <SettingsPanel>
                 <SettingsPanelRow>
                   <SettingsRow
@@ -523,10 +517,7 @@ export default function SettingsPage({
 
             {/* Startup */}
             <div>
-              <SectionHeader
-                title={t("settingsPage.general.startup.title")}
-                description={t("settingsPage.general.startup.description")}
-              />
+              <SectionHeader title={t("settingsPage.general.startup.title")} />
               <SettingsPanel>
                 {platform !== "linux" && (
                   <SettingsPanelRow>
@@ -1035,10 +1026,7 @@ EOF`,
           <div className="space-y-6">
             {/* Privacy */}
             <div>
-              <SectionHeader
-                title={t("settingsPage.privacy.title")}
-                description={t("settingsPage.privacy.description")}
-              />
+              <SectionHeader title={t("settingsPage.privacy.title")} />
 
               <SettingsPanel>
                 <SettingsPanelRow>
@@ -1054,16 +1042,12 @@ EOF`,
 
             {/* Audio Retention */}
             <div className="border-t border-border/40 pt-6">
-              <SectionHeader
-                title={t("settingsPage.privacy.audioRetention")}
-                description={t("settingsPage.privacy.audioRetentionDescription")}
-              />
+              <SectionHeader title={t("settingsPage.privacy.audioRetention")} />
 
               <SettingsPanel>
                 <SettingsPanelRow>
                   <SettingsRow
                     label={t("settingsPage.privacy.audioRetention")}
-                    description={t("settingsPage.privacy.audioRetentionDescription")}
                   >
                     <select
                       value={audioRetentionDays}
@@ -1131,10 +1115,7 @@ EOF`,
 
             {/* Permissions */}
             <div className="border-t border-border/40 pt-6">
-              <SectionHeader
-                title={t("settingsPage.permissions.title")}
-                description={t("settingsPage.permissions.description")}
-              />
+              <SectionHeader title={t("settingsPage.permissions.title")} />
 
               <div className="space-y-3">
                 <PermissionCard
@@ -1405,10 +1386,7 @@ EOF`,
 
             {/* Data Management */}
             <div className="border-t border-border/40 pt-6">
-              <SectionHeader
-                title={t("settingsPage.developer.dataManagementTitle")}
-                description={t("settingsPage.developer.dataManagementDescription")}
-              />
+              <SectionHeader title={t("settingsPage.developer.dataManagementTitle")} />
 
               <div className="space-y-4">
                 <SettingsPanel>

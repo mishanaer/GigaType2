@@ -17,11 +17,21 @@ const HOST = "127.0.0.1";
 const PORT_RANGE_START = 8765;
 const PORT_RANGE_END = 8775;
 const MODEL_NAME = "gigaam-v3-e2e-rnnt";
+const MODEL_CACHE_REPO_DIR = "models--istupakov--gigaam-v3-onnx";
+const MODEL_TOTAL_BYTES = 892_410_829;
+const MODEL_REQUIRED_FILES = [
+  "config.json",
+  "v3_e2e_rnnt_encoder.onnx",
+  "v3_e2e_rnnt_decoder.onnx",
+  "v3_e2e_rnnt_joint.onnx",
+  "v3_e2e_rnnt_vocab.txt",
+];
 const BINARY_NAME = "gigatype-sidecar-darwin-arm64";
 const STARTUP_TIMEOUT_MS = 30000;
 const STARTUP_POLL_INTERVAL_MS = 100;
 const HEALTH_CHECK_INTERVAL_MS = 5000;
 const HEALTH_CHECK_TIMEOUT_MS = 2000;
+const MODEL_PROGRESS_INTERVAL_MS = 1000;
 
 class GigaamSidecarManager extends EventEmitter {
   constructor() {
@@ -33,7 +43,12 @@ class GigaamSidecarManager extends EventEmitter {
     this.healthDetail = null;
     this.startupPromise = null;
     this.healthCheckInterval = null;
+    this.modelProgressInterval = null;
     this.logStream = null;
+    this.modelDownloadedBytes = 0;
+    this.modelTotalBytes = MODEL_TOTAL_BYTES;
+    this.modelProgress = 0;
+    this.modelStage = "stopped";
   }
 
   getBinaryPath() {
@@ -47,6 +62,119 @@ class GigaamSidecarManager extends EventEmitter {
 
   getFfprobePath() {
     return resolveBinaryPath("ffprobe");
+  }
+
+  getHfHome() {
+    return path.join(app.getPath("userData"), "model-cache", "huggingface");
+  }
+
+  getModelCacheDir() {
+    return path.join(this.getHfHome(), "hub", MODEL_CACHE_REPO_DIR);
+  }
+
+  _sumRegularFileBytes(rootDir) {
+    let total = 0;
+
+    const walk = (dir) => {
+      let entries = [];
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+
+      for (const entry of entries) {
+        const entryPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(entryPath);
+          continue;
+        }
+
+        if (!entry.isFile()) {
+          continue;
+        }
+
+        try {
+          total += fs.statSync(entryPath).size;
+        } catch {
+          // Ignore files that are being moved by HuggingFace while we poll.
+        }
+      }
+    };
+
+    walk(rootDir);
+    return total;
+  }
+
+  _isModelCacheComplete() {
+    const snapshotsDir = path.join(this.getModelCacheDir(), "snapshots");
+    let snapshots = [];
+    try {
+      snapshots = fs.readdirSync(snapshotsDir, { withFileTypes: true });
+    } catch {
+      return false;
+    }
+
+    return snapshots.some((entry) => {
+      if (!entry.isDirectory()) return false;
+      const snapshotDir = path.join(snapshotsDir, entry.name);
+      return MODEL_REQUIRED_FILES.every((fileName) => fs.existsSync(path.join(snapshotDir, fileName)));
+    });
+  }
+
+  _updateModelProgress(stageOverride = null) {
+    const downloadedBytes = Math.min(
+      this._sumRegularFileBytes(this.getModelCacheDir()),
+      MODEL_TOTAL_BYTES
+    );
+    const cacheComplete = this._isModelCacheComplete();
+    const modelReady = this.healthStatus === "ok";
+
+    this.modelDownloadedBytes = modelReady ? MODEL_TOTAL_BYTES : downloadedBytes;
+    this.modelTotalBytes = MODEL_TOTAL_BYTES;
+
+    if (modelReady) {
+      this.modelProgress = 100;
+      this.modelStage = "ready";
+    } else if (stageOverride) {
+      this.modelStage = stageOverride;
+      this.modelProgress = Math.min(99, Math.floor((downloadedBytes / MODEL_TOTAL_BYTES) * 100));
+    } else if (this.healthStatus === "error") {
+      this.modelStage = "error";
+      this.modelProgress = Math.min(99, Math.floor((downloadedBytes / MODEL_TOTAL_BYTES) * 100));
+    } else if (cacheComplete) {
+      this.modelStage = "loading";
+      this.modelProgress = 99;
+    } else if (downloadedBytes > 0) {
+      this.modelStage = "downloading";
+      this.modelProgress = Math.min(99, Math.floor((downloadedBytes / MODEL_TOTAL_BYTES) * 100));
+    } else if (this.process) {
+      this.modelStage = "checking";
+      this.modelProgress = 0;
+    } else {
+      this.modelStage = "stopped";
+      this.modelProgress = 0;
+    }
+
+    this._emitStatus();
+  }
+
+  _startModelProgressPolling() {
+    this._stopModelProgressPolling();
+    this._updateModelProgress();
+    this.modelProgressInterval = setInterval(() => {
+      this._updateModelProgress();
+      if (this.modelStage === "ready" || this.modelStage === "error" || this.modelStage === "stopped") {
+        this._stopModelProgressPolling();
+      }
+    }, MODEL_PROGRESS_INTERVAL_MS);
+  }
+
+  _stopModelProgressPolling() {
+    if (this.modelProgressInterval) {
+      clearInterval(this.modelProgressInterval);
+      this.modelProgressInterval = null;
+    }
   }
 
   isAvailable() {
@@ -65,6 +193,8 @@ class GigaamSidecarManager extends EventEmitter {
       this.ready = false;
       this.healthStatus = "error";
       this.healthDetail = error.message;
+      this._updateModelProgress("error");
+      this._stopModelProgressPolling();
       this._emitStatus();
       throw error;
     } finally {
@@ -86,7 +216,7 @@ class GigaamSidecarManager extends EventEmitter {
     this.healthDetail = null;
     this._emitStatus();
 
-    const hfHome = path.join(app.getPath("userData"), "model-cache", "huggingface");
+    const hfHome = this.getHfHome();
     fs.mkdirSync(hfHome, { recursive: true });
 
     const logsDir = path.join(app.getPath("userData"), "logs");
@@ -124,6 +254,7 @@ class GigaamSidecarManager extends EventEmitter {
       env,
     });
     sidecarPidFile.write(SIDECAR_NAME, this.process.pid);
+    this._startModelProgressPolling();
 
     let stderrBuffer = "";
     let exitCode = null;
@@ -132,6 +263,14 @@ class GigaamSidecarManager extends EventEmitter {
       const text = data.toString();
       this.logStream?.write(`[${new Date().toISOString()}] [${source}] ${text}`);
       debugLogger.debug(`GigaAM sidecar ${source}`, { data: text.trim() });
+      if (text.includes("model load ok")) {
+        this.healthStatus = "ok";
+        this._updateModelProgress("ready");
+      } else if (text.includes("model load start")) {
+        this._updateModelProgress("checking");
+      } else if (text.includes("Fetching") || text.includes("download")) {
+        this._updateModelProgress("downloading");
+      }
     };
 
     this.process.stdout.on("data", (data) => writeLog("stdout", data));
@@ -157,8 +296,10 @@ class GigaamSidecarManager extends EventEmitter {
       this.process = null;
       this.port = null;
       this._stopHealthCheck();
+      this._stopModelProgressPolling();
       this._closeLogStream();
       sidecarPidFile.clear(SIDECAR_NAME);
+      this._updateModelProgress("stopped");
       this._emitStatus();
     });
 
@@ -190,6 +331,7 @@ class GigaamSidecarManager extends EventEmitter {
         this.ready = true;
         this.healthStatus = health.status || "unknown";
         this.healthDetail = health.detail || null;
+        this._updateModelProgress();
         this._emitStatus();
         debugLogger.debug("GigaAM sidecar responsive", {
           startupTimeMs: Date.now() - started,
@@ -267,6 +409,7 @@ class GigaamSidecarManager extends EventEmitter {
       this.ready = true;
       this.healthStatus = health.status || "unknown";
       this.healthDetail = health.detail || null;
+      this._updateModelProgress();
       if (
         previousStatus !== this.healthStatus ||
         previousDetail !== this.healthDetail ||
@@ -293,12 +436,14 @@ class GigaamSidecarManager extends EventEmitter {
 
   async stop() {
     this._stopHealthCheck();
+    this._stopModelProgressPolling();
 
     if (!this.process) {
       this.ready = false;
       this.port = null;
       this.healthStatus = "stopped";
       this.healthDetail = null;
+      this._updateModelProgress("stopped");
       this._closeLogStream();
       sidecarPidFile.clear(SIDECAR_NAME);
       this._emitStatus();
@@ -318,6 +463,7 @@ class GigaamSidecarManager extends EventEmitter {
     this.port = null;
     this.healthStatus = "stopped";
     this.healthDetail = null;
+    this._updateModelProgress("stopped");
     this._closeLogStream();
     sidecarPidFile.clear(SIDECAR_NAME);
     this._emitStatus();
@@ -335,6 +481,12 @@ class GigaamSidecarManager extends EventEmitter {
       apiBaseUrl: this.getApiBaseUrl(),
       healthStatus: this.healthStatus,
       healthDetail: this.healthDetail,
+      modelName: MODEL_NAME,
+      modelStage: this.modelStage,
+      modelProgress: this.modelProgress,
+      modelDownloadedBytes: this.modelDownloadedBytes,
+      modelTotalBytes: this.modelTotalBytes,
+      modelCacheComplete: this._isModelCacheComplete(),
     };
   }
 

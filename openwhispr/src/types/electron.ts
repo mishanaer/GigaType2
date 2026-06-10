@@ -20,6 +20,12 @@ export interface GigaamSidecarStatus {
   apiBaseUrl: string | null;
   healthStatus: GigaamHealthStatus;
   healthDetail?: string | null;
+  modelName?: string;
+  modelStage?: "stopped" | "checking" | "downloading" | "loading" | "ready" | "error";
+  modelProgress?: number;
+  modelDownloadedBytes?: number;
+  modelTotalBytes?: number;
+  modelCacheComplete?: boolean;
 }
 
 export type TranscriptionStatus = "completed" | "failed" | "pending";

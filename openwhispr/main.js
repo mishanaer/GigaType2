@@ -173,7 +173,6 @@ const MeetingProcessDetector = require("./src/helpers/meetingProcessDetector");
 const AudioActivityDetector = require("./src/helpers/audioActivityDetector");
 const AudioTapManager = require("./src/helpers/audioTapManager");
 const LinuxPortalAudioManager = require("./src/helpers/linuxPortalAudioManager");
-const MeetingAecManager = require("./src/helpers/meetingAecManager");
 const MeetingDetectionEngine = require("./src/helpers/meetingDetectionEngine");
 const GigaamSidecarManager = require("./src/helpers/gigaamSidecarManager");
 const { i18nMain, changeLanguage } = require("./src/helpers/i18nMain");
@@ -202,7 +201,6 @@ let googleCalendarManager = null;
 let meetingDetectionEngine = null;
 let audioTapManager = null;
 let linuxPortalAudioManager = null;
-let meetingAecManager = null;
 let qdrantManager = null;
 let gigaamSidecarManager = null;
 let ipcHandlers = null;
@@ -269,7 +267,6 @@ function initializeCoreManagers() {
   textEditMonitor = new TextEditMonitor();
   audioTapManager = new AudioTapManager();
   linuxPortalAudioManager = new LinuxPortalAudioManager();
-  meetingAecManager = new MeetingAecManager();
   gigaamSidecarManager = new GigaamSidecarManager();
   windowManager.textEditMonitor = textEditMonitor;
 
@@ -291,7 +288,6 @@ function initializeCoreManagers() {
     meetingDetectionEngine,
     audioTapManager,
     linuxPortalAudioManager,
-    meetingAecManager,
     getTrayManager: () => trayManager,
   });
 }
@@ -361,6 +357,12 @@ function getGigaamSidecarStatus() {
       apiBaseUrl: null,
       healthStatus: "unavailable",
       healthDetail: null,
+      modelName: "gigaam-v3-e2e-rnnt",
+      modelStage: "stopped",
+      modelProgress: 0,
+      modelDownloadedBytes: 0,
+      modelTotalBytes: 892410829,
+      modelCacheComplete: false,
     };
   }
 
@@ -1217,7 +1219,6 @@ function performSyncTeardown() {
   if (googleCalendarManager) googleCalendarManager.stop();
   if (audioTapManager) audioTapManager.stop().catch(() => {});
   if (linuxPortalAudioManager) linuxPortalAudioManager.stop().catch(() => {});
-  if (meetingAecManager) meetingAecManager.stop().catch(() => {});
   if (ipcHandlers) ipcHandlers._cleanupTextEditMonitor();
   if (textEditMonitor) textEditMonitor.stopMonitoring();
   if (updateManager) updateManager.cleanup();

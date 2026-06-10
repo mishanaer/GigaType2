@@ -114,7 +114,6 @@
         "linux-system-audio-helper",
         "linux-text-monitor",
         "linux-key-listener*",
-        "meeting-aec-helper-*",
         "windows-key-listener*",
         "windows-mic-listener*",
         "windows-text-monitor*",

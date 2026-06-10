@@ -1,22 +1,20 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "./ui/button";
-import { Textarea } from "./ui/textarea";
-import { Check, Shield, Command } from "lucide-react";
+import { Progress } from "./ui/progress";
+import { AlertTriangle, Loader2, RotateCw } from "lucide-react";
 import TitleBar from "./TitleBar";
 import PermissionsSection from "./ui/PermissionsSection";
-import StepProgress from "./ui/StepProgress";
 import { AlertDialog, ConfirmDialog } from "./ui/dialog";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useDialogs } from "../hooks/useDialogs";
 import { usePermissions } from "../hooks/usePermissions";
 import { useClipboard } from "../hooks/useClipboard";
 import { useSettings } from "../hooks/useSettings";
+import { useGigaamSidecarStatus } from "../hooks/useGigaamSidecarStatus";
 import { setAgentName as saveAgentName } from "../utils/agentName";
-import { formatHotkeyLabel, getDefaultHotkey, isGlobeLikeHotkey } from "../utils/hotkeys";
-import { HotkeyInput } from "./ui/HotkeyInput";
+import { getDefaultHotkey, isGlobeLikeHotkey } from "../utils/hotkeys";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
-import { getValidationMessage } from "../utils/hotkeyValidator";
 import { getPlatform } from "../utils/platform";
 import logger from "../utils/logger";
 import {
@@ -26,6 +24,13 @@ import {
 
 interface OnboardingFlowProps {
   onComplete: () => void;
+}
+
+function formatBytes(bytes?: number | null) {
+  if (!bytes || bytes <= 0) return "0 МБ";
+  const mb = bytes / 1_000_000;
+  if (mb < 1000) return `${Math.round(mb)} МБ`;
+  return `${(mb / 1000).toFixed(1)} ГБ`;
 }
 
 export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
@@ -50,16 +55,16 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     }
   );
   const { dictationKey, setDictationKey } = useSettings();
+  const { status: gigaamStatus, restart: restartGigaam, isRestarting: isRestartingGigaam } =
+    useGigaamSidecarStatus();
 
   const [hotkey, setHotkey] = useState(dictationKey || getDefaultHotkey());
-  const [agentName, setAgentName] = useState("GigaType");
-  const readableHotkey = formatHotkeyLabel(hotkey);
   const { alertDialog, confirmDialog, showAlertDialog, hideAlertDialog, hideConfirmDialog } =
     useDialogs();
   const autoRegisterInFlightRef = useRef(false);
   const hotkeyStepInitializedRef = useRef(false);
 
-  const { registerHotkey, isRegistering: isHotkeyRegistering } = useHotkeyRegistration({
+  const { registerHotkey } = useHotkeyRegistration({
     onSuccess: (registeredHotkey) => {
       setHotkey(registeredHotkey);
       setDictationKey(registeredHotkey);
@@ -67,11 +72,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     showSuccessToast: false,
     showErrorToast: false,
   });
-
-  const validateHotkeyForInput = useCallback(
-    (hotkey: string) => getValidationMessage(hotkey, getPlatform()),
-    []
-  );
 
   const permissionsHook = usePermissions(showAlertDialog);
   useClipboard(showAlertDialog); // Initialize clipboard hook for permission checks
@@ -88,16 +88,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     localStorage.setItem(migrationKey, "1");
   }, [setCurrentStep]);
 
-  const steps = useMemo(
-    () => [
-      { id: "permissions", title: t("onboarding.steps.permissions"), icon: Shield },
-      { id: "activation", title: t("onboarding.steps.activation"), icon: Command },
-    ],
-    [t]
-  );
-
-  const showProgress = true;
-
   // Update wizard UI when backend falls back to a different hotkey.
   // Only update local state — don't persist to localStorage so the app
   // retries the preferred key on next launch.
@@ -110,11 +100,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     return () => unsubscribe?.();
   }, []);
 
-  const activationStepIndex = 1;
+  const modelStepIndex = 1;
 
   useEffect(() => {
-    if (currentStep !== activationStepIndex) {
-      // Reset initialization flag when leaving activation step
+    if (currentStep !== modelStepIndex) {
       hotkeyStepInitializedRef.current = false;
       return;
     }
@@ -162,7 +151,20 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     };
 
     void autoRegisterDefaultHotkey();
-  }, [currentStep, hotkey, registerHotkey, activationStepIndex, setDictationKey]);
+  }, [currentStep, hotkey, registerHotkey, modelStepIndex, setDictationKey]);
+
+  useEffect(() => {
+    if (currentStep !== modelStepIndex) return;
+    if (gigaamStatus?.available && gigaamStatus.healthStatus === "stopped") {
+      void restartGigaam();
+    }
+  }, [
+    currentStep,
+    modelStepIndex,
+    gigaamStatus?.available,
+    gigaamStatus?.healthStatus,
+    restartGigaam,
+  ]);
 
   const ensureHotkeyRegistered = useCallback(async () => {
     if (!window.electronAPI?.updateHotkey) {
@@ -195,7 +197,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       return false;
     }
     setDictationKey(hotkey);
-    saveAgentName(agentName);
+    saveAgentName("GigaType");
 
     localStorage.setItem("authenticationSkipped", "true");
     markGigaTypeOnboardingCompleted();
@@ -215,7 +217,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     }
 
     return true;
-  }, [hotkey, agentName, setDictationKey, ensureHotkeyRegistered]);
+  }, [hotkey, setDictationKey, ensureHotkeyRegistered]);
 
   const arePermissionsReady = useCallback(() => {
     if (!permissionsHook.micPermissionGranted) return false;
@@ -245,20 +247,14 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   ]);
 
   const nextStep = useCallback(async () => {
-    if (currentStep >= steps.length - 1) {
+    if (currentStep >= getMaxStep()) {
       return;
     }
 
     const newStep = currentStep + 1;
     setCurrentStep(newStep);
 
-    // Show dictation panel when entering activation step
-    if (newStep === activationStepIndex) {
-      if (window.electronAPI?.showDictationPanel) {
-        window.electronAPI.showDictationPanel();
-      }
-    }
-  }, [currentStep, setCurrentStep, steps.length, activationStepIndex]);
+  }, [currentStep, setCurrentStep]);
 
   useEffect(() => {
     if (currentStep !== 0 || !arePermissionsReady()) return;
@@ -281,75 +277,103 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         return <PermissionsSection permissions={permissionsHook} />;
 
       case 1:
-        return renderActivationStep();
+        return renderModelStep();
 
       default:
         return null;
     }
   };
 
-  const renderActivationStep = () => (
-    <div className="space-y-4">
-      {/* Header */}
-      <div className="text-center space-y-0.5">
-        <h2 className="text-lg font-semibold text-foreground tracking-tight">
-          {t("onboarding.activation.title")}
-        </h2>
-        <p className="text-xs text-muted-foreground">{t("onboarding.activation.description")}</p>
-      </div>
+  const renderModelStep = () => {
+    const isReady = gigaamStatus?.healthStatus === "ok" || gigaamStatus?.modelStage === "ready";
+    const isError = gigaamStatus?.healthStatus === "error" || gigaamStatus?.modelStage === "error";
+    const progress = isReady
+      ? 100
+      : Math.max(0, Math.min(99, Math.floor(gigaamStatus?.modelProgress ?? 0)));
+    const downloadedBytes = isReady
+      ? gigaamStatus?.modelTotalBytes
+      : gigaamStatus?.modelDownloadedBytes;
+    const totalBytes = gigaamStatus?.modelTotalBytes;
 
-      {/* Unified control surface */}
-      <div className="rounded-lg border border-border bg-muted overflow-hidden">
-        {/* Hotkey section */}
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {t("onboarding.activation.hotkey")}
+    let title = "Проверяем модель";
+    let description = "GigaType готовит локальную GigaAM для распознавания речи.";
+
+    if (!gigaamStatus) {
+      title = "Проверяем модель";
+      description = "Получаем статус локальной GigaAM.";
+    } else if (!gigaamStatus.available) {
+      title = "GigaAM недоступна";
+      description = "Локальная модель доступна только в macOS сборке для Apple Silicon.";
+    } else if (isError) {
+      title = "Не удалось подготовить модель";
+      description = gigaamStatus.healthDetail || "Проверьте подключение к интернету и попробуйте ещё раз.";
+    } else if (isReady) {
+      title = "Модель готова";
+      description = "GigaAM загружена и готова к диктовке.";
+    } else if (gigaamStatus.modelStage === "loading" || gigaamStatus.modelCacheComplete) {
+      title = "Загружаем модель в память";
+      description = "Файлы уже на компьютере. Осталось дождаться запуска GigaAM.";
+    } else if (gigaamStatus.modelStage === "downloading") {
+      title = "Загружаем модель";
+      description = "Первый запуск может занять несколько минут.";
+    }
+
+    return (
+      <div className="mx-auto w-full max-w-[500px] space-y-5">
+        <div className="text-center space-y-1">
+          <h2 className="text-xl font-semibold text-foreground tracking-tight">{title}</h2>
+          <p className="text-sm text-muted-foreground">{description}</p>
+        </div>
+
+        <div className="rounded-lg border border-border bg-neutral-50 p-5">
+          <div className="mb-3 flex items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-2">
+              {isError ? (
+                <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+              ) : !isReady ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+              ) : null}
+              <span className="truncate text-sm font-medium text-foreground">GigaAM e2e RNNT</span>
+            </div>
+            <span className="shrink-0 text-sm font-medium tabular-nums text-muted-foreground">
+              {progress}%
             </span>
           </div>
-          <HotkeyInput
-            value={hotkey}
-            onChange={async (newHotkey) => {
-              const success = await registerHotkey(newHotkey);
-              if (success) {
-                setHotkey(newHotkey);
-              }
-            }}
-            disabled={isHotkeyRegistering}
-            variant="hero"
-            validate={validateHotkeyForInput}
-          />
+
+          <Progress value={progress} className="h-2" />
+
+          <div className="mt-3 flex items-center justify-between gap-4 text-xs text-muted-foreground">
+            <span>{isReady ? "Готово" : isError ? "Ошибка" : "Подготовка"}</span>
+            {totalBytes ? (
+              <span className="tabular-nums">
+                {formatBytes(downloadedBytes)} / {formatBytes(totalBytes)}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex justify-center">
+          {isReady ? (
+            <Button onClick={finishOnboarding} size="xl">
+              Начать
+            </Button>
+          ) : isError || gigaamStatus?.healthStatus === "stopped" ? (
+            <Button
+              onClick={() => restartGigaam()}
+              disabled={isRestartingGigaam}
+              className="h-10 rounded-full px-7"
+            >
+              {isRestartingGigaam ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCw className="h-4 w-4" />
+              )}
+              Повторить
+            </Button>
+          ) : null}
         </div>
       </div>
-
-      {/* Test area - minimal chrome */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            {t("onboarding.activation.test")}
-          </span>
-          <span className="text-xs text-muted-foreground/60">
-            {t("onboarding.activation.holdHotkey", { hotkey: readableHotkey })}
-          </span>
-        </div>
-        <Textarea
-          rows={2}
-          placeholder={t("onboarding.activation.textareaPlaceholder")}
-          className="text-sm resize-none"
-        />
-      </div>
-    </div>
-  );
-
-  const canProceed = () => {
-    switch (currentStep) {
-      case 0:
-        return arePermissionsReady();
-      case 1:
-        return hotkey.trim() !== "";
-      default:
-        return false;
-    }
+    );
   };
 
   // Load Google Font only in the browser
@@ -390,18 +414,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       <div className="shrink-0 z-10">
         <TitleBar
           showTitle={true}
+          showQuitButton={false}
           className="bg-background backdrop-blur-xl border-b border-border shadow-sm"
         ></TitleBar>
       </div>
-
-      {/* Progress Bar */}
-      {showProgress && (
-        <div className="shrink-0 bg-background/80 backdrop-blur-2xl border-b border-white/5 px-6 md:px-12 py-3 z-10">
-          <div className="max-w-3xl mx-auto">
-            <StepProgress steps={steps} currentStep={currentStep} />
-          </div>
-        </div>
-      )}
 
       {/* Content */}
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-10 md:px-12">
@@ -410,22 +426,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         </div>
       </div>
 
-      {/* Footer Navigation */}
-      {showProgress && currentStep === steps.length - 1 && (
-        <div className="shrink-0 bg-background/80 backdrop-blur-2xl border-t border-white/5 px-6 md:px-12 py-3 z-10">
-          <div className="max-w-3xl mx-auto flex items-center justify-end">
-            <Button
-              onClick={finishOnboarding}
-              disabled={!canProceed()}
-              variant="success"
-              className="h-8 px-6 rounded-full text-xs"
-            >
-              <Check className="w-3.5 h-3.5" />
-              {t("common.complete")}
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

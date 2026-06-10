@@ -11,6 +11,7 @@ interface TitleBarProps {
   children?: React.ReactNode;
   className?: string;
   actions?: React.ReactNode;
+  showQuitButton?: boolean;
 }
 
 export default function TitleBar({
@@ -19,6 +20,7 @@ export default function TitleBar({
   children,
   className = "",
   actions,
+  showQuitButton = true,
 }: TitleBarProps) {
   const { t } = useTranslation();
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
@@ -57,16 +59,18 @@ export default function TitleBar({
         <div className="flex items-center gap-2" style={{ WebkitAppRegion: "no-drag" }}>
           {platform !== "darwin" ? (
             <>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowQuitConfirm(true)}
-                className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
-                title={t("titleBar.quitTitle")}
-                aria-label={t("titleBar.quitTitle")}
-              >
-                <Power size={16} />
-              </Button>
+              {showQuitButton && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowQuitConfirm(true)}
+                  className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                  title={t("titleBar.quitTitle")}
+                  aria-label={t("titleBar.quitTitle")}
+                >
+                  <Power size={16} />
+                </Button>
+              )}
               {getActionsContent()}
             </>
           ) : (
@@ -87,16 +91,18 @@ export default function TitleBar({
           ) : (
             <>
               {actions}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowQuitConfirm(true)}
-                className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
-                title={t("titleBar.quitTitle")}
-                aria-label={t("titleBar.quitTitle")}
-              >
-                <Power size={16} />
-              </Button>
+              {showQuitButton && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowQuitConfirm(true)}
+                  className="h-8 w-8 text-destructive hover:text-destructive/90 hover:bg-destructive/10"
+                  title={t("titleBar.quitTitle")}
+                  aria-label={t("titleBar.quitTitle")}
+                >
+                  <Power size={16} />
+                </Button>
+              )}
             </>
           )}
         </div>

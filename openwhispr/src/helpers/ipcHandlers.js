@@ -282,7 +282,6 @@ class IPCHandlers {
     this.meetingDetectionEngine = managers.meetingDetectionEngine;
     this.audioTapManager = managers.audioTapManager;
     this.linuxPortalAudioManager = managers.linuxPortalAudioManager;
-    this.meetingAecManager = managers.meetingAecManager;
     this.sessionId = crypto.randomUUID();
     this.assemblyAiStreaming = null;
     this.deepgramStreaming = null;
@@ -3979,7 +3978,6 @@ class IPCHandlers {
     let meetingPendingMicChunks = [];
     let meetingPendingMicFinals = [];
     let meetingPendingMicFinalTimer = null;
-    let meetingAecEnabled = false;
     let meetingOneOnOneAttendee = null;
     let meetingOneOnOneProfileBound = false;
     let meetingNoteId = null;
@@ -4112,45 +4110,6 @@ class IPCHandlers {
       }
     };
 
-    const stopMeetingAec = async () => {
-      meetingAecEnabled = false;
-      if (this.meetingAecManager) {
-        await this.meetingAecManager.stop().catch(() => {});
-      }
-    };
-
-    const startMeetingAec = async (systemAudioMode) => {
-      meetingAecEnabled = false;
-      if (systemAudioMode === "unsupported" || !this.meetingAecManager?.isAvailable()) {
-        return false;
-      }
-
-      const started = await this.meetingAecManager
-        .start({
-          onMicChunk: (chunk) => {
-            dispatchMeetingAudioBuffer(chunk, "mic");
-          },
-          onError: (error) => {
-            debugLogger.warn("Meeting AEC helper disabled", { error: error.message }, "meeting");
-            meetingAecEnabled = false;
-            void this.meetingAecManager.stop().catch(() => {});
-          },
-          onWarning: (warning) => {
-            debugLogger.debug("Meeting AEC helper warning", warning, "meeting");
-          },
-        })
-        .catch((error) => {
-          debugLogger.warn("Meeting AEC helper start failed", { error: error.message }, "meeting");
-          return false;
-        });
-
-      meetingAecEnabled = !!started;
-      if (meetingAecEnabled) {
-        debugLogger.info("Meeting AEC helper started", { systemAudioMode }, "meeting");
-      }
-      return meetingAecEnabled;
-    };
-
     const flushPendingMeetingMicChunks = (force = false) => {
       if (!meetingPendingMicChunks.length) {
         return;
@@ -4168,7 +4127,7 @@ class IPCHandlers {
         if (next.analysisOnly) {
           continue;
         }
-        if (analysis?.shouldMute && !meetingAecEnabled) {
+        if (analysis?.shouldMute) {
           if (!meetingLocalMode) {
             dispatchMeetingAudioBuffer(Buffer.alloc(next.buffer.length), "mic");
           }
@@ -4177,26 +4136,6 @@ class IPCHandlers {
 
         dispatchMeetingAudioBuffer(next.buffer, "mic");
       }
-    };
-
-    const processMeetingMicWithAec = (buffer) => {
-      if (!meetingAecEnabled) {
-        return false;
-      }
-
-      const sent = this.meetingAecManager?.processMicBuffer(buffer);
-      if (sent) {
-        meetingPendingMicChunks.push({
-          buffer,
-          queuedAt: Date.now(),
-          analysisOnly: true,
-        });
-        flushPendingMeetingMicChunks();
-        return true;
-      }
-
-      meetingAecEnabled = false;
-      return false;
     };
 
     const stopLiveSpeakerIdentification = async () => {
@@ -4546,7 +4485,6 @@ class IPCHandlers {
       meetingLocalTranscribing = false;
       meetingPendingMicChunks = [];
       resetPendingMicFinals();
-      meetingAecEnabled = false;
       meetingStartedAt = null;
       meetingEchoLeakDetector.reset();
     };
@@ -4641,7 +4579,6 @@ class IPCHandlers {
       meetingLiveSpeakerStartedAt = null;
       meetingPendingMicChunks = [];
       resetPendingMicFinals();
-      meetingAecEnabled = false;
       meetingEchoLeakDetector.reset();
     };
 
@@ -4670,7 +4607,6 @@ class IPCHandlers {
       if (this.linuxPortalAudioManager) {
         await this.linuxPortalAudioManager.stop().catch(() => {});
       }
-      await stopMeetingAec();
       await stopLiveSpeakerIdentification().catch(() => {});
       resetMeetingLocalState();
       await disconnectMeetingStreaming().catch(() => {});
@@ -4831,7 +4767,6 @@ class IPCHandlers {
           if (systemAudioMode !== "unsupported") {
             attachMeetingStreamingHandlers(this._meetingSystemStreaming, win, "system");
           }
-          await startMeetingAec(systemAudioMode);
           await startLiveSpeakerIdentification(win, systemAudioMode);
           ({ systemAudioMode, systemAudioStrategy } = await startMeetingSystemAudio(
             event,
@@ -4857,7 +4792,6 @@ class IPCHandlers {
           meetingLocalTranscript = "";
 
           await startLiveSpeakerIdentification(meetingLocalWin, systemAudioMode);
-          await startMeetingAec(systemAudioMode);
 
           meetingLocalTimer = setInterval(() => {
             transcribeAllLocalBuffers();
@@ -4891,7 +4825,6 @@ class IPCHandlers {
         await connectRealtimeStreaming(event, options);
         const realtimeWin = BrowserWindow.fromWebContents(event.sender);
         await startLiveSpeakerIdentification(realtimeWin, systemAudioMode);
-        await startMeetingAec(systemAudioMode);
         ({ systemAudioMode, systemAudioStrategy } = await startMeetingSystemAudio(
           event,
           systemAudioMode,
@@ -4920,9 +4853,6 @@ class IPCHandlers {
       if (source === "system") {
         const receivedAt = Date.now();
         meetingEchoLeakDetector.recordSystemChunk(outboundBuffer, receivedAt);
-        if (meetingAecEnabled && !this.meetingAecManager?.processSystemBuffer(outboundBuffer)) {
-          meetingAecEnabled = false;
-        }
         flushPendingMeetingMicChunks();
 
         if (meetingLiveSpeakerActive) {
@@ -4941,13 +4871,9 @@ class IPCHandlers {
       }
 
       if (source === "mic") {
-        if (processMeetingMicWithAec(outboundBuffer)) {
-          return;
-        }
-
         if (!hasNativeMeetingSystemAudio()) {
           const analysis = meetingEchoLeakDetector.analyzeMicChunk(outboundBuffer);
-          if (analysis?.shouldMute && !meetingAecEnabled) {
+          if (analysis?.shouldMute) {
             if (!meetingLocalMode) {
               dispatchMeetingAudioBuffer(Buffer.alloc(outboundBuffer.length), "mic");
             }
@@ -5065,7 +4991,6 @@ class IPCHandlers {
         }
 
         flushPendingMeetingMicChunks(true);
-        await stopMeetingAec();
 
         const liveSpeakerState = await stopLiveSpeakerIdentification().catch(() => null);
 
