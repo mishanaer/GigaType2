@@ -138,6 +138,15 @@ class GlobeKeyManager extends EventEmitter {
             if (modifier) {
               this.emit("modifier-up", modifier);
             }
+          } else if (line.startsWith("MODIFIERS_CHANGED:")) {
+            const rawModifiers = line.replace("MODIFIERS_CHANGED:", "").trim();
+            const modifiers = rawModifiers
+              ? rawModifiers
+                  .split(",")
+                  .map((modifier) => modifier.trim().toLowerCase())
+                  .filter(Boolean)
+              : [];
+            this.emit("modifiers-changed", modifiers);
           } else if (line.startsWith("MOUSE_BUTTON_DOWN:")) {
             const button = line.replace("MOUSE_BUTTON_DOWN:", "").trim();
             if (button) {

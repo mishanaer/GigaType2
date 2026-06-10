@@ -27,9 +27,24 @@ let releases: [(NSEvent.ModifierFlags, String)] = [
     (.shift, "shift"),
 ]
 
+let modifierStateOrder: [(NSEvent.ModifierFlags, String)] = [
+    (.control, "control"),
+    (.command, "command"),
+    (.option, "option"),
+    (.shift, "shift"),
+]
+
 func emit(_ message: String) {
     FileHandle.standardOutput.write((message + "\n").data(using: .utf8)!)
     fflush(stdout)
+}
+
+func emitModifierState(_ flags: NSEvent.ModifierFlags) {
+    let names = modifierStateOrder
+        .filter { flag, _ in flags.contains(flag) }
+        .map { _, name in name }
+        .joined(separator: ",")
+    emit("MODIFIERS_CHANGED:\(names)")
 }
 
 func mouseButtonName(_ buttonNumber: Int) -> String? {
@@ -113,6 +128,7 @@ guard let monitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged, h
 
     let currentModifiers = flags.intersection(modifierMask)
     if currentModifiers != lastModifierFlags {
+        emitModifierState(currentModifiers)
         let released = lastModifierFlags.subtracting(currentModifiers)
         for (flag, name) in releases {
             if released.contains(flag) {

@@ -595,13 +595,21 @@ export function validateHotkey(
     };
   }
 
-  // Check for modifier-only hotkeys: require right-side for single modifier, or 2+ modifiers
+  // Check for modifier-only hotkeys: require right-side for single modifier, or 2+ modifiers.
   const modifierCount = parts.filter((part) => normalizeModifier(part, platform) !== null).length;
   const hasBaseKey = parts.length > modifierCount;
 
   if (!hasBaseKey && modifierCount === 1) {
     const singleMod = parts[0];
     if (!isRightSideModifier(singleMod)) {
+      if (platform === "darwin") {
+        return {
+          valid: false,
+          error:
+            "Одиночный модификатор на macOS должен быть правой клавишей, например RightOption. Можно также использовать Fn/Globe или сочетание с обычной клавишей.",
+          errorCode: "LEFT_MODIFIER_ONLY",
+        };
+      }
       return {
         valid: false,
         error:

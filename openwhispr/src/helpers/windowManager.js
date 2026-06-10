@@ -1,7 +1,7 @@
 const { app, screen, BrowserWindow, shell, dialog } = require("electron");
 const debugLogger = require("./debugLogger");
 const HotkeyManager = require("./hotkeyManager");
-const { isGlobeLikeHotkey } = HotkeyManager;
+const { isGlobeLikeHotkey, isModifierOnlyHotkey } = HotkeyManager;
 const DragManager = require("./dragManager");
 const MenuManager = require("./menuManager");
 const DevServerManager = require("./devServerManager");
@@ -276,6 +276,7 @@ class WindowManager {
       active: true,
       downTime,
       isRecording: false,
+      hotkey,
       requiredModifiers,
       safetyTimeoutId,
     };
@@ -377,6 +378,46 @@ class WindowManager {
     }
 
     return required;
+  }
+
+  handleMacModifierStateChanged(activeModifiers, hotkey) {
+    if (!hotkey || !isModifierOnlyHotkey(hotkey)) {
+      return;
+    }
+
+    if (this.hotkeyManager.isInListeningMode()) {
+      return;
+    }
+
+    const requiredModifiers = this.getMacRequiredModifiers(hotkey);
+    if (requiredModifiers.size < 2) {
+      return;
+    }
+
+    const active = new Set(activeModifiers);
+    const isExactMatch =
+      active.size === requiredModifiers.size &&
+      [...requiredModifiers].every((modifier) => active.has(modifier));
+
+    if (isExactMatch) {
+      if (this.textEditMonitor) this.textEditMonitor.captureTargetPid();
+      this.startMacCompoundPushToTalk(hotkey);
+      return;
+    }
+
+    if (this.macCompoundPushState?.active && this.macCompoundPushState.hotkey === hotkey) {
+      const wasRecording = this.macCompoundPushState.isRecording;
+      if (this.macCompoundPushState.safetyTimeoutId) {
+        clearTimeout(this.macCompoundPushState.safetyTimeoutId);
+      }
+      this.macCompoundPushState = null;
+
+      if (wasRecording) {
+        this.sendStopDictation();
+      } else {
+        this.hideDictationPanel();
+      }
+    }
   }
 
   startWindowsPushToTalk() {

@@ -393,6 +393,15 @@ class HotkeyManager extends EventEmitter {
         return { success: true, hotkey };
       }
 
+      if (isModifierOnlyHotkey(hotkey) && process.platform === "darwin") {
+        slot.hotkey = hotkey;
+        slot.accelerator = null;
+        debugLogger.log(
+          `[HotkeyManager] Modifier-only "${hotkey}" set - using macOS native listener`
+        );
+        return { success: true, hotkey };
+      }
+
       if (isModifierOnlyHotkey(hotkey) && process.platform === "win32") {
         slot.hotkey = hotkey;
         slot.accelerator = null;

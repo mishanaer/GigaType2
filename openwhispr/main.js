@@ -607,7 +607,11 @@ async function startApp() {
   updateManager.checkForUpdatesOnStartup();
 
   if (process.platform === "darwin") {
-    const { isGlobeLikeHotkey, isMouseButtonHotkey } = require("./src/helpers/hotkeyManager");
+    const {
+      isGlobeLikeHotkey,
+      isMouseButtonHotkey,
+      isModifierOnlyHotkey,
+    } = require("./src/helpers/hotkeyManager");
     let globeKeyDownTime = 0;
     let globeKeyIsRecording = false;
     let globeLastStopTime = 0;
@@ -693,6 +697,17 @@ async function startApp() {
       if (windowManager?.handleMacPushModifierUp) {
         windowManager.handleMacPushModifierUp(modifier);
       }
+    });
+
+    globeKeyManager.on("modifiers-changed", (modifiers) => {
+      const currentHotkey = hotkeyManager.getCurrentHotkey && hotkeyManager.getCurrentHotkey();
+      if (!isModifierOnlyHotkey(currentHotkey)) {
+        return;
+      }
+      if (!isLiveWindow(windowManager.mainWindow)) {
+        return;
+      }
+      windowManager.handleMacModifierStateChanged(modifiers, currentHotkey);
     });
 
     // Right-side single modifier handling (e.g., RightOption as hotkey)
