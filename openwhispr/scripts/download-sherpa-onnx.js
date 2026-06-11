@@ -12,32 +12,24 @@ const GITHUB_RELEASE_URL = `https://github.com/k2-fsa/sherpa-onnx/releases/downl
 const BINARIES = {
   "darwin-arm64": {
     archiveName: `sherpa-onnx-v${SHERPA_ONNX_VERSION}-osx-universal2-shared.tar.bz2`,
-    binaryPath: "sherpa-onnx-offline-websocket-server",
-    outputName: "sherpa-onnx-ws-darwin-arm64",
     diarizeBinaryPath: "sherpa-onnx-offline-speaker-diarization",
     diarizeOutputName: "sherpa-onnx-diarize-darwin-arm64",
     libPattern: "*.dylib",
   },
   "darwin-x64": {
     archiveName: `sherpa-onnx-v${SHERPA_ONNX_VERSION}-osx-universal2-shared.tar.bz2`,
-    binaryPath: "sherpa-onnx-offline-websocket-server",
-    outputName: "sherpa-onnx-ws-darwin-x64",
     diarizeBinaryPath: "sherpa-onnx-offline-speaker-diarization",
     diarizeOutputName: "sherpa-onnx-diarize-darwin-x64",
     libPattern: "*.dylib",
   },
   "win32-x64": {
     archiveName: `sherpa-onnx-v${SHERPA_ONNX_VERSION}-win-x64-shared.tar.bz2`,
-    binaryPath: "sherpa-onnx-offline-websocket-server.exe",
-    outputName: "sherpa-onnx-ws-win32-x64.exe",
     diarizeBinaryPath: "sherpa-onnx-offline-speaker-diarization.exe",
     diarizeOutputName: "sherpa-onnx-diarize-win32-x64.exe",
     libPattern: "*.dll",
   },
   "linux-x64": {
     archiveName: `sherpa-onnx-v${SHERPA_ONNX_VERSION}-linux-x64-shared.tar.bz2`,
-    binaryPath: "sherpa-onnx-offline-websocket-server",
-    outputName: "sherpa-onnx-ws-linux-x64",
     diarizeBinaryPath: "sherpa-onnx-offline-speaker-diarization",
     diarizeOutputName: "sherpa-onnx-diarize-linux-x64",
     libPattern: "*.so*",
@@ -101,10 +93,9 @@ async function downloadBinary(platformArch, config, isForce = false) {
     return false;
   }
 
-  const outputPath = path.join(BIN_DIR, config.outputName);
   const diarizeOutputPath = path.join(BIN_DIR, config.diarizeOutputName);
 
-  if (fs.existsSync(outputPath) && fs.existsSync(diarizeOutputPath) && !isForce) {
+  if (fs.existsSync(diarizeOutputPath) && !isForce) {
     console.log(`  ${platformArch}: Already exists (use --force to re-download)`);
     return true;
   }
@@ -121,20 +112,7 @@ async function downloadBinary(platformArch, config, isForce = false) {
     fs.mkdirSync(extractDir, { recursive: true });
     extractTarBz2(archivePath, extractDir);
 
-    // Find the WebSocket server binary (may be in a subdirectory)
-    const binaryName = path.basename(config.binaryPath);
-    let binaryPath = findBinaryInDir(extractDir, binaryName);
-
-    if (binaryPath && fs.existsSync(binaryPath)) {
-      fs.copyFileSync(binaryPath, outputPath);
-      setExecutable(outputPath);
-      console.log(`  ${platformArch}: Extracted to ${config.outputName}`);
-    } else {
-      console.error(`  ${platformArch}: Binary '${binaryName}' not found in archive`);
-      return false;
-    }
-
-    // Find the diarization binary from the same archive
+    // Find the diarization binary (may be in a subdirectory)
     const diarizeBinaryName = path.basename(config.diarizeBinaryPath);
     let diarizeBinaryPath = findBinaryInDir(extractDir, diarizeBinaryName);
 
@@ -202,8 +180,25 @@ async function downloadBinary(platformArch, config, isForce = false) {
   }
 }
 
+function removeUnusedSherpaBinariesForPlatform(platformArch, config) {
+  const platformSuffix = platformArch.startsWith("win32") ? `${platformArch}.exe` : platformArch;
+  const files = fs.readdirSync(BIN_DIR).filter((file) => {
+    return (
+      file.startsWith("sherpa-onnx-") &&
+      file.endsWith(platformSuffix) &&
+      file !== config.diarizeOutputName
+    );
+  });
+
+  files.forEach((file) => {
+    const filePath = path.join(BIN_DIR, file);
+    console.log(`  ${platformArch}: Removing unused sherpa binary ${file}`);
+    fs.unlinkSync(filePath);
+  });
+}
+
 async function main() {
-  console.log(`\nDownloading sherpa-onnx binaries (v${SHERPA_ONNX_VERSION})...\n`);
+  console.log(`\nDownloading sherpa-onnx diarization binaries (v${SHERPA_ONNX_VERSION})...\n`);
 
   fs.mkdirSync(BIN_DIR, { recursive: true });
 
@@ -224,24 +219,15 @@ async function main() {
       return;
     }
 
-    // Remove old CLI-style binaries replaced by WS server binaries
-    const oldBinaryName = args.platformArch.startsWith("win32")
-      ? `sherpa-onnx-${args.platformArch}.exe`
-      : `sherpa-onnx-${args.platformArch}`;
-    const oldBinaryPath = path.join(BIN_DIR, oldBinaryName);
-    if (fs.existsSync(oldBinaryPath)) {
-      console.log(`  Removing old CLI binary: ${oldBinaryName}`);
-      fs.unlinkSync(oldBinaryPath);
-    }
+    removeUnusedSherpaBinariesForPlatform(args.platformArch, BINARIES[args.platformArch]);
 
     if (args.shouldCleanup) {
-      const wsPrefix = `sherpa-onnx-ws-${args.platformArch}`;
       const diarizePrefix = `sherpa-onnx-diarize-${args.platformArch}`;
       const files = fs.readdirSync(BIN_DIR).filter((f) => f.startsWith("sherpa-onnx"));
       files.forEach((file) => {
-        if (!file.startsWith(wsPrefix) && !file.startsWith(diarizePrefix)) {
+        if (!file.startsWith(diarizePrefix)) {
           const filePath = path.join(BIN_DIR, file);
-          console.log(`Removing old binary: ${file}`);
+          console.log(`Removing unused sherpa binary: ${file}`);
           fs.unlinkSync(filePath);
         }
       });
@@ -249,15 +235,16 @@ async function main() {
   } else {
     console.log("Downloading binaries for all platforms:");
     for (const platformArch of Object.keys(BINARIES)) {
-      await downloadBinary(platformArch, BINARIES[platformArch], args.isForce);
+      const ok = await downloadBinary(platformArch, BINARIES[platformArch], args.isForce);
+      if (ok) removeUnusedSherpaBinariesForPlatform(platformArch, BINARIES[platformArch]);
     }
   }
 
   console.log("\n---");
 
-  const files = fs.readdirSync(BIN_DIR).filter((f) => f.startsWith("sherpa-onnx"));
+  const files = fs.readdirSync(BIN_DIR).filter((f) => f.startsWith("sherpa-onnx-diarize"));
   if (files.length > 0) {
-    console.log("Available sherpa-onnx binaries:\n");
+    console.log("Available sherpa-onnx diarization binaries:\n");
     files.forEach((f) => {
       const stats = fs.statSync(path.join(BIN_DIR, f));
       console.log(`  - ${f} (${Math.round(stats.size / 1024 / 1024)}MB)`);

@@ -100,7 +100,7 @@
         "ffmpeg*",
         "ffprobe*",
         "llama-server-*",
-        "sherpa-onnx-*",
+        "sherpa-onnx-diarize-*",
         "qdrant-*",
         "macos-audio-tap",
         "macos-globe-listener",
