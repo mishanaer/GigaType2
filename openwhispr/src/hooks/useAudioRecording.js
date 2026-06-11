@@ -127,27 +127,21 @@ export const useAudioRecording = (toast, options = {}) => {
           window.electronAPI?.completeDictationPreview?.({ text: result.text });
 
           const isStreaming = result.source?.includes("streaming");
-          const { autoPasteEnabled, keepTranscriptionInClipboard } = getSettings();
-
-          if (autoPasteEnabled) {
-            const pasteStart = performance.now();
-            await audioManagerRef.current.safePaste(result.text, {
-              ...(isStreaming ? { fromStreaming: true } : {}),
-              restoreClipboard: !keepTranscriptionInClipboard,
-              allowClipboardFallback: true,
-            });
-            logger.info(
-              "Paste timing",
-              {
-                pasteMs: Math.round(performance.now() - pasteStart),
-                source: result.source,
-                textLength: result.text.length,
-              },
-              "streaming"
-            );
-          } else if (keepTranscriptionInClipboard) {
-            await navigator.clipboard.writeText(result.text);
-          }
+          const pasteStart = performance.now();
+          await audioManagerRef.current.safePaste(result.text, {
+            ...(isStreaming ? { fromStreaming: true } : {}),
+            restoreClipboard: true,
+            allowClipboardFallback: true,
+          });
+          logger.info(
+            "Paste timing",
+            {
+              pasteMs: Math.round(performance.now() - pasteStart),
+              source: result.source,
+              textLength: result.text.length,
+            },
+            "streaming"
+          );
 
           audioManagerRef.current.saveTranscription(result.text, result.rawText ?? result.text, {
             clientTranscriptionId: result.clientTranscriptionId,

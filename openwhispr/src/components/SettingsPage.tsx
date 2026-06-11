@@ -101,10 +101,6 @@ export default function SettingsPage({
     setDictationKey,
     showTranscriptionPreview,
     setShowTranscriptionPreview,
-    autoPasteEnabled,
-    setAutoPasteEnabled,
-    keepTranscriptionInClipboard,
-    setKeepTranscriptionInClipboard,
     floatingIconAutoHide,
     setFloatingIconAutoHide,
     startMinimized,
@@ -231,32 +227,6 @@ export default function SettingsPage({
         return (
           <div className="space-y-6">
             {renderDictationHotkeySettings()}
-
-            {/* Clipboard */}
-            <div>
-              <SectionHeader title={t("settingsPage.general.clipboard.title")} />
-              <SettingsPanel>
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.general.clipboard.autoPaste")}
-                    description={t("settingsPage.general.clipboard.autoPasteDescription")}
-                  >
-                    <Toggle checked={autoPasteEnabled} onChange={setAutoPasteEnabled} />
-                  </SettingsRow>
-                </SettingsPanelRow>
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.general.clipboard.keepInClipboard")}
-                    description={t("settingsPage.general.clipboard.keepInClipboardDescription")}
-                  >
-                    <Toggle
-                      checked={keepTranscriptionInClipboard}
-                      onChange={setKeepTranscriptionInClipboard}
-                    />
-                  </SettingsRow>
-                </SettingsPanelRow>
-              </SettingsPanel>
-            </div>
 
             {/* Floating Icon */}
             <div>

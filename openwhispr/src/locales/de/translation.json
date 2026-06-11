@@ -1232,13 +1232,6 @@
         "updates": "App-Updates",
         "updatesDescription": "Benachrichtigen, wenn eine neue Version verfügbar ist"
       },
-      "clipboard": {
-        "title": "Zwischenablage",
-        "autoPaste": "Automatisches Einfügen",
-        "autoPasteDescription": "Transkribierten Text nach dem Diktieren automatisch in die aktive App einfügen",
-        "keepInClipboard": "Transkription in der Zwischenablage behalten",
-        "keepInClipboardDescription": "Diktierten Text in der Zwischenablage behalten, damit Sie ihn bei Bedarf manuell einfügen können"
-      },
       "startup": {
         "launchAtLogin": "Beim Anmelden starten",
         "launchAtLoginDescription": "GigaType automatisch starten, wenn Sie sich anmelden",

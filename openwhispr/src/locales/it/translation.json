@@ -1232,13 +1232,6 @@
         "updates": "Aggiornamenti app",
         "updatesDescription": "Avvisa quando è disponibile una nuova versione"
       },
-      "clipboard": {
-        "title": "Appunti",
-        "autoPaste": "Incollaggio automatico",
-        "autoPasteDescription": "Incolla automaticamente il testo trascritto nell'app attiva al termine della dettatura",
-        "keepInClipboard": "Mantieni la trascrizione negli appunti",
-        "keepInClipboardDescription": "Mantieni il testo dettato negli appunti per poterlo incollare manualmente se necessario"
-      },
       "startup": {
         "launchAtLogin": "Avvia all'accesso",
         "launchAtLoginDescription": "Avvia GigaType automaticamente all'accesso",

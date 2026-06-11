@@ -1204,13 +1204,6 @@
         "updates": "Atualizações do app",
         "updatesDescription": "Notificar quando uma nova versão estiver disponível"
       },
-      "clipboard": {
-        "title": "Área de transferência",
-        "autoPaste": "Colagem automática",
-        "autoPasteDescription": "Colar automaticamente o texto transcrito no aplicativo ativo ao finalizar o ditado",
-        "keepInClipboard": "Manter transcrição na área de transferência",
-        "keepInClipboardDescription": "Manter o texto ditado na área de transferência para poder colar manualmente se necessário"
-      },
       "startup": {
         "launchAtLogin": "Iniciar ao fazer login",
         "launchAtLoginDescription": "Iniciar o GigaType automaticamente ao fazer login",

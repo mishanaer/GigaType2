@@ -1232,13 +1232,6 @@
         "updates": "アプリの更新",
         "updatesDescription": "新しいバージョンが利用可能になったときに通知する"
       },
-      "clipboard": {
-        "title": "クリップボード",
-        "autoPaste": "自動貼り付け",
-        "autoPasteDescription": "ディクテーション完了後、文字起こしテキストをアクティブなアプリに自動的に貼り付けます",
-        "keepInClipboard": "文字起こしをクリップボードに保持",
-        "keepInClipboardDescription": "必要に応じて手動で貼り付けできるよう、音声入力テキストをクリップボードに保持します"
-      },
       "startup": {
         "launchAtLogin": "ログイン時に起動",
         "launchAtLoginDescription": "ログイン時に GigaType を自動的に起動",

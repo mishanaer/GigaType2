@@ -1280,13 +1280,6 @@
         "updates": "Actualizaciones",
         "updatesDescription": "Notificar cuando hay una nueva versión disponible"
       },
-      "clipboard": {
-        "title": "Portapapeles",
-        "autoPaste": "Pegado automático",
-        "autoPasteDescription": "Pegar automáticamente el texto transcrito en la aplicación activa al finalizar el dictado",
-        "keepInClipboard": "Mantener transcripción en el portapapeles",
-        "keepInClipboardDescription": "Mantener el texto dictado en el portapapeles para poder pegarlo manualmente si es necesario"
-      },
       "startup": {
         "launchAtLogin": "Abrir al iniciar sesión",
         "launchAtLoginDescription": "Inicia GigaType automáticamente al iniciar sesión",

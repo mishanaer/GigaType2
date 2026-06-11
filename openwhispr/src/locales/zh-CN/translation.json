@@ -1232,13 +1232,6 @@
         "updates": "应用更新",
         "updatesDescription": "有新版本可用时通知您"
       },
-      "clipboard": {
-        "title": "剪贴板",
-        "autoPaste": "自动粘贴",
-        "autoPasteDescription": "听写结束后自动将转录文本粘贴到当前活动的应用中",
-        "keepInClipboard": "将转录内容保留在剪贴板",
-        "keepInClipboardDescription": "将听写文本保留在剪贴板中，以便在需要时手动粘贴"
-      },
       "startup": {
         "launchAtLogin": "登录时启动",
         "launchAtLoginDescription": "登录时自动启动 GigaType",

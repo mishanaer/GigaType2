@@ -697,7 +697,7 @@ class ClipboardManager {
     }
   }
 
-  _keepTranscriptionInClipboard(text, verification) {
+  _leaveFallbackTextInClipboard(text, verification) {
     clipboard.writeText(text);
     debugLogger.warn(
       "macOS paste was not verified; leaving transcription in clipboard",
@@ -781,7 +781,7 @@ class ClipboardManager {
           if (verification.inserted) {
             this._restoreClipboardAfterDelay(originalClipboard);
           } else {
-            this._keepTranscriptionInClipboard(text, verification);
+            this._leaveFallbackTextInClipboard(text, verification);
           }
         }
       } else if (platform === "win32") {

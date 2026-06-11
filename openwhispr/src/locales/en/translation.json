@@ -1412,13 +1412,6 @@
         "updates": "App updates",
         "updatesDescription": "Notify when a new version is available"
       },
-      "clipboard": {
-        "title": "Clipboard",
-        "autoPaste": "Automatic pasting",
-        "autoPasteDescription": "Automatically paste transcribed text into the active app when dictation finishes",
-        "keepInClipboard": "Keep transcription in clipboard",
-        "keepInClipboardDescription": "Keep dictated text in your clipboard so you can paste it manually if needed"
-      },
       "startup": {
         "launchAtLogin": "Launch at login",
         "launchAtLoginDescription": "Start GigaType automatically when you log in",
