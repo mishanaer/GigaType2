@@ -240,7 +240,9 @@ export const usePermissions = (
     const platform = getPlatform();
 
     if (platform === "darwin") {
-      const alreadyGranted = await window.electronAPI?.checkAccessibilityPermission?.(true);
+      const alreadyGranted =
+        (await window.electronAPI?.promptAccessibilityPermission?.()) ??
+        (await window.electronAPI?.checkAccessibilityPermission?.(true));
       if (alreadyGranted) {
         setAccessibilityPermissionGranted(true);
         return;

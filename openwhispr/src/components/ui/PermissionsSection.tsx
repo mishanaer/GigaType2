@@ -1,9 +1,10 @@
 import { useTranslation } from "react-i18next";
-import { Mic } from "lucide-react";
+import { Mic, Shield } from "lucide-react";
 import PermissionCard from "./PermissionCard";
 import MicPermissionWarning from "./MicPermissionWarning";
 import PasteToolsInfo from "./PasteToolsInfo";
 import type { UsePermissionsReturn } from "../../hooks/usePermissions";
+import { getCachedPlatform } from "../../utils/platform";
 
 interface PermissionsSectionProps {
   permissions: UsePermissionsReturn;
@@ -12,6 +13,9 @@ interface PermissionsSectionProps {
 export default function PermissionsSection({ permissions }: PermissionsSectionProps) {
   const { t } = useTranslation();
   const platform = permissions.pasteToolsInfo?.platform;
+  const appPlatform = getCachedPlatform();
+  const shouldShowAccessibilityPermission =
+    appPlatform === "darwin" && !permissions.accessibilityPermissionGranted;
 
   return (
     <>
@@ -24,6 +28,17 @@ export default function PermissionsSection({ permissions }: PermissionsSectionPr
           onRequest={permissions.requestMicPermission}
           buttonText={t("onboarding.permissions.grantAccess")}
         />
+
+        {shouldShowAccessibilityPermission && (
+          <PermissionCard
+            icon={Shield}
+            title={t("onboarding.permissions.accessibilityTitle")}
+            description={t("onboarding.permissions.accessibilityDescription")}
+            granted={permissions.accessibilityPermissionGranted}
+            onRequest={permissions.requestAccessibilityPermission}
+            buttonText={t("onboarding.permissions.grantAccess")}
+          />
+        )}
       </div>
 
       {!permissions.micPermissionGranted && permissions.micPermissionError && (

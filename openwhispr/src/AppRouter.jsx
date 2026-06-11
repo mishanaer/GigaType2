@@ -61,13 +61,19 @@ async function checkOnboardingPermissions(platform, state) {
 
   const micGranted = micResult ? micResult.granted === true : true;
 
-  if (!areRequiredPermissionsMet(micGranted)) {
+  if (!micGranted) {
     state.reason = "microphone-missing";
     resetOnboardingToPermissionsStep();
     return false;
   }
 
-  return true;
+  if (platform === "darwin" && accessibilityGranted !== true) {
+    state.reason = "accessibility-missing";
+    resetOnboardingToPermissionsStep();
+    return false;
+  }
+
+  return areRequiredPermissionsMet(micGranted, platform, accessibilityGranted);
 }
 
 async function resolveOnboardingRequirement() {

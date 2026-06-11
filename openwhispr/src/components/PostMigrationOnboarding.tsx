@@ -10,6 +10,8 @@ import {
 import { Button } from "./ui/button";
 import PermissionsSection from "./ui/PermissionsSection";
 import { usePermissions } from "../hooks/usePermissions";
+import { getCachedPlatform } from "../utils/platform";
+import { areRequiredPermissionsMet } from "../utils/permissions";
 
 interface PostMigrationOnboardingProps {
   open: boolean;
@@ -24,6 +26,11 @@ export default function PostMigrationOnboarding({
 }: PostMigrationOnboardingProps) {
   const { t } = useTranslation();
   const permissions = usePermissions();
+  const permissionsReady = areRequiredPermissionsMet(
+    permissions.micPermissionGranted,
+    getCachedPlatform(),
+    permissions.accessibilityPermissionGranted
+  );
 
   const remindLater = () => {
     window.electronAPI?.markBundleMigrationDismissed?.();
@@ -44,7 +51,7 @@ export default function PostMigrationOnboarding({
           <Button variant="ghost" onClick={remindLater}>
             {t("postMigration.remindLater")}
           </Button>
-          <Button onClick={onDone} disabled={!permissions.micPermissionGranted}>
+          <Button onClick={onDone} disabled={!permissionsReady}>
             {t("postMigration.done")}
           </Button>
         </DialogFooter>

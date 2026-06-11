@@ -1138,10 +1138,10 @@ class IPCHandlers {
       return this.clipboardManager.checkAccessibilityPermissions(silent);
     });
 
-    // Keep this non-prompting. The UI opens System Settings directly when the user asks.
+    // This handler is called from an explicit user action in onboarding/settings.
     ipcMain.handle("prompt-accessibility-permission", async () => {
       if (process.platform !== "darwin") return true;
-      return systemPreferences.isTrustedAccessibilityClient(false);
+      return systemPreferences.isTrustedAccessibilityClient(true);
     });
 
     ipcMain.handle("read-clipboard", async (event) => {

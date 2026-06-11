@@ -215,8 +215,12 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   }, [hotkey, setDictationKey, ensureHotkeyRegistered]);
 
   const arePermissionsReady = useCallback(() => {
-    return areRequiredPermissionsMet(permissionsHook.micPermissionGranted);
-  }, [permissionsHook.micPermissionGranted]);
+    return areRequiredPermissionsMet(
+      permissionsHook.micPermissionGranted,
+      getPlatform(),
+      permissionsHook.accessibilityPermissionGranted
+    );
+  }, [permissionsHook.micPermissionGranted, permissionsHook.accessibilityPermissionGranted]);
 
   useEffect(() => {
     if (currentStep === 0 || arePermissionsReady()) return;

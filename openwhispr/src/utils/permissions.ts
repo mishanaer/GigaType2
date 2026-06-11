@@ -1,9 +1,17 @@
+type Platform = "darwin" | "win32" | "linux" | "browser" | string;
+
 /** Returns true when all required OS permissions are granted. */
-export function areRequiredPermissionsMet(micGranted: boolean): boolean {
+export function areRequiredPermissionsMet(
+  micGranted: boolean,
+  platform: Platform,
+  accessibilityGranted: boolean | null = true
+): boolean {
   if (!micGranted) return false;
 
-  // Accessibility is no longer required — falls back to clipboard-only mode.
-  // Previously hard-blocked onboarding with stale TCC entries (#394).
+  if (platform === "darwin") {
+    return accessibilityGranted === true;
+  }
+
   return true;
 }
 
