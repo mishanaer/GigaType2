@@ -14,6 +14,7 @@ import {
   markGigaTypeOnboardingCompleted,
   resetOnboardingToPermissionsStep,
 } from "./utils/onboardingState";
+import { areRequiredPermissionsMet } from "./utils/permissions";
 
 const ControlPanel = React.lazy(() => import("./components/ControlPanel.tsx"));
 const OnboardingFlow = React.lazy(() => import("./components/OnboardingFlow.tsx"));
@@ -59,11 +60,9 @@ async function checkOnboardingPermissions(platform, state) {
   state.accessibilityGranted = accessibilityGranted;
 
   const micGranted = micResult ? micResult.granted === true : true;
-  const accessibilityOk =
-    typeof accessibilityGranted === "boolean" ? accessibilityGranted === true : true;
 
-  if (!micGranted || !accessibilityOk) {
-    state.reason = !micGranted ? "microphone-missing" : "accessibility-missing";
+  if (!areRequiredPermissionsMet(micGranted)) {
+    state.reason = "microphone-missing";
     resetOnboardingToPermissionsStep();
     return false;
   }

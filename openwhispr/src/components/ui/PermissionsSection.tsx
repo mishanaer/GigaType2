@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Mic, Shield } from "lucide-react";
+import { Mic } from "lucide-react";
 import PermissionCard from "./PermissionCard";
 import MicPermissionWarning from "./MicPermissionWarning";
 import PasteToolsInfo from "./PasteToolsInfo";
@@ -12,7 +12,6 @@ interface PermissionsSectionProps {
 export default function PermissionsSection({ permissions }: PermissionsSectionProps) {
   const { t } = useTranslation();
   const platform = permissions.pasteToolsInfo?.platform;
-  const isMacOS = platform === "darwin";
 
   return (
     <>
@@ -25,17 +24,6 @@ export default function PermissionsSection({ permissions }: PermissionsSectionPr
           onRequest={permissions.requestMicPermission}
           buttonText={t("onboarding.permissions.grantAccess")}
         />
-
-        {isMacOS && (
-          <PermissionCard
-            icon={Shield}
-            title={t("onboarding.permissions.accessibilityTitle")}
-            description={t("onboarding.permissions.accessibilityDescription")}
-            granted={permissions.accessibilityPermissionGranted}
-            onRequest={permissions.requestAccessibilityPermission}
-            buttonText={t("onboarding.permissions.grantAccess")}
-          />
-        )}
       </div>
 
       {!permissions.micPermissionGranted && permissions.micPermissionError && (

@@ -15,6 +15,7 @@ import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { getPlatform } from "../utils/platform";
 import logger from "../utils/logger";
 import GigaamModelPreparationStep from "./GigaamModelPreparationStep";
+import { areRequiredPermissionsMet } from "../utils/permissions";
 import {
   ONBOARDING_CURRENT_STEP_KEY,
   markGigaTypeOnboardingCompleted,
@@ -214,10 +215,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   }, [hotkey, setDictationKey, ensureHotkeyRegistered]);
 
   const arePermissionsReady = useCallback(() => {
-    if (!permissionsHook.micPermissionGranted) return false;
-    if (getPlatform() !== "darwin") return true;
-    return permissionsHook.accessibilityPermissionGranted;
-  }, [permissionsHook.micPermissionGranted, permissionsHook.accessibilityPermissionGranted]);
+    return areRequiredPermissionsMet(permissionsHook.micPermissionGranted);
+  }, [permissionsHook.micPermissionGranted]);
 
   useEffect(() => {
     if (currentStep === 0 || arePermissionsReady()) return;

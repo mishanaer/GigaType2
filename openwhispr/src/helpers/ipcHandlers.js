@@ -1311,10 +1311,10 @@ class IPCHandlers {
       return this.clipboardManager.checkAccessibilityPermissions(silent);
     });
 
-    // Passes `true` to isTrustedAccessibilityClient to trigger the macOS system prompt
+    // Keep this non-prompting. The UI opens System Settings directly when the user asks.
     ipcMain.handle("prompt-accessibility-permission", async () => {
       if (process.platform !== "darwin") return true;
-      return systemPreferences.isTrustedAccessibilityClient(true);
+      return systemPreferences.isTrustedAccessibilityClient(false);
     });
 
     ipcMain.handle("read-clipboard", async (event) => {
