@@ -50,7 +50,7 @@ const TIMEOUTS = {
   INSTALL: 300000, // 5 minutes for installations
   DOWNLOAD: 600000, // 10 minutes for downloads
   PIP_UPGRADE: 60000, // 1 minute for pip upgrade
-  TRANSCRIPTION: 1200000, // 20 minutes for whisper transcription (long audio files)
+  TRANSCRIPTION: 1200000, // 20 minutes for long audio transcription
 };
 
 // Command whitelist for shell operations

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useTranslation } from "react-i18next";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import ApiKeyInput from "./ui/ApiKeyInput";
 import ModelCardList from "./ui/ModelCardList";
 import { buildApiUrl, normalizeBaseUrl } from "../config/constants";
 import { isSecureEndpoint } from "../utils/urlUtils";
@@ -17,8 +16,6 @@ interface ModelOption {
 interface OpenAICompatiblePanelProps {
   baseUrl: string;
   setBaseUrl: (value: string) => void;
-  apiKey: string;
-  setApiKey: (value: string) => void;
   model: string;
   setModel: (value: string) => void;
   defaultBaseUrl?: string;
@@ -29,8 +26,6 @@ interface OpenAICompatiblePanelProps {
 export default function OpenAICompatiblePanel({
   baseUrl,
   setBaseUrl,
-  apiKey,
-  setApiKey,
   model,
   setModel,
   defaultBaseUrl,
@@ -98,9 +93,6 @@ export default function OpenAICompatiblePanel({
         setModelOptions([]);
       }
 
-      const trimmedKey = apiKey?.trim();
-      const effectiveKey = trimmedKey && trimmedKey.length > 0 ? trimmedKey : undefined;
-
       try {
         if (!normalized.includes("://")) {
           if (isMountedRef.current && latestBaseRef.current === normalized) {
@@ -118,13 +110,8 @@ export default function OpenAICompatiblePanel({
           return;
         }
 
-        const headers: Record<string, string> = {};
-        if (effectiveKey) {
-          headers.Authorization = `Bearer ${effectiveKey}`;
-        }
-
         const modelsUrl = buildApiUrl(normalized, "/models");
-        const response = await fetch(modelsUrl, { method: "GET", headers });
+        const response = await fetch(modelsUrl, { method: "GET" });
 
         if (!response.ok) {
           const errorText = await response.text().catch(() => "");
@@ -169,7 +156,7 @@ export default function OpenAICompatiblePanel({
         if (isMountedRef.current && latestBaseRef.current === normalized) {
           const message = (error as Error).message || t("reasoning.custom.unableToLoadModels");
           const unauthorized = /\b(401|403)\b/.test(message);
-          if (unauthorized && !effectiveKey) {
+          if (unauthorized) {
             setModelsError(t("reasoning.custom.endpointUnauthorized"));
           } else {
             setModelsError(message);
@@ -185,7 +172,7 @@ export default function OpenAICompatiblePanel({
         }
       }
     },
-    [baseUrl, apiKey, model, setModel, t]
+    [baseUrl, model, setModel, t]
   );
 
   useEffect(() => {
@@ -255,16 +242,6 @@ export default function OpenAICompatiblePanel({
             <code className="text-primary">https://api.together.xyz/v1</code> (Together).
           </p>
         )}
-      </div>
-
-      <div className="space-y-2 pt-3">
-        <h4 className="font-medium text-foreground">{t("reasoning.custom.apiKeyOptional")}</h4>
-        <ApiKeyInput
-          apiKey={apiKey}
-          setApiKey={setApiKey}
-          label=""
-          helpText={t("reasoning.custom.apiKeyHelp")}
-        />
       </div>
 
       <div className="space-y-2 pt-3">

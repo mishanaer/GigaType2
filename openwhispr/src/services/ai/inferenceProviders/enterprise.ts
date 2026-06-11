@@ -24,8 +24,6 @@ export const enterpriseProvider: InferenceProvider = {
 
     const systemPrompt = config.systemPrompt || ctx.getSystemPrompt(agentName);
     const s = getSettings();
-    const apiKey =
-      enterpriseId === "azure" ? s.azureApiKey : enterpriseId === "vertex" ? s.vertexApiKey : "";
     const { supportsTemperature } = getOpenAiApiConfig(model);
 
     const startTime = Date.now();
@@ -33,13 +31,9 @@ export const enterpriseProvider: InferenceProvider = {
       ...config,
       systemPrompt,
       provider: enterpriseId,
-      apiKey,
       supportsTemperature,
       bedrockRegion: s.bedrockRegion,
       bedrockProfile: s.bedrockProfile,
-      bedrockAccessKeyId: s.bedrockAccessKeyId,
-      bedrockSecretAccessKey: s.bedrockSecretAccessKey,
-      bedrockSessionToken: s.bedrockSessionToken,
       azureEndpoint: s.azureEndpoint,
       azureApiVersion: s.azureApiVersion,
       vertexProject: s.vertexProject,

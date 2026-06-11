@@ -7,30 +7,12 @@ const debugLogger = require("./debugLogger");
 const { normalizeUiLanguage } = require("./i18nMain");
 const secretCrypto = require("./secretCrypto");
 
-const SECRET_KEYS = [
-  "OPENAI_API_KEY",
-  "ANTHROPIC_API_KEY",
-  "GEMINI_API_KEY",
-  "GROQ_API_KEY",
-  "MISTRAL_API_KEY",
-  "ASSEMBLYAI_API_KEY",
-  "DEEPGRAM_API_KEY",
-  "CUSTOM_TRANSCRIPTION_API_KEY",
-  "CUSTOM_CLEANUP_API_KEY",
-  "BEDROCK_ACCESS_KEY_ID",
-  "BEDROCK_SECRET_ACCESS_KEY",
-  "BEDROCK_SESSION_TOKEN",
-  "AZURE_OPENAI_API_KEY",
-  "VERTEX_API_KEY",
-];
+const SECRET_KEYS = [];
 
 const SECRET_KEY_SET = new Set(SECRET_KEYS);
 
 const PERSISTED_KEYS = [
   ...SECRET_KEYS,
-  "LOCAL_TRANSCRIPTION_PROVIDER",
-  "PARAKEET_MODEL",
-  "LOCAL_WHISPER_MODEL",
   "CLEANUP_PROVIDER",
   "LOCAL_CLEANUP_MODEL",
   "DICTATION_AGENT_PROVIDER",
@@ -45,7 +27,6 @@ const PERSISTED_KEYS = [
   "PANEL_START_POSITION",
   "START_MINIMIZED",
   "UI_LANGUAGE",
-  "WHISPER_CUDA_ENABLED",
   "TRANSCRIPTION_GPU_INDEX",
   "INTELLIGENCE_GPU_INDEX",
   "BEDROCK_REGION",
@@ -172,13 +153,6 @@ class EnvironmentManager {
     const dir = this._getSecureKeysDir();
     await fsPromises.mkdir(dir, { recursive: true });
 
-    // Adopt renamed key so the value survives migration. Old releases stored
-    // it under CUSTOM_REASONING_API_KEY; new code only encrypts CUSTOM_CLEANUP_API_KEY.
-    if (process.env.CUSTOM_REASONING_API_KEY && !process.env.CUSTOM_CLEANUP_API_KEY) {
-      process.env.CUSTOM_CLEANUP_API_KEY = process.env.CUSTOM_REASONING_API_KEY;
-    }
-    delete process.env.CUSTOM_REASONING_API_KEY;
-
     const migrated = [];
     try {
       for (const name of SECRET_KEYS) {
@@ -250,80 +224,6 @@ class EnvironmentManager {
     return { success: true };
   }
 
-  getOpenAIKey() {
-    return this._getKey("OPENAI_API_KEY");
-  }
-
-  saveOpenAIKey(key) {
-    return this._saveKey("OPENAI_API_KEY", key);
-  }
-
-  getAnthropicKey() {
-    return this._getKey("ANTHROPIC_API_KEY");
-  }
-
-  saveAnthropicKey(key) {
-    return this._saveKey("ANTHROPIC_API_KEY", key);
-  }
-
-  getGeminiKey() {
-    return this._getKey("GEMINI_API_KEY");
-  }
-
-  saveGeminiKey(key) {
-    return this._saveKey("GEMINI_API_KEY", key);
-  }
-
-  getGroqKey() {
-    return this._getKey("GROQ_API_KEY");
-  }
-
-  saveGroqKey(key) {
-    return this._saveKey("GROQ_API_KEY", key);
-  }
-
-  getMistralKey() {
-    return this._getKey("MISTRAL_API_KEY");
-  }
-
-  saveMistralKey(key) {
-    return this._saveKey("MISTRAL_API_KEY", key);
-  }
-
-  getAssemblyAIKey() {
-    return this._getKey("ASSEMBLYAI_API_KEY");
-  }
-
-  saveAssemblyAIKey(key) {
-    return this._saveKey("ASSEMBLYAI_API_KEY", key);
-  }
-
-  getDeepgramKey() {
-    return this._getKey("DEEPGRAM_API_KEY");
-  }
-
-  saveDeepgramKey(key) {
-    return this._saveKey("DEEPGRAM_API_KEY", key);
-  }
-
-  getCustomTranscriptionKey() {
-    return this._getKey("CUSTOM_TRANSCRIPTION_API_KEY");
-  }
-
-  saveCustomTranscriptionKey(key) {
-    return this._saveKey("CUSTOM_TRANSCRIPTION_API_KEY", key);
-  }
-
-  getCleanupCustomKey() {
-    // TODO: drop CUSTOM_REASONING_API_KEY fallback after 2 releases.
-    return this._getKey("CUSTOM_CLEANUP_API_KEY") || this._getKey("CUSTOM_REASONING_API_KEY");
-  }
-
-  saveCleanupCustomKey(key) {
-    delete process.env.CUSTOM_REASONING_API_KEY;
-    return this._saveKey("CUSTOM_CLEANUP_API_KEY", key);
-  }
-
   // Enterprise providers — AWS Bedrock
   getBedrockRegion() {
     return this._getKey("BEDROCK_REGION");
@@ -337,37 +237,12 @@ class EnvironmentManager {
   saveBedrockProfile(value) {
     return this._saveKey("BEDROCK_PROFILE", value);
   }
-  getBedrockAccessKeyId() {
-    return this._getKey("BEDROCK_ACCESS_KEY_ID");
-  }
-  saveBedrockAccessKeyId(key) {
-    return this._saveKey("BEDROCK_ACCESS_KEY_ID", key);
-  }
-  getBedrockSecretAccessKey() {
-    return this._getKey("BEDROCK_SECRET_ACCESS_KEY");
-  }
-  saveBedrockSecretAccessKey(key) {
-    return this._saveKey("BEDROCK_SECRET_ACCESS_KEY", key);
-  }
-  getBedrockSessionToken() {
-    return this._getKey("BEDROCK_SESSION_TOKEN");
-  }
-  saveBedrockSessionToken(key) {
-    return this._saveKey("BEDROCK_SESSION_TOKEN", key);
-  }
-
   // Enterprise providers — Azure OpenAI
   getAzureEndpoint() {
     return this._getKey("AZURE_OPENAI_ENDPOINT");
   }
   saveAzureEndpoint(value) {
     return this._saveKey("AZURE_OPENAI_ENDPOINT", value);
-  }
-  getAzureApiKey() {
-    return this._getKey("AZURE_OPENAI_API_KEY");
-  }
-  saveAzureApiKey(key) {
-    return this._saveKey("AZURE_OPENAI_API_KEY", key);
   }
   getAzureDeployment() {
     return this._getKey("AZURE_OPENAI_DEPLOYMENT");
@@ -395,20 +270,13 @@ class EnvironmentManager {
   saveVertexLocation(value) {
     return this._saveKey("VERTEX_LOCATION", value);
   }
-  getVertexApiKey() {
-    return this._getKey("VERTEX_API_KEY");
-  }
-  saveVertexApiKey(key) {
-    return this._saveKey("VERTEX_API_KEY", key);
-  }
-
   getDictationKey() {
     return this._getKey("DICTATION_KEY");
   }
 
   saveDictationKey(key) {
     const result = this._saveKey("DICTATION_KEY", key);
-    this.saveAllKeysToEnvFile().catch(() => {});
+    this.saveRuntimeConfigToEnvFile().catch(() => {});
     return result;
   }
 
@@ -420,7 +288,7 @@ class EnvironmentManager {
   saveAgentKey(key) {
     delete process.env.AGENT_KEY;
     const result = this._saveKey("CHAT_AGENT_KEY", key);
-    this.saveAllKeysToEnvFile().catch(() => {});
+    this.saveRuntimeConfigToEnvFile().catch(() => {});
     return result;
   }
 
@@ -430,7 +298,7 @@ class EnvironmentManager {
 
   saveMeetingKey(key) {
     const result = this._saveKey("MEETING_KEY", key);
-    this.saveAllKeysToEnvFile().catch(() => {});
+    this.saveRuntimeConfigToEnvFile().catch(() => {});
     return result;
   }
 
@@ -440,7 +308,7 @@ class EnvironmentManager {
 
   saveActivationMode(_mode) {
     const result = this._saveKey("ACTIVATION_MODE", "push");
-    this.saveAllKeysToEnvFile().catch(() => {});
+    this.saveRuntimeConfigToEnvFile().catch(() => {});
     return result;
   }
 
@@ -450,7 +318,7 @@ class EnvironmentManager {
 
   saveFloatingIconAutoHide(enabled) {
     const result = this._saveKey("FLOATING_ICON_AUTO_HIDE", String(enabled));
-    this.saveAllKeysToEnvFile().catch(() => {});
+    this.saveRuntimeConfigToEnvFile().catch(() => {});
     return result;
   }
 
@@ -460,7 +328,7 @@ class EnvironmentManager {
 
   saveStartMinimized(enabled) {
     const result = this._saveKey("START_MINIMIZED", String(enabled));
-    this.saveAllKeysToEnvFile().catch(() => {});
+    this.saveRuntimeConfigToEnvFile().catch(() => {});
     return result;
   }
 
@@ -472,7 +340,7 @@ class EnvironmentManager {
 
   savePanelStartPosition(position) {
     const result = this._saveKey("PANEL_START_POSITION", position);
-    this.saveAllKeysToEnvFile().catch(() => {});
+    this.saveRuntimeConfigToEnvFile().catch(() => {});
     return result;
   }
 
@@ -483,11 +351,11 @@ class EnvironmentManager {
   saveUiLanguage(language) {
     const normalized = normalizeUiLanguage(language);
     const result = this._saveKey("UI_LANGUAGE", normalized);
-    this.saveAllKeysToEnvFile().catch(() => {});
+    this.saveRuntimeConfigToEnvFile().catch(() => {});
     return { ...result, language: normalized };
   }
 
-  async saveAllKeysToEnvFile() {
+  async saveRuntimeConfigToEnvFile() {
     const envPath = path.join(app.getPath("userData"), ".env");
     await this._writeEnvFileAtomic(envPath);
     require("dotenv").config({ path: envPath });

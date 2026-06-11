@@ -7,7 +7,6 @@ export interface InferenceScopeStoreKeys {
   cloudMode?: keyof SettingsState;
   cloudBaseUrl?: keyof SettingsState;
   remoteUrl?: keyof SettingsState;
-  customApiKey?: keyof SettingsState;
   disableThinking?: keyof SettingsState;
 }
 
@@ -25,7 +24,6 @@ export const INFERENCE_SCOPES = {
       cloudMode: "cleanupCloudMode",
       cloudBaseUrl: "cleanupCloudBaseUrl",
       remoteUrl: "cleanupRemoteUrl",
-      customApiKey: "cleanupCustomApiKey",
       disableThinking: "cleanupDisableThinking",
     },
   },
@@ -37,7 +35,6 @@ export const INFERENCE_SCOPES = {
       cloudMode: "dictationAgentCloudMode",
       cloudBaseUrl: "dictationAgentCloudBaseUrl",
       remoteUrl: "dictationAgentRemoteUrl",
-      customApiKey: "dictationAgentCustomApiKey",
       disableThinking: "dictationAgentDisableThinking",
     },
   },
@@ -49,7 +46,6 @@ export const INFERENCE_SCOPES = {
       cloudMode: "noteFormattingCloudMode",
       cloudBaseUrl: "noteFormattingCloudBaseUrl",
       remoteUrl: "noteFormattingRemoteUrl",
-      customApiKey: "noteFormattingCustomApiKey",
       disableThinking: "noteFormattingDisableThinking",
     },
     fallbackScope: "dictationCleanup",
@@ -62,7 +58,6 @@ export const INFERENCE_SCOPES = {
       cloudMode: "chatAgentCloudMode",
       cloudBaseUrl: "chatAgentCloudBaseUrl",
       remoteUrl: "chatAgentRemoteUrl",
-      customApiKey: "chatAgentCustomApiKey",
       disableThinking: "chatAgentDisableThinking",
     },
   },

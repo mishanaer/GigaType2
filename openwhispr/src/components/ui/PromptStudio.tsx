@@ -29,19 +29,17 @@ interface PromptStudioProps {
 
 type ProviderConfig = {
   label: string;
-  apiKeyStorageKey?: string;
-  baseStorageKey?: string;
+  requiresBaseUrl?: boolean;
 };
 
 const PROVIDER_CONFIG: Record<string, ProviderConfig> = {
-  openai: { label: "OpenAI", apiKeyStorageKey: "openaiApiKey" },
-  anthropic: { label: "Anthropic", apiKeyStorageKey: "anthropicApiKey" },
-  gemini: { label: "Gemini", apiKeyStorageKey: "geminiApiKey" },
-  groq: { label: "Groq", apiKeyStorageKey: "groqApiKey" },
+  openai: { label: "OpenAI" },
+  anthropic: { label: "Anthropic" },
+  gemini: { label: "Gemini" },
+  groq: { label: "Groq" },
   custom: {
     label: "Custom endpoint",
-    apiKeyStorageKey: "openaiApiKey",
-    baseStorageKey: "cleanupCloudBaseUrl",
+    requiresBaseUrl: true,
   },
   local: { label: "Local" },
 };
@@ -124,7 +122,7 @@ export default function PromptStudio({ className = "", kind = "cleanup" }: Promp
         label: cleanupProvider.charAt(0).toUpperCase() + cleanupProvider.slice(1),
       };
 
-      if (providerConfig.baseStorageKey) {
+      if (providerConfig.requiresBaseUrl) {
         const baseUrl = (useSettingsStore.getState().cleanupCloudBaseUrl || "").trim();
         if (!baseUrl) {
           setTestResult(

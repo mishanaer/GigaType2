@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useTranslation } from "react-i18next";
-import { Key, Cpu, Network, Building2 } from "lucide-react";
+import { Key, Cpu, Network } from "lucide-react";
 import {
   useSettingsStore,
   selectResolvedLLMConfig,
@@ -10,17 +10,11 @@ import {
 import { InferenceModeSelector } from "../ui/SettingsSection";
 import type { InferenceModeOption } from "../ui/SettingsSection";
 import ReasoningModelSelector from "../ReasoningModelSelector";
-import EnterpriseSection from "../EnterpriseSection";
 import OpenAICompatiblePanel from "../OpenAICompatiblePanel";
 import { Toggle } from "../ui/toggle";
 import type { InferenceMode } from "../../types/electron";
 import type { InferenceScope } from "../../config/inferenceScopes";
-import {
-  modelRegistry,
-  isEnterpriseProvider,
-  getCloudModel,
-  getLocalModel,
-} from "../../models/ModelRegistry";
+import { modelRegistry, getCloudModel, getLocalModel } from "../../models/ModelRegistry";
 
 function isProviderValidForMode(provider: string, mode: InferenceMode): boolean {
   switch (mode) {
@@ -28,8 +22,6 @@ function isProviderValidForMode(provider: string, mode: InferenceMode): boolean 
       return modelRegistry.getCloudProviders().some((p) => p.id === provider);
     case "local":
       return modelRegistry.getAllProviders().some((p) => p.id === provider);
-    case "enterprise":
-      return isEnterpriseProvider(provider);
     default:
       return true;
   }
@@ -70,12 +62,6 @@ export default function InferenceConfigEditor({ scope, onModeChange }: Inference
       label: t(`${prefix}.selfHosted`),
       description: t(`${prefix}.selfHostedDesc`),
       icon: <Network className="w-4 h-4" />,
-    },
-    {
-      id: "enterprise",
-      label: t(`${prefix}.enterprise`),
-      description: t(`${prefix}.enterpriseDesc`),
-      icon: <Building2 className="w-4 h-4" />,
     },
   ];
 
@@ -122,8 +108,6 @@ export default function InferenceConfigEditor({ scope, onModeChange }: Inference
       setLocalReasoningProvider={setProvider}
       cloudReasoningBaseUrl={config.cloudBaseUrl ?? ""}
       setCloudReasoningBaseUrl={setField("cloudBaseUrl")}
-      customReasoningApiKey={config.customApiKey ?? ""}
-      setCustomReasoningApiKey={setField("customApiKey")}
       setReasoningMode={setMode}
       mode={mode}
     />
@@ -146,8 +130,6 @@ export default function InferenceConfigEditor({ scope, onModeChange }: Inference
         <OpenAICompatiblePanel
           baseUrl={config.remoteUrl ?? ""}
           setBaseUrl={setField("remoteUrl")}
-          apiKey={config.customApiKey ?? ""}
-          setApiKey={setField("customApiKey")}
           model={config.model}
           setModel={setModel}
           baseUrlPlaceholder="http://192.168.1.126:11434/v1"
@@ -171,14 +153,6 @@ export default function InferenceConfigEditor({ scope, onModeChange }: Inference
         </div>
       )}
 
-      {config.mode === "enterprise" && (
-        <EnterpriseSection
-          currentProvider={config.provider}
-          reasoningModel={config.model}
-          setReasoningModel={setModel}
-          setLocalReasoningProvider={setProvider}
-        />
-      )}
     </div>
   );
 }

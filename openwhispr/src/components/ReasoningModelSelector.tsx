@@ -9,7 +9,6 @@ import type {
 } from "../types/electron";
 import { Button } from "./ui/button";
 import { Cloud, Lock, Zap } from "lucide-react";
-import ApiKeyInput from "./ui/ApiKeyInput";
 import ModelCardList from "./ui/ModelCardList";
 import LocalModelPicker, { type LocalProvider } from "./LocalModelPicker";
 import { ProviderTabs } from "./ui/ProviderTabs";
@@ -19,9 +18,7 @@ import logger from "../utils/logger";
 import { REASONING_PROVIDERS } from "../models/ModelRegistry";
 import { modelRegistry } from "../models/ModelRegistry";
 import { getProviderIcon, isMonochromeProvider } from "../utils/providerIcons";
-import { createExternalLinkHandler } from "../utils/externalLinks";
 import { getCachedPlatform } from "../utils/platform";
-import { useSettingsStore } from "../stores/settingsStore";
 
 type CloudModelOption = {
   value: string;
@@ -42,8 +39,6 @@ interface ReasoningModelSelectorProps {
   setLocalReasoningProvider: (provider: string) => void;
   cloudReasoningBaseUrl: string;
   setCloudReasoningBaseUrl: (value: string) => void;
-  customReasoningApiKey?: string;
-  setCustomReasoningApiKey?: (key: string) => void;
   setReasoningMode?: (mode: InferenceMode) => void;
   mode?: "cloud" | "local";
 }
@@ -306,20 +301,10 @@ export default function ReasoningModelSelector({
   setLocalReasoningProvider,
   cloudReasoningBaseUrl,
   setCloudReasoningBaseUrl,
-  customReasoningApiKey = "",
-  setCustomReasoningApiKey,
   setReasoningMode: setReasoningModeProp,
   mode,
 }: ReasoningModelSelectorProps) {
   const { t } = useTranslation();
-  const openaiApiKey = useSettingsStore((s) => s.openaiApiKey);
-  const setOpenaiApiKey = useSettingsStore((s) => s.setOpenaiApiKey);
-  const anthropicApiKey = useSettingsStore((s) => s.anthropicApiKey);
-  const setAnthropicApiKey = useSettingsStore((s) => s.setAnthropicApiKey);
-  const geminiApiKey = useSettingsStore((s) => s.geminiApiKey);
-  const setGeminiApiKey = useSettingsStore((s) => s.setGeminiApiKey);
-  const groqApiKey = useSettingsStore((s) => s.groqApiKey);
-  const setGroqApiKey = useSettingsStore((s) => s.setGroqApiKey);
   const [selectedMode, setSelectedMode] = useState<"cloud" | "local">(mode || "cloud");
   const [selectedCloudProvider, setSelectedCloudProvider] = useState("openai");
   const [selectedLocalProvider, setSelectedLocalProvider] = useState("qwen");
@@ -519,110 +504,12 @@ export default function ReasoningModelSelector({
               <OpenAICompatiblePanel
                 baseUrl={cloudReasoningBaseUrl}
                 setBaseUrl={setCloudReasoningBaseUrl}
-                apiKey={customReasoningApiKey}
-                setApiKey={setCustomReasoningApiKey || (() => {})}
                 model={reasoningModel}
                 setModel={setReasoningModel}
                 defaultBaseUrl={API_ENDPOINTS.OPENAI_BASE}
               />
             ) : (
               <>
-                {selectedCloudProvider === "openai" && (
-                  <div className="space-y-2">
-                    <div className="flex items-baseline justify-between">
-                      <h4 className="font-medium text-foreground">{t("common.apiKey")}</h4>
-                      <a
-                        href="https://platform.openai.com/api-keys"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={createExternalLinkHandler("https://platform.openai.com/api-keys")}
-                        className="text-xs text-link underline decoration-link/30 hover:decoration-link/60 cursor-pointer transition-colors"
-                      >
-                        {t("reasoning.getApiKey")}
-                      </a>
-                    </div>
-                    <ApiKeyInput
-                      apiKey={openaiApiKey}
-                      setApiKey={setOpenaiApiKey}
-                      label=""
-                      helpText=""
-                    />
-                  </div>
-                )}
-
-                {selectedCloudProvider === "anthropic" && (
-                  <div className="space-y-2">
-                    <div className="flex items-baseline justify-between">
-                      <h4 className="font-medium text-foreground">{t("common.apiKey")}</h4>
-                      <a
-                        href="https://console.anthropic.com/settings/keys"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={createExternalLinkHandler(
-                          "https://console.anthropic.com/settings/keys"
-                        )}
-                        className="text-xs text-link underline decoration-link/30 hover:decoration-link/60 cursor-pointer transition-colors"
-                      >
-                        {t("reasoning.getApiKey")}
-                      </a>
-                    </div>
-                    <ApiKeyInput
-                      apiKey={anthropicApiKey}
-                      setApiKey={setAnthropicApiKey}
-                      label=""
-                      helpText=""
-                    />
-                  </div>
-                )}
-
-                {selectedCloudProvider === "gemini" && (
-                  <div className="space-y-2">
-                    <div className="flex items-baseline justify-between">
-                      <h4 className="font-medium text-foreground">{t("common.apiKey")}</h4>
-                      <a
-                        href="https://aistudio.google.com/app/api-keys"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={createExternalLinkHandler(
-                          "https://aistudio.google.com/app/api-keys"
-                        )}
-                        className="text-xs text-link underline decoration-link/30 hover:decoration-link/60 cursor-pointer transition-colors"
-                      >
-                        {t("reasoning.getApiKey")}
-                      </a>
-                    </div>
-                    <ApiKeyInput
-                      apiKey={geminiApiKey}
-                      setApiKey={setGeminiApiKey}
-                      label=""
-                      helpText=""
-                    />
-                  </div>
-                )}
-
-                {selectedCloudProvider === "groq" && (
-                  <div className="space-y-2">
-                    <div className="flex items-baseline justify-between">
-                      <h4 className="font-medium text-foreground">{t("common.apiKey")}</h4>
-                      <a
-                        href="https://console.groq.com/keys"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={createExternalLinkHandler("https://console.groq.com/keys")}
-                        className="text-xs text-link underline decoration-link/30 hover:decoration-link/60 cursor-pointer transition-colors"
-                      >
-                        {t("reasoning.getApiKey")}
-                      </a>
-                    </div>
-                    <ApiKeyInput
-                      apiKey={groqApiKey}
-                      setApiKey={setGroqApiKey}
-                      label=""
-                      helpText=""
-                    />
-                  </div>
-                )}
-
                 <div className="pt-3 space-y-2">
                   <h4 className="text-sm font-medium text-foreground">
                     {t("reasoning.selectModel")}

@@ -201,9 +201,6 @@ function pickEnterpriseConfig(config = {}) {
   return {
     bedrockRegion: config.bedrockRegion,
     bedrockProfile: config.bedrockProfile,
-    bedrockAccessKeyId: config.bedrockAccessKeyId,
-    bedrockSecretAccessKey: config.bedrockSecretAccessKey,
-    bedrockSessionToken: config.bedrockSessionToken,
     azureEndpoint: config.azureEndpoint,
     azureApiVersion: config.azureApiVersion,
     vertexProject: config.vertexProject,

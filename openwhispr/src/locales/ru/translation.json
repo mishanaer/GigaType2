@@ -346,7 +346,7 @@
       "ollama": "(Ollama)",
       "localAi": "(LocalAI)",
       "apiKeyOptional": "API-ключ (необязательно)",
-      "apiKeyHelp": "Необязательно. Отправляется как Bearer-токен для аутентификации. Это не ваш API-ключ OpenAI.",
+      "apiKeyHelp": "Optional. Sent as a Bearer token for endpoint authentication.",
       "applyAndRefresh": "Применить и обновить",
       "queryPrefix": "Мы запросим",
       "querySuffix": "для получения списка доступных моделей.",
@@ -407,35 +407,12 @@
       }
     }
   },
-  "transcription": {
-    "deleteModel": {
-      "title": "Удалить модель",
-      "description": "Вы уверены, что хотите удалить эту модель? Для повторного использования её нужно будет скачать заново."
-    },
-    "parakeet": {
-      "multilingual": "25 языков",
-      "english": "Английский"
-    },
-    "apiKeyOptional": "API-ключ (необязательно)",
-    "getKey": "Получить ключ ->",
-    "endpointUrl": "URL конечной точки",
-    "customProvider": "Пользовательский",
-    "fallback": {
-      "whisperModelDescription": "Модель",
-      "parakeetModelDescription": "Модель NVIDIA Parakeet"
-    },
-    "whisperModels": "Модели Whisper"
-  },
   "hooks": {
     "audioRecording": {
       "errorTitles": {
         "sessionExpired": "Сессия истекла",
         "offline": "Нет подключения к интернету",
         "dailyLimitReached": "Дневной лимит достигнут"
-      },
-      "fallback": {
-        "title": "Резервный режим",
-        "description": "Локальный Whisper не сработал. Использован OpenAI API."
       },
       "noAudio": {
         "title": "Звук не обнаружен",
@@ -491,15 +468,6 @@
       "downloadInProgress": {
         "title": "Загрузка в процессе",
         "description": "Дождитесь завершения текущей загрузки или отмените её."
-      },
-      "modelDeleted": {
-        "title": "Модель удалена",
-        "descriptionWithSpace": "Модель успешно удалена! Освобождено {{sizeMb}} МБ дискового пространства.",
-        "description": "Модель успешно удалена!"
-      },
-      "deleteFailed": {
-        "title": "Ошибка удаления",
-        "description": "Не удалось удалить модель: {{error}}"
       },
       "downloadCancelled": {
         "title": "Загрузка отменена",
@@ -640,7 +608,9 @@
   "developerSection": {
     "currentLogFile": "Текущий файл логов",
     "debugMode": {
-      "label": "Режим отладки"
+      "label": "Режим отладки",
+      "disabledDescription": "Включите, чтобы собирать подробную диагностическую информацию",
+      "enabledDescription": "Логируются обработка аудио, запросы и системные операции"
     },
     "openLogsFolder": "Открыть папку логов",
     "performanceNote": {
@@ -697,7 +667,8 @@
         "transcriptionPipeline": "Конвейер транскрипции"
       },
       "title": "Что записывается в логи"
-    }
+    },
+    "description": "Сбор подробных логов для диагностики проблем"
   },
   "emailVerification": {
     "checkEmailDescription": "Мы отправили ссылку для подтверждения на",
@@ -1185,7 +1156,7 @@
       "open": "Открыть",
       "removeModels": {
         "confirmText": "Удалить модели",
-        "description": "Будут удалены все локально кешированные модели Whisper ({{path}}), что освободит дисковое пространство. Вы сможете скачать их снова в выборе моделей.",
+        "description": "This deletes locally cached models ({{path}}) and frees disk space. You can download them again when needed.",
         "failedDescription": "Произошла ошибка при удалении моделей. Попробуйте ещё раз.",
         "failedDescriptionShort": "Не удалось удалить кешированные модели.",
         "failedTitle": "Не удалось удалить модели",
@@ -1204,7 +1175,8 @@
         "title": "Сбросить все данные приложения"
       },
       "resetAppData": "Сбросить данные приложения",
-      "resetAppDataDescription": "Навсегда удалить все локальные настройки, транскрипции, аудиозаписи, загруженные модели и кэшированные данные"
+      "resetAppDataDescription": "Навсегда удалить все локальные настройки, транскрипции, аудиозаписи, загруженные модели и кэшированные данные",
+      "dataManagementDescription": "Управление кешированными моделями и данными приложения"
     },
     "general": {
       "floatingIcon": {
@@ -1215,7 +1187,8 @@
         "startPositionDescription": "Где на экране появляется панель записи голоса",
         "bottomRight": "Внизу справа",
         "center": "Внизу по центру",
-        "bottomLeft": "Внизу слева"
+        "bottomLeft": "Внизу слева",
+        "description": "Управление видимостью иконки диктовки на экране"
       },
       "hotkey": {
         "activationMode": "Режим активации",
@@ -1225,7 +1198,8 @@
         "linuxPttPermissionDescription": "Выполните команду и перезайдите: sudo usermod -aG input $USER",
         "linuxPttSetupTitle": "Для режима «Удерживать для речи» нужна настройка",
         "linuxPttSetupDescription": "Вашему пользователю нужен доступ к устройствам ввода с клавиатуры.",
-        "linuxPttSetupNote": "После выполнения команды выйдите из системы и войдите снова."
+        "linuxPttSetupNote": "После выполнения команды выйдите из системы и войдите снова.",
+        "description": "Комбинация клавиш, которая запускает и останавливает голосовую диктовку"
       },
       "meetingHotkey": {
         "title": "Горячая клавиша режима встречи",
@@ -1270,7 +1244,8 @@
         "launchAtLoginDescription": "Автоматически запускать GigaType при входе в систему",
         "title": "Автозапуск",
         "startMinimized": "Запуск в свёрнутом виде",
-        "startMinimizedDescription": "Запускать без отображения окна панели управления"
+        "startMinimizedDescription": "Запускать без отображения окна панели управления",
+        "description": "Поведение GigaType при запуске"
       },
       "waylandPaste": {
         "title": "Настройка вставки в Wayland",
@@ -1410,7 +1385,8 @@
       "grantAccess": "Предоставить доступ",
       "test": "Тест",
       "testAndGrant": "Проверить и предоставить",
-      "title": "Разрешения"
+      "title": "Разрешения",
+      "description": "Проверка и управление системными разрешениями, необходимыми для работы GigaType"
     },
     "privacy": {
       "cloudBackup": "Облачное резервное копирование",
@@ -1434,7 +1410,9 @@
       "audioStorageFiles": "{{count}} файлов, {{size}}",
       "audioStorageEmpty": "Аудиофайлы отсутствуют",
       "clearAllAudio": "Удалить все аудиофайлы",
-      "clearAllAudioConfirm": "Удалить все сохранённые аудиофайлы? Это действие нельзя отменить."
+      "clearAllAudioConfirm": "Удалить все сохранённые аудиофайлы? Это действие нельзя отменить.",
+      "description": "Управление тем, какие данные покидают устройство. По умолчанию всё отключено.",
+      "audioRetentionDescription": "Сохранять аудиозаписи локально для повторной транскрипции и скачивания. Файлы автоматически удаляются после срока хранения."
     },
     "prompts": {
       "description": "Просматривайте, настраивайте и тестируйте единый системный промпт, который управляет очисткой текста и обнаружением инструкций",
@@ -1497,7 +1475,7 @@
       "transcriptionPreviewDescription": "Показывать транскрипцию в плавающем окне перед очисткой",
       "vad": {
         "title": "Определение голосовой активности",
-        "description": "Настройте, как Silero VAD обнаруживает и сегментирует речь для локальной транскрипции Whisper",
+        "description": "Configure how Silero VAD detects and segments speech.",
         "toggles": {
           "dictation": {
             "title": "Silero VAD для диктовки",
@@ -1640,25 +1618,8 @@
   "models": {
     "learnMore": "Подробнее",
     "descriptions": {
-      "parakeet": {
-        "parakeet_tdt_0_6b_v3": "Быстрое многоязычное распознавание с автоопределением языка (25 языков)",
-        "parakeet_unified_en_0_6b": "ASR только для английского с передовой точностью (средний WER 5,91%)"
-      },
-      "whisper": {
-        "tiny": "Самый быстрый, низкое качество",
-        "base": "Хороший баланс",
-        "small": "Лучше качество, медленнее",
-        "medium": "Высокое качество",
-        "large": "Лучшее качество, самый медленный",
-        "turbo": "Быстрый с хорошим качеством"
-      },
       "transcription": {
-        "openai_gpt_4o_mini_transcribe": "Быстрая и точная транскрипция",
-        "openai_gpt_4o_transcribe": "Максимально точная транскрипция",
-        "openai_whisper_1": "Оригинальная модель Whisper",
-        "groq_whisper_large_v3_turbo": "Скорость в 216 раз быстрее реального времени",
-        "groq_whisper_large_v3": "Модель Large v3, быстрая и точная",
-        "mistral_voxtral_mini_latest": "Быстрая многоязычная транскрипция"
+        "gigaam_v3_e2e_rnnt": "GigaAM speech recognition"
       },
       "cloud": {
         "openai_gpt_5_2": "Сильная модель рассуждения",

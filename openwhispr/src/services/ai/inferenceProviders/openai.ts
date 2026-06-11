@@ -130,13 +130,9 @@ export const openaiProvider: InferenceProvider = {
       isCustomProvider,
     });
 
-    const overrideKey = isCustomProvider ? config.customApiKey?.trim() : "";
-    const apiKey = overrideKey || (await ctx.getApiKey(isCustomProvider ? "custom" : "openai"));
-
-    logger.logReasoning("OPENAI_API_KEY", {
-      hasApiKey: !!apiKey,
-      keyLength: apiKey?.length || 0,
-    });
+    if (!isCustomProvider) {
+      throw new Error("OpenAI cloud reasoning is disabled");
+    }
 
     const systemPrompt = config.systemPrompt || ctx.getSystemPrompt(agentName);
     const messages = [
@@ -161,8 +157,6 @@ export const openaiProvider: InferenceProvider = {
         customBase: openAiBase,
         model,
         textLength: text.length,
-        hasApiKey: !!apiKey,
-        apiKeyPreview: apiKey ? `${apiKey.substring(0, 8)}...` : "(none)",
       });
     }
 
@@ -204,10 +198,7 @@ export const openaiProvider: InferenceProvider = {
 
           const res = await fetch(endpoint, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${apiKey}`,
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(requestBody),
             signal: controller.signal,
           });

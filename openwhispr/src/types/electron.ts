@@ -1,5 +1,3 @@
-export type LocalTranscriptionProvider = "whisper" | "nvidia";
-
 export type InferenceMode = "providers" | "local" | "self-hosted" | "enterprise";
 
 export type SelfHostedType = "openai-compatible" | "lan";
@@ -38,7 +36,6 @@ export type TranscriptionErrorCode =
   | "AUTH_EXPIRED"
   | "AUTH_REQUIRED"
   | "LIMIT_REACHED"
-  | "API_KEY_MISSING"
   | "INVALID_KEY"
   | "MODEL_NOT_AVAILABLE"
   | null;
@@ -198,22 +195,6 @@ export interface InvitationPreview {
   inviter_email: string | null;
 }
 
-export interface WorkspaceApiKey {
-  id: string;
-  name: string;
-  key_prefix: string;
-  scopes: string[];
-  last_used_at: string | null;
-  expires_at: string | null;
-  created_at: string;
-  created_by_user_id: string | null;
-  description: string | null;
-}
-
-export interface NewWorkspaceApiKey extends WorkspaceApiKey {
-  key: string;
-}
-
 export interface ActionItem {
   id: number;
   name: string;
@@ -225,54 +206,6 @@ export interface ActionItem {
   translation_key: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface GpuDevice {
-  index: number;
-  name: string;
-  vramMb: number;
-}
-
-export interface GpuInfo {
-  hasNvidiaGpu: boolean;
-  gpuName?: string;
-  driverVersion?: string;
-  vramMb?: number;
-}
-
-export interface CudaWhisperStatus {
-  downloaded: boolean;
-  path: string | null;
-  gpuInfo: GpuInfo;
-}
-
-export interface WhisperCheckResult {
-  installed: boolean;
-  working: boolean;
-  error?: string;
-}
-
-export interface WhisperModelResult {
-  success: boolean;
-  model: string;
-  downloaded: boolean;
-  size_mb?: number;
-  error?: string;
-  code?: string;
-}
-
-export interface WhisperModelDeleteResult {
-  success: boolean;
-  model: string;
-  deleted: boolean;
-  freed_mb?: number;
-  error?: string;
-}
-
-export interface WhisperModelsListResult {
-  success: boolean;
-  models: Array<{ model: string; downloaded: boolean; size_mb?: number }>;
-  cache_dir: string;
 }
 
 export interface FFmpegAvailabilityResult {
@@ -287,8 +220,6 @@ export interface AudioDiagnosticsResult {
   resourcesPath: string | null;
   isPackaged: boolean;
   ffmpeg: { available: boolean; path: string | null; error: string | null };
-  whisperBinary: { available: boolean; path: string | null; error: string | null };
-  whisperServer: { available: boolean; path: string | null };
   modelsDir: string;
   models: string[];
 }
@@ -346,76 +277,6 @@ export interface UpdateResult {
 
 export interface AppVersionResult {
   version: string;
-}
-
-export interface WhisperDownloadProgressData {
-  type: "progress" | "installing" | "complete" | "error";
-  model: string;
-  percentage?: number;
-  downloaded_bytes?: number;
-  total_bytes?: number;
-  error?: string;
-  code?: string;
-  result?: any;
-}
-
-export interface ParakeetCheckResult {
-  installed: boolean;
-  working: boolean;
-  path?: string;
-}
-
-export interface ParakeetModelResult {
-  success: boolean;
-  model: string;
-  downloaded: boolean;
-  path?: string;
-  size_bytes?: number;
-  size_mb?: number;
-  error?: string;
-  code?: string;
-}
-
-export interface ParakeetModelDeleteResult {
-  success: boolean;
-  model: string;
-  deleted: boolean;
-  freed_bytes?: number;
-  freed_mb?: number;
-  error?: string;
-}
-
-export interface ParakeetModelsListResult {
-  success: boolean;
-  models: Array<{ model: string; downloaded: boolean; size_mb?: number }>;
-  cache_dir: string;
-}
-
-export interface ParakeetDownloadProgressData {
-  type: "progress" | "installing" | "complete" | "error";
-  model: string;
-  percentage?: number;
-  downloaded_bytes?: number;
-  total_bytes?: number;
-  error?: string;
-  code?: string;
-}
-
-export interface ParakeetTranscriptionResult {
-  success: boolean;
-  text?: string;
-  message?: string;
-  error?: string;
-}
-
-export interface ParakeetDiagnosticsResult {
-  platform: string;
-  arch: string;
-  resourcesPath: string | null;
-  isPackaged: boolean;
-  sherpaOnnx: { available: boolean; path: string | null };
-  modelsDir: string;
-  models: string[];
 }
 
 export interface PasteToolsResult {
@@ -531,17 +392,8 @@ declare global {
       retryTranscription: (
         id: number,
         settings?: {
-          useLocalWhisper: boolean;
-          localTranscriptionProvider: string;
-          cloudTranscriptionMode: string;
-          cloudTranscriptionProvider: string;
-          cloudTranscriptionModel: string;
-          cloudTranscriptionBaseUrl?: string;
-          parakeetModel: string;
-          whisperModel: string;
+          gigaamBaseUrl?: string;
           preferredLanguage?: string;
-          transcriptionMode?: InferenceMode;
-          remoteTranscriptionType?: SelfHostedType;
           remoteTranscriptionUrl?: string;
         }
       ) => Promise<{
@@ -659,9 +511,12 @@ declare global {
       transcribeAudioFile: (
         filePath: string,
         options?: {
-          provider?: "whisper" | "nvidia";
+          provider?: "gigaam";
           model?: string;
           language?: string;
+          baseUrl?: string;
+          remoteTranscriptionUrl?: string;
+          gigaamBaseUrl?: string;
           [key: string]: unknown;
         }
       ) => Promise<{ success: boolean; text?: string; error?: string }>;
@@ -678,20 +533,11 @@ declare global {
       onTranscriptionDeleted?: (callback: (payload: { id: number }) => void) => () => void;
       onTranscriptionsCleared?: (callback: (payload: { cleared: number }) => void) => () => void;
 
-      // API key management
-      getOpenAIKey: () => Promise<string>;
-      saveOpenAIKey: (key: string) => Promise<{ success: boolean }>;
-      getAnthropicKey: () => Promise<string | null>;
-      saveAnthropicKey: (key: string) => Promise<void>;
       getUiLanguage: () => Promise<string>;
       saveUiLanguage: (language: string) => Promise<{ success: boolean; language: string }>;
       setUiLanguage: (language: string) => Promise<{ success: boolean; language: string }>;
-      saveAllKeysToEnv: () => Promise<{ success: boolean; path: string }>;
-      syncStartupPreferences: (prefs: {
-        useLocalWhisper: boolean;
-        localTranscriptionProvider: LocalTranscriptionProvider;
-        model?: string;
-      }) => Promise<void>;
+      saveRuntimeConfigToEnv: () => Promise<{ success: boolean; path: string }>;
+      syncStartupPreferences: (prefs?: Record<string, never>) => Promise<void>;
 
       // Clipboard operations
       checkAccessibilityPermission: (silent?: boolean) => Promise<boolean>;
@@ -703,95 +549,12 @@ declare global {
       // Audio
       onNoAudioDetected: (callback: (event: any, data?: any) => void) => () => void;
 
-      // Whisper operations (whisper.cpp)
-      transcribeLocalWhisper: (audioBlob: Blob | ArrayBuffer, options?: any) => Promise<any>;
-      checkWhisperInstallation: () => Promise<WhisperCheckResult>;
-      downloadWhisperModel: (modelName: string) => Promise<WhisperModelResult>;
-      onWhisperDownloadProgress: (
-        callback: (event: any, data: WhisperDownloadProgressData) => void
-      ) => () => void;
-      checkModelStatus: (modelName: string) => Promise<WhisperModelResult>;
-      listWhisperModels: () => Promise<WhisperModelsListResult>;
-      deleteWhisperModel: (modelName: string) => Promise<WhisperModelDeleteResult>;
-      deleteAllWhisperModels: () => Promise<{
-        success: boolean;
-        deleted_count?: number;
-        freed_bytes?: number;
-        freed_mb?: number;
-        error?: string;
-      }>;
-      cancelWhisperDownload: () => Promise<{
-        success: boolean;
-        message?: string;
-        error?: string;
-      }>;
-
-      // CUDA GPU acceleration
-      listGpus?: () => Promise<GpuDevice[]>;
-      setGpuDeviceIndex?: (
-        purpose: "transcription" | "intelligence",
-        index: number
-      ) => Promise<{ success: boolean }>;
-      getGpuDeviceIndex?: (purpose: "transcription" | "intelligence") => Promise<string>;
-      detectGpu: () => Promise<GpuInfo>;
-      getCudaWhisperStatus: () => Promise<CudaWhisperStatus>;
-      downloadCudaWhisperBinary: () => Promise<{ success: boolean; error?: string }>;
-      cancelCudaWhisperDownload: () => Promise<{ success: boolean }>;
-      deleteCudaWhisperBinary: () => Promise<{ success: boolean }>;
-      onCudaDownloadProgress: (
-        callback: (data: {
-          downloadedBytes: number;
-          totalBytes: number;
-          percentage: number;
-        }) => void
-      ) => () => void;
-      onCudaFallbackNotification: (callback: () => void) => () => void;
-
-      // Parakeet operations (NVIDIA via sherpa-onnx)
-      transcribeLocalParakeet: (
-        audioBlob: ArrayBuffer,
-        options?: { model?: string }
-      ) => Promise<ParakeetTranscriptionResult>;
-      checkParakeetInstallation: () => Promise<ParakeetCheckResult>;
-      downloadParakeetModel: (modelName: string) => Promise<ParakeetModelResult>;
-      onParakeetDownloadProgress: (
-        callback: (event: any, data: ParakeetDownloadProgressData) => void
-      ) => () => void;
-      checkParakeetModelStatus: (modelName: string) => Promise<ParakeetModelResult>;
-      listParakeetModels: () => Promise<ParakeetModelsListResult>;
-      deleteParakeetModel: (modelName: string) => Promise<ParakeetModelDeleteResult>;
-      deleteAllParakeetModels: () => Promise<{
-        success: boolean;
-        deleted_count?: number;
-        freed_bytes?: number;
-        freed_mb?: number;
-        error?: string;
-      }>;
-      cancelParakeetDownload: () => Promise<{
-        success: boolean;
-        message?: string;
-        error?: string;
-      }>;
-      getParakeetDiagnostics: () => Promise<ParakeetDiagnosticsResult>;
-
       // Local AI model management
       modelGetAll: () => Promise<any[]>;
       modelCheck: (modelId: string) => Promise<boolean>;
       modelDownload: (modelId: string) => Promise<{
         success: boolean;
         path?: string;
-        error?: string;
-        code?: string;
-        details?: string;
-      }>;
-      modelDelete: (modelId: string) => Promise<{
-        success: boolean;
-        error?: string;
-        code?: string;
-        details?: string;
-      }>;
-      modelDeleteAll: () => Promise<{
-        success: boolean;
         error?: string;
         code?: string;
         details?: string;
@@ -944,45 +707,13 @@ declare global {
       onAccessibilityMissing?: (callback: () => void) => () => void;
       checkAccessibilityTrusted?: () => Promise<boolean>;
 
-      // Gemini API key management
-      getGeminiKey: () => Promise<string | null>;
-      saveGeminiKey: (key: string) => Promise<void>;
-
-      // Groq API key management
-      getGroqKey: () => Promise<string | null>;
-      saveGroqKey: (key: string) => Promise<void>;
-
-      // Mistral API key management
-      getMistralKey: () => Promise<string | null>;
-      saveMistralKey: (key: string) => Promise<void>;
-      proxyMistralTranscription: (data: {
-        audioBuffer: ArrayBuffer;
-        model?: string;
-        language?: string;
-        contextBias?: string[];
-      }) => Promise<{ text: string }>;
-
-      // Custom endpoint API keys
-      getCustomTranscriptionKey?: () => Promise<string | null>;
-      saveCustomTranscriptionKey?: (key: string) => Promise<void>;
-      getCleanupCustomKey?: () => Promise<string | null>;
-      saveCleanupCustomKey?: (key: string) => Promise<void>;
-
-      // Enterprise provider key persistence
+      // Enterprise provider configuration
       getBedrockRegion?: () => Promise<string | null>;
       saveBedrockRegion?: (value: string) => Promise<void>;
       getBedrockProfile?: () => Promise<string | null>;
       saveBedrockProfile?: (value: string) => Promise<void>;
-      getBedrockAccessKeyId?: () => Promise<string | null>;
-      saveBedrockAccessKeyId?: (key: string) => Promise<void>;
-      getBedrockSecretAccessKey?: () => Promise<string | null>;
-      saveBedrockSecretAccessKey?: (key: string) => Promise<void>;
-      getBedrockSessionToken?: () => Promise<string | null>;
-      saveBedrockSessionToken?: (key: string) => Promise<void>;
       getAzureEndpoint?: () => Promise<string | null>;
       saveAzureEndpoint?: (value: string) => Promise<void>;
-      getAzureApiKey?: () => Promise<string | null>;
-      saveAzureApiKey?: (key: string) => Promise<void>;
       getAzureDeployment?: () => Promise<string | null>;
       saveAzureDeployment?: (value: string) => Promise<void>;
       getAzureApiVersion?: () => Promise<string | null>;
@@ -991,8 +722,6 @@ declare global {
       saveVertexProject?: (value: string) => Promise<void>;
       getVertexLocation?: () => Promise<string | null>;
       saveVertexLocation?: (value: string) => Promise<void>;
-      getVertexApiKey?: () => Promise<string | null>;
-      saveVertexApiKey?: (key: string) => Promise<void>;
       testEnterpriseConnection?: (
         provider: string,
         config: Record<string, string>
@@ -1049,8 +778,6 @@ declare global {
       toggleMediaPlayback?: () => Promise<boolean>;
       pauseMediaPlayback?: () => Promise<boolean>;
       resumeMediaPlayback?: () => Promise<boolean>;
-      openWhisperModelsFolder?: () => Promise<{ success: boolean; error?: string }>;
-
       // Windows Push-to-Talk notifications
       notifyActivationModeChanged?: (mode: "tap" | "push") => void;
       notifyHotkeyChanged?: (hotkey: string) => void;
@@ -1065,52 +792,6 @@ declare global {
 
       onUploadTranscriptionProgress?: (
         callback: (data: { stage: string; chunksTotal: number; chunksCompleted: number }) => void
-      ) => () => void;
-
-      // BYOK audio file transcription
-      transcribeAudioFileByok?: (options: {
-        filePath: string;
-        apiKey: string;
-        baseUrl: string;
-        model: string;
-      }) => Promise<{
-        success: boolean;
-        text?: string;
-        error?: string;
-      }>;
-
-      // AssemblyAI Streaming
-      assemblyAiStreamingWarmup?: (options?: {
-        sampleRate?: number;
-        language?: string;
-      }) => Promise<{
-        success: boolean;
-        alreadyWarm?: boolean;
-        error?: string;
-        code?: string;
-      }>;
-      assemblyAiStreamingStart?: (options?: { sampleRate?: number; language?: string }) => Promise<{
-        success: boolean;
-        usedWarmConnection?: boolean;
-        error?: string;
-        code?: string;
-      }>;
-      assemblyAiStreamingSend?: (audioBuffer: ArrayBuffer) => void;
-      assemblyAiStreamingForceEndpoint?: () => void;
-      assemblyAiStreamingStop?: () => Promise<{
-        success: boolean;
-        text?: string;
-        error?: string;
-      }>;
-      assemblyAiStreamingStatus?: () => Promise<{
-        isConnected: boolean;
-        sessionId: string | null;
-      }>;
-      onAssemblyAiPartialTranscript?: (callback: (text: string) => void) => () => void;
-      onAssemblyAiFinalTranscript?: (callback: (text: string) => void) => () => void;
-      onAssemblyAiError?: (callback: (error: string) => void) => () => void;
-      onAssemblyAiSessionEnd?: (
-        callback: (data: { audioDuration?: number; text?: string }) => void
       ) => () => void;
 
       // Agent Mode
@@ -1207,41 +888,6 @@ declare global {
         query: string,
         limit?: number
       ) => Promise<ConversationPreview[]>;
-
-      // Deepgram Streaming
-      deepgramStreamingWarmup?: (options?: { sampleRate?: number; language?: string }) => Promise<{
-        success: boolean;
-        alreadyWarm?: boolean;
-        error?: string;
-        code?: string;
-      }>;
-      deepgramStreamingStart?: (options?: {
-        sampleRate?: number;
-        language?: string;
-        forceNew?: boolean;
-      }) => Promise<{
-        success: boolean;
-        usedWarmConnection?: boolean;
-        error?: string;
-        code?: string;
-      }>;
-      deepgramStreamingSend?: (audioBuffer: ArrayBuffer) => void;
-      deepgramStreamingFinalize?: () => void;
-      deepgramStreamingStop?: () => Promise<{
-        success: boolean;
-        text?: string;
-        error?: string;
-      }>;
-      deepgramStreamingStatus?: () => Promise<{
-        isConnected: boolean;
-        sessionId: string | null;
-      }>;
-      onDeepgramPartialTranscript?: (callback: (text: string) => void) => () => void;
-      onDeepgramFinalTranscript?: (callback: (text: string) => void) => () => void;
-      onDeepgramError?: (callback: (error: string) => void) => () => void;
-      onDeepgramSessionEnd?: (
-        callback: (data: { audioDuration?: number; text?: string }) => void
-      ) => () => void;
 
       // Google Calendar
       gcalStartOAuth?: () => Promise<{ success: boolean; email?: string; error?: string }>;
@@ -1420,22 +1066,6 @@ declare global {
         embeddings: Record<string, number[]>
       ) => Promise<{ success: boolean }>;
 
-      // Dictation realtime streaming
-      dictationRealtimeWarmup?: (options: {
-        model?: string;
-        mode?: "byok" | "openwhispr";
-      }) => Promise<{ success: boolean; error?: string }>;
-      dictationRealtimeStart?: (options: {
-        model?: string;
-        mode?: "byok" | "openwhispr";
-      }) => Promise<{ success: boolean; error?: string }>;
-      dictationRealtimeSend?: (buffer: ArrayBuffer) => void;
-      dictationRealtimeStop?: () => Promise<{ success: boolean; text: string }>;
-      onDictationRealtimePartial?: (callback: (text: string) => void) => () => void;
-      onDictationRealtimeFinal?: (callback: (text: string) => void) => () => void;
-      onDictationRealtimeError?: (callback: (error: string) => void) => () => void;
-      onDictationRealtimeSessionEnd?: (callback: (data: { text: string }) => void) => () => void;
-
       // Google Calendar event listeners
       onGcalMeetingStarting?: (callback: (data: any) => void) => () => void;
       onGcalMeetingEnded?: (callback: (data: any) => void) => () => void;
@@ -1457,7 +1087,7 @@ declare global {
         enabled: boolean;
         expectedCount: number;
       }) => Promise<{ success: boolean; error?: string }>;
-      getWhisperVadConfig?: () => Promise<{
+      getSpeechVadConfig?: () => Promise<{
         success: boolean;
         config?: {
           dictationSileroEnabled: boolean;
@@ -1472,7 +1102,7 @@ declare global {
         };
         error?: string;
       }>;
-      setWhisperVadConfig?: (config: {
+      setSpeechVadConfig?: (config: {
         dictationSileroEnabled?: boolean;
         noteRecordingSileroEnabled?: boolean;
         meetingSileroEnabled?: boolean;
@@ -1507,11 +1137,6 @@ declare global {
       onPreviewHold?: (callback: (payload: { showCleanup: boolean }) => void) => () => void;
       onPreviewResult?: (callback: (payload: { text: string }) => void) => () => void;
       onPreviewHide?: (callback: () => void) => () => void;
-      startDictationPreview?: (opts: {
-        provider: string;
-        model: string;
-        language?: string;
-      }) => Promise<{ success: boolean }>;
       stopDictationPreview?: (opts?: { showCleanup?: boolean }) => Promise<{ success: boolean }>;
       dismissDictationPreview?: () => Promise<{ success: boolean }>;
       completeDictationPreview?: (payload: { text?: string }) => Promise<{ success: boolean }>;
@@ -1523,7 +1148,6 @@ declare global {
         success: boolean;
         bounds?: { x: number; y: number; width: number; height: number };
       }>;
-      sendDictationPreviewAudio?: (data: ArrayBuffer) => void;
 
       // Sync operations
       getPendingNotes?: () => Promise<NoteItem[]>;

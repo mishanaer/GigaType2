@@ -1,5 +1,5 @@
 import modelDataRaw from "./modelRegistryData.json";
-import { isCloudCleanupMode, getSettings } from "../stores/settingsStore";
+import { getSettings } from "../stores/settingsStore";
 
 export interface ModelDefinition {
   id: string;
@@ -69,43 +69,7 @@ export interface TranscriptionProviderData {
   models: TranscriptionModelDefinition[];
 }
 
-export interface WhisperModelInfo {
-  name: string;
-  description: string;
-  descriptionKey?: string;
-  size: string;
-  sizeMb: number;
-  fileName: string;
-  downloadUrl: string;
-  recommended?: boolean;
-}
-
-export interface WhisperModelConfig {
-  url: string;
-  size: number;
-  fileName: string;
-}
-
-export type WhisperModelsMap = Record<string, WhisperModelInfo>;
-
-export interface ParakeetModelInfo {
-  name: string;
-  description: string;
-  descriptionKey?: string;
-  size: string;
-  sizeMb: number;
-  language: string;
-  supportedLanguages: string[];
-  recommended?: boolean;
-  downloadUrl: string;
-  extractDir: string;
-}
-
-export type ParakeetModelsMap = Record<string, ParakeetModelInfo>;
-
 interface ModelRegistryData {
-  parakeetModels: ParakeetModelsMap;
-  whisperModels: WhisperModelsMap;
   transcriptionProviders: TranscriptionProviderData[];
   cloudProviders: CloudProviderData[];
   enterpriseProviders: EnterpriseProviderData[];
@@ -284,10 +248,6 @@ export function getReasoningModelLabel(modelId: string): string {
 }
 
 export function getModelProvider(modelId: string): string {
-  if (isCloudCleanupMode()) {
-    return "openwhispr";
-  }
-
   const storedProvider = getSettings().cleanupProvider;
 
   if (storedProvider === "custom") {
@@ -354,16 +314,6 @@ export function getDefaultTranscriptionModel(providerId: string): string {
   return models[0]?.id || "gpt-4o-mini-transcribe";
 }
 
-export function getWhisperModels(): WhisperModelsMap {
-  return modelData.whisperModels;
-}
-
-export function getWhisperModelInfo(modelId: string): WhisperModelInfo | undefined {
-  return modelData.whisperModels[modelId];
-}
-
-export const WHISPER_MODEL_INFO = modelData.whisperModels;
-
 export function getCloudModel(modelId: string): CloudModelDefinition | undefined {
   for (const provider of modelData.cloudProviders) {
     const model = provider.models.find((m) => m.id === modelId);
@@ -412,28 +362,4 @@ export function getOpenAiApiConfig(modelId: string): OpenAiApiConfig {
 
   // gpt-5* reasoning models: no temperature
   return { tokenParam: "max_completion_tokens", supportsTemperature: false };
-}
-
-export function getParakeetModels(): ParakeetModelsMap {
-  return modelData.parakeetModels;
-}
-
-export function getParakeetModelInfo(modelId: string): ParakeetModelInfo | undefined {
-  return modelData.parakeetModels[modelId];
-}
-
-export const PARAKEET_MODEL_INFO = modelData.parakeetModels;
-
-export function getWhisperModelConfig(modelId: string): WhisperModelConfig | null {
-  const modelInfo = modelData.whisperModels[modelId];
-  if (!modelInfo) return null;
-  return {
-    url: modelInfo.downloadUrl,
-    size: modelInfo.sizeMb * 1_000_000,
-    fileName: modelInfo.fileName,
-  };
-}
-
-export function getValidWhisperModelNames(): string[] {
-  return Object.keys(modelData.whisperModels);
 }

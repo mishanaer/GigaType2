@@ -230,7 +230,7 @@ class GigaamSidecarManager extends EventEmitter {
       GIGATYPE_PORT: String(this.port),
       GIGATYPE_MODEL: MODEL_NAME,
       GIGAAM_MODEL: MODEL_NAME,
-      GIGATYPE_LOG_LEVEL: process.env.GIGATYPE_LOG_LEVEL || "info",
+      GIGATYPE_LOG_LEVEL: process.env.GIGATYPE_LOG_LEVEL || "debug",
       FFMPEG_BIN: ffmpegPath,
       FFPROBE_BIN: ffprobePath,
       HF_HOME: hfHome,

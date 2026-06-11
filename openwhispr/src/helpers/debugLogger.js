@@ -49,6 +49,11 @@ class DebugLogger {
   initializeFileLogging() {
     if (this.fileLoggingEnabled) return;
 
+    if (!app?.isReady) {
+      this.fileLoggingPending = false;
+      return;
+    }
+
     // Check if app is ready before accessing app.getPath()
     // This is critical because app.getPath() can hang or fail before app.whenReady()
     if (!app.isReady()) {
@@ -107,7 +112,7 @@ class DebugLogger {
       return envLevel;
     }
 
-    return "info";
+    return "debug";
   }
 
   refreshLogLevel() {
@@ -389,11 +394,6 @@ class DebugLogger {
     if (output) {
       this.debug(`${processName} ${type}`, output, "process");
     }
-  }
-
-  logWhisperPipeline(stage, details) {
-    if (!this.isDebugEnabled()) return;
-    this.debug(`Whisper Pipeline - ${stage}`, details, "whisper");
   }
 
   logSTTPipeline(stage, details) {

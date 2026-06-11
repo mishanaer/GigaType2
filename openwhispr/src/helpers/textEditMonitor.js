@@ -90,7 +90,7 @@ class TextEditMonitor extends EventEmitter {
       const script =
         `ObjC.import("AppKit"); ` +
         `const app = $.NSRunningApplication.runningApplicationWithProcessIdentifier(${pid}); ` +
-        `if (app.isNil) { "not_found" } else { app.activateWithOptions(2); "ok" }`;
+        `if (app.isNil()) { "not_found" } else { app.activateWithOptions(2); "ok" }`;
       execFile(
         "osascript",
         ["-l", "JavaScript", "-e", script],
@@ -102,6 +102,76 @@ class TextEditMonitor extends EventEmitter {
         }
       );
     });
+  }
+
+  async capturePasteTargetSnapshot(targetPid) {
+    if (process.platform !== "darwin" || !targetPid) {
+      return { readable: false, reason: "no-target-pid" };
+    }
+
+    await this._enableAccessibility(targetPid);
+    const value = await this._queryMacOSValue(targetPid);
+    if (value === null) {
+      return { readable: false, reason: "no-focused-value" };
+    }
+
+    return { readable: true, value, length: value.length };
+  }
+
+  async verifyPasteCompleted(targetPid, expectedText, beforeSnapshot, options = {}) {
+    if (process.platform !== "darwin" || !targetPid) {
+      return { inserted: false, retryable: false, reason: "no-target-pid" };
+    }
+
+    if (!expectedText) {
+      return { inserted: true, retryable: false, reason: "empty-text" };
+    }
+
+    const attempts = Math.max(1, options.attempts ?? 3);
+    const delayMs = Math.max(0, options.delayMs ?? 250);
+    const beforeReadable = beforeSnapshot?.readable === true;
+    const beforeValue = beforeReadable ? beforeSnapshot.value : null;
+    let lastValue = null;
+
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      if (attempt > 1 && delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+
+      const value = await this._queryMacOSValue(targetPid);
+      if (value === null) {
+        debugLogger.debug("[TextEditMonitor] Paste verification unreadable", {
+          targetPid,
+          attempt,
+        });
+        return { inserted: false, retryable: false, reason: "unreadable-after-paste" };
+      }
+
+      lastValue = value;
+      const changed = !beforeReadable || value !== beforeValue;
+      const containsExpected = value.includes(expectedText);
+      if (containsExpected && changed) {
+        return {
+          inserted: true,
+          retryable: false,
+          reason: "verified",
+          attempts: attempt,
+          length: value.length,
+        };
+      }
+    }
+
+    const unchanged = beforeReadable && lastValue === beforeValue;
+    return {
+      inserted: false,
+      retryable: !!lastValue && unchanged,
+      reason: !lastValue
+        ? "empty-focused-value"
+        : unchanged
+          ? "unchanged"
+          : "expected-text-not-found",
+      length: lastValue?.length ?? 0,
+    };
   }
 
   /**

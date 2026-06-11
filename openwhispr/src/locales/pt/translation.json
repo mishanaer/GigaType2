@@ -318,7 +318,7 @@
       "ollama": "(Ollama)",
       "localAi": "(LocalAI)",
       "apiKeyOptional": "Chave API (opcional)",
-      "apiKeyHelp": "Opcional. Enviada como token Bearer para autenticação. Separada da sua chave API da OpenAI.",
+      "apiKeyHelp": "Optional. Sent as a Bearer token for endpoint authentication.",
       "applyAndRefresh": "Aplicar e atualizar",
       "queryPrefix": "Vamos consultar",
       "querySuffix": "para modelos disponíveis.",
@@ -379,35 +379,12 @@
       }
     }
   },
-  "transcription": {
-    "deleteModel": {
-      "title": "Excluir modelo",
-      "description": "Tem certeza de que deseja excluir este modelo? Será necessário baixá-lo novamente para usá-lo."
-    },
-    "parakeet": {
-      "multilingual": "25 idiomas",
-      "english": "Inglês"
-    },
-    "apiKeyOptional": "Chave API (opcional)",
-    "getKey": "Obter chave ->",
-    "endpointUrl": "URL do endpoint",
-    "customProvider": "Personalizado",
-    "fallback": {
-      "whisperModelDescription": "Modelo",
-      "parakeetModelDescription": "Modelo NVIDIA Parakeet"
-    },
-    "whisperModels": "Modelos Whisper"
-  },
   "hooks": {
     "audioRecording": {
       "errorTitles": {
         "sessionExpired": "Sessão expirada",
         "offline": "Sem conexão",
         "dailyLimitReached": "Limite diário atingido"
-      },
-      "fallback": {
-        "title": "Modo de fallback",
-        "description": "O Whisper local falhou. A API da OpenAI foi usada no lugar."
       },
       "noAudio": {
         "title": "Nenhum áudio detectado",
@@ -463,15 +440,6 @@
       "downloadInProgress": {
         "title": "Download em andamento",
         "description": "Aguarde o download atual terminar ou cancele-o primeiro."
-      },
-      "modelDeleted": {
-        "title": "Modelo removido",
-        "descriptionWithSpace": "Modelo removido com sucesso! {{sizeMb}}MB de espaço liberados.",
-        "description": "Modelo removido com sucesso!"
-      },
-      "deleteFailed": {
-        "title": "Falha ao remover",
-        "description": "Falha ao remover modelo: {{error}}"
       },
       "downloadCancelled": {
         "title": "Download cancelado",
@@ -1161,7 +1129,7 @@
       "open": "Abrir",
       "removeModels": {
         "confirmText": "Excluir modelos",
-        "description": "Isso exclui todos os modelos Whisper armazenados localmente ({{path}}) e libera espaço em disco. Você pode baixá-los novamente no seletor de modelos.",
+        "description": "This deletes locally cached models ({{path}}) and frees disk space. You can download them again when needed.",
         "failedDescription": "Algo deu errado ao remover os modelos. Tente novamente.",
         "failedDescriptionShort": "Não foi possível remover os modelos em cache.",
         "failedTitle": "Não foi possível remover modelos",
@@ -1487,7 +1455,7 @@
       "transcriptionPreviewDescription": "Mostrar transcrição em janela flutuante antes da limpeza",
       "vad": {
         "title": "Detecção de atividade de voz",
-        "description": "Configure como o Silero VAD detecta e segmenta a fala na transcrição local do Whisper",
+        "description": "Configure how Silero VAD detects and segments speech.",
         "toggles": {
           "dictation": {
             "title": "Silero VAD para ditado",
@@ -1630,25 +1598,8 @@
   "models": {
     "learnMore": "Saiba mais",
     "descriptions": {
-      "parakeet": {
-        "parakeet_tdt_0_6b_v3": "ASR multilíngue rápido com detecção automática de idioma (25 idiomas)",
-        "parakeet_unified_en_0_6b": "ASR apenas em inglês com precisão de ponta (5,91% WER médio)"
-      },
-      "whisper": {
-        "tiny": "Mais rápido, qualidade inferior",
-        "base": "Bom equilíbrio",
-        "small": "Melhor qualidade, mais lento",
-        "medium": "Alta qualidade",
-        "large": "Melhor qualidade, o mais lento",
-        "turbo": "Rápido com boa qualidade"
-      },
       "transcription": {
-        "openai_gpt_4o_mini_transcribe": "Transcrição rápida e precisa",
-        "openai_gpt_4o_transcribe": "Transcrição mais precisa",
-        "openai_whisper_1": "Modelo Whisper original",
-        "groq_whisper_large_v3_turbo": "Velocidade 216x em tempo real",
-        "groq_whisper_large_v3": "Modelo Large v3, rápido e preciso",
-        "mistral_voxtral_mini_latest": "Transcrição multilíngue rápida"
+        "gigaam_v3_e2e_rnnt": "GigaAM speech recognition"
       },
       "cloud": {
         "openai_gpt_5_2": "Modelo forte de raciocínio",

@@ -2,9 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ProviderTabs } from "./ui/ProviderTabs";
 import { DownloadProgressBar } from "./ui/DownloadProgressBar";
-import { ConfirmDialog } from "./ui/dialog";
 import ModelCardList, { type ModelCardOption } from "./ui/ModelCardList";
-import { useDialogs } from "../hooks/useDialogs";
 import { useModelDownload, type ModelType } from "../hooks/useModelDownload";
 import { MODEL_PICKER_COLORS, type ColorScheme } from "../utils/modelPickerStyles";
 import { getProviderIcon, isMonochromeProvider } from "../utils/providerIcons";
@@ -54,39 +52,18 @@ export default function LocalModelPicker({
   const { t } = useTranslation();
   const [downloadedModels, setDownloadedModels] = useState<Set<string>>(new Set());
 
-  const { confirmDialog, showConfirmDialog, hideConfirmDialog } = useDialogs();
   const styles = useMemo(() => MODEL_PICKER_COLORS[colorScheme], [colorScheme]);
 
   const loadDownloadedModels = useCallback(async () => {
     try {
       let downloaded = new Set<string>();
-      if (modelType === "whisper") {
-        const result = await window.electronAPI?.listWhisperModels();
-        if (result?.success) {
-          downloaded = new Set(
-            result.models
-              .filter((m: { downloaded?: boolean }) => m.downloaded)
-              .map((m: { model: string }) => m.model)
-          );
-        }
-      } else if (modelType === "parakeet") {
-        const result = await window.electronAPI?.listParakeetModels();
-        if (result?.success) {
-          downloaded = new Set(
-            result.models
-              .filter((m: { downloaded?: boolean }) => m.downloaded)
-              .map((m: { model: string }) => m.model)
-          );
-        }
-      } else {
-        const result = await window.electronAPI?.modelGetAll?.();
-        if (result && Array.isArray(result)) {
-          downloaded = new Set(
-            result
-              .filter((m: { isDownloaded?: boolean }) => m.isDownloaded)
-              .map((m: { id: string }) => m.id)
-          );
-        }
+      const result = await window.electronAPI?.modelGetAll?.();
+      if (result && Array.isArray(result)) {
+        downloaded = new Set(
+          result
+            .filter((m: { isDownloaded?: boolean }) => m.isDownloaded)
+            .map((m: { id: string }) => m.id)
+        );
       }
       setDownloadedModels(downloaded);
       return downloaded;
@@ -94,7 +71,7 @@ export default function LocalModelPicker({
       console.error("Failed to load downloaded models:", error);
       return new Set<string>();
     }
-  }, [modelType]);
+  }, []);
 
   useEffect(() => {
     const initAndValidate = async () => {
@@ -115,7 +92,6 @@ export default function LocalModelPicker({
     downloadingModel,
     downloadProgress,
     downloadModel,
-    deleteModel,
     isDownloadingModel,
     cancelDownload,
     isCancelling,
@@ -130,18 +106,6 @@ export default function LocalModelPicker({
       downloadModel(modelId, onModelSelect);
     },
     [downloadModel, onModelSelect]
-  );
-
-  const handleDelete = useCallback(
-    (modelId: string) => {
-      showConfirmDialog({
-        title: t("transcription.deleteModel.title"),
-        description: t("transcription.deleteModel.description"),
-        onConfirm: () => deleteModel(modelId, loadDownloadedModels),
-        variant: "destructive",
-      });
-    },
-    [showConfirmDialog, deleteModel, loadDownloadedModels, t]
   );
 
   const currentProvider = providers.find((p) => p.id === selectedProvider);
@@ -188,23 +152,11 @@ export default function LocalModelPicker({
           selectedModel={selectedModel}
           onModelSelect={onModelSelect}
           onDownload={handleDownload}
-          onDelete={handleDelete}
           onCancelDownload={cancelDownload}
           isCancelling={isCancelling}
           colorScheme={colorScheme}
         />
       </div>
-
-      <ConfirmDialog
-        open={confirmDialog.open}
-        onOpenChange={(open) => !open && hideConfirmDialog()}
-        title={confirmDialog.title}
-        description={confirmDialog.description}
-        confirmText={confirmDialog.confirmText}
-        cancelText={confirmDialog.cancelText}
-        onConfirm={confirmDialog.onConfirm}
-        variant={confirmDialog.variant}
-      />
     </div>
   );
 }

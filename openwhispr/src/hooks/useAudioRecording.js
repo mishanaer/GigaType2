@@ -5,7 +5,6 @@ import logger from "../utils/logger";
 import { playStartCue, playStopCue } from "../utils/dictationCues";
 import { getSettings } from "../stores/settingsStore";
 import { getRecordingErrorTitle, getRecordingErrorDescription } from "../utils/recordingErrors";
-import { isAccessibilitySkipped } from "../utils/permissions";
 
 export const useAudioRecording = (toast, options = {}) => {
   const { t } = useTranslation();
@@ -135,7 +134,7 @@ export const useAudioRecording = (toast, options = {}) => {
             await audioManagerRef.current.safePaste(result.text, {
               ...(isStreaming ? { fromStreaming: true } : {}),
               restoreClipboard: !keepTranscriptionInClipboard,
-              allowClipboardFallback: isAccessibilitySkipped(),
+              allowClipboardFallback: true,
             });
             logger.info(
               "Paste timing",
@@ -153,14 +152,6 @@ export const useAudioRecording = (toast, options = {}) => {
           audioManagerRef.current.saveTranscription(result.text, result.rawText ?? result.text, {
             clientTranscriptionId: result.clientTranscriptionId,
           });
-
-          if (result.source === "openai" && getSettings().useLocalWhisper) {
-            toast({
-              title: t("hooks.audioRecording.fallback.title"),
-              description: t("hooks.audioRecording.fallback.description"),
-              variant: "default",
-            });
-          }
 
           if (audioManagerRef.current.shouldUseStreaming()) {
             audioManagerRef.current.warmupStreamingConnection();

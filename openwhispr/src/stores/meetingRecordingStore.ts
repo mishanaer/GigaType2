@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { getSettings, selectResolvedMeetingTranscription } from "./settingsStore";
-import { useStreamingProvidersStore } from "./streamingProvidersStore";
 import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
 import { getBaseLanguageCode } from "../utils/languageSupport";
 import type { SystemAudioAccessResult, SystemAudioStrategy } from "../types/electron";
@@ -112,35 +111,13 @@ const getMeetingTranscriptionOptions = () => {
   const resolved = selectResolvedMeetingTranscription(state);
   const language = getBaseLanguageCode(state.preferredLanguage);
 
-  if (resolved.useLocalWhisper) {
-    return {
-      provider: "local" as const,
-      localProvider: resolved.localTranscriptionProvider,
-      localModel:
-        resolved.localTranscriptionProvider === "nvidia"
-          ? resolved.parakeetModel || "parakeet-tdt-0.6b-v3"
-          : resolved.whisperModel || "base",
-      language,
-    };
-  }
-
-  const catalog = useStreamingProvidersStore.getState().providers;
-  const provider =
-    catalog?.find((p) => p.id === resolved.cloudTranscriptionProvider) ?? catalog?.[0];
-  const mode = "byok";
-  if (!provider) {
-    logger.debug(
-      "Streaming providers catalog not loaded, falling back to OpenAI default",
-      {},
-      "meeting"
-    );
-    return { provider: "openai-realtime" as const, model: "gpt-4o-mini-transcribe", mode };
-  }
-  const model =
-    provider.models.find((m) => m.id === resolved.cloudTranscriptionModel)?.id ??
-    provider.models.find((m) => m.default)?.id ??
-    provider.models[0]?.id;
-  return { provider: `${provider.id}-realtime` as const, model, mode };
+  return {
+    provider: "gigaam" as const,
+    model: "gigaam-v3-e2e-rnnt",
+    remoteTranscriptionUrl: resolved.remoteTranscriptionUrl,
+    gigaamBaseUrl: resolved.gigaamBaseUrl,
+    language,
+  };
 };
 
 const stopMediaStream = (stream: MediaStream | null) => {

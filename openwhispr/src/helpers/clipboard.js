@@ -61,6 +61,12 @@ const RESTORE_DELAYS = {
   linux_kde_wayland: 600,
 };
 
+const MACOS_UNVERIFIED_PASTE_RETRY_DELAY_MS = 250;
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function writeClipboardInRenderer(webContents, text) {
   if (!webContents || !webContents.executeJavaScript) {
     return Promise.reject(new Error("Invalid webContents for clipboard write"));
@@ -667,15 +673,56 @@ class ClipboardManager {
     }
   }
 
+  async _verifyMacOSPaste(text, verifyPaste) {
+    try {
+      const result = await verifyPaste({ text });
+      return result && typeof result === "object"
+        ? result
+        : { inserted: false, retryable: false, reason: "invalid-verification-result" };
+    } catch (error) {
+      debugLogger.warn(
+        "macOS paste verification failed",
+        { error: error?.message || String(error) },
+        "clipboard"
+      );
+      return { inserted: false, retryable: false, reason: "verification-error" };
+    }
+  }
+
+  _restoreClipboardAfterDelay(originalClipboard) {
+    if (originalClipboard != null) {
+      setTimeout(() => {
+        this._restoreClipboard(originalClipboard);
+      }, RESTORE_DELAYS.darwin);
+    }
+  }
+
+  _keepTranscriptionInClipboard(text, verification) {
+    clipboard.writeText(text);
+    debugLogger.warn(
+      "macOS paste was not verified; leaving transcription in clipboard",
+      {
+        reason: verification?.reason || "unknown",
+        retryable: verification?.retryable === true,
+      },
+      "clipboard"
+    );
+  }
+
   async pasteText(text, options = {}) {
     const startTime = Date.now();
     const platform = process.platform;
     let method = "unknown";
     const webContents = options.webContents;
     const allowClipboardFallback = options.allowClipboardFallback === true;
+    const verifyPaste =
+      platform === "darwin" && typeof options.verifyPaste === "function"
+        ? options.verifyPaste
+        : null;
 
     try {
       const shouldRestore = options.restoreClipboard !== false;
+      const verifyBeforeRestore = shouldRestore && !!verifyPaste;
       const originalClipboard = shouldRestore ? this._saveClipboard() : null;
       const originalPrimary =
         platform === "linux" && shouldRestore ? this._readPrimarySelection() : null;
@@ -713,12 +760,29 @@ class ClipboardManager {
 
         this.safeLog("✅ Permissions granted, attempting to paste...");
         try {
-          await this.pasteMacOS(originalClipboard, options);
+          await this.pasteMacOS(verifyBeforeRestore ? null : originalClipboard, options);
         } catch (firstError) {
           this.safeLog("⚠️ First paste attempt failed, retrying...", firstError?.message);
           clipboard.writeText(text);
-          await new Promise((r) => setTimeout(r, 200));
-          await this.pasteMacOS(originalClipboard, options);
+          await sleep(200);
+          await this.pasteMacOS(verifyBeforeRestore ? null : originalClipboard, options);
+        }
+
+        if (verifyBeforeRestore) {
+          let verification = await this._verifyMacOSPaste(text, verifyPaste);
+          if (!verification.inserted && verification.retryable) {
+            this.safeLog("⚠️ Paste not verified, retrying once...");
+            clipboard.writeText(text);
+            await sleep(MACOS_UNVERIFIED_PASTE_RETRY_DELAY_MS);
+            await this.pasteMacOS(null, options);
+            verification = await this._verifyMacOSPaste(text, verifyPaste);
+          }
+
+          if (verification.inserted) {
+            this._restoreClipboardAfterDelay(originalClipboard);
+          } else {
+            this._keepTranscriptionInClipboard(text, verification);
+          }
         }
       } else if (platform === "win32") {
         const winFastPaste = this.resolveWindowsFastPasteBinary();

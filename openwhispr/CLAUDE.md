@@ -4,7 +4,7 @@ This document provides comprehensive technical details about the GigaType projec
 
 ## Project Overview
 
-GigaType is an Electron-based desktop dictation application that uses whisper.cpp for speech-to-text transcription. It supports both local (privacy-focused) and cloud (OpenAI API) processing modes.
+GigaType is an Electron-based desktop dictation application that uses GigaAM for speech-to-text transcription.
 
 ## Architecture Overview
 
@@ -13,7 +13,7 @@ GigaType is an Electron-based desktop dictation application that uses whisper.cp
 - **Desktop Framework**: Electron 41 with context isolation
 - **Database**: better-sqlite3 for local transcription history
 - **UI Components**: shadcn/ui with Radix primitives
-- **Speech Processing**: whisper.cpp + NVIDIA Parakeet (via sherpa-onnx) + OpenAI API
+- **Speech Processing**: GigaAM sidecar / OpenAI-compatible transcription endpoint
 - **Audio Processing**: FFmpeg (bundled via ffmpeg-static)
 - **Node.js**: 24 (pinned in `.nvmrc` — CI uses Node 24, do NOT regenerate `package-lock.json` with a different major version)
 
@@ -31,8 +31,8 @@ GigaType is an Electron-based desktop dictation application that uses whisper.cp
    - ONNX Utility Process: hosts all `onnxruntime-node` inference (text embeddings, speaker embeddings, fbank). Lazy-spawned on first use via `src/helpers/onnxWorkerClient.js` → `src/workers/onnxWorker.js`. Native crashes (e.g., ORT `bad_alloc`) confine to the worker; main process rejects in-flight requests and respawns with backoff. Stopped in `will-quit`.
 
 3. **Audio Pipeline**:
-   - MediaRecorder API → Blob → ArrayBuffer → IPC → File → whisper.cpp
-   - Automatic cleanup of temporary files after processing
+   - MediaRecorder API → Blob → multipart request → GigaAM `/audio/transcriptions`
+   - GigaAM endpoint resolution is centralized in `src/utils/gigaamTranscription.js`
 
 ## File Structure and Responsibilities
 
@@ -47,7 +47,7 @@ GigaType is an Electron-based desktop dictation application that uses whisper.cp
 - **windows-mic-listener.c**: C source for WASAPI mic session monitor (event-driven mic detection)
 - **macos-mic-listener.swift**: Swift source for CoreAudio mic property listener (event-driven mic detection)
 - **globe-listener.swift**: Swift source for macOS Globe/Fn key detection
-- **bin/**: Directory for compiled native binaries (whisper-cpp, nircmd, key/mic listeners)
+- **bin/**: Directory for compiled native binaries (nircmd, key/mic listeners, sidecars)
 
 ### Helper Modules (src/helpers/)
 
@@ -102,9 +102,7 @@ GigaType is an Electron-based desktop dictation application that uses whisper.cp
   - Reset to normal interval on success
 - **menuManager.js**: Application menu management
 - **tray.js**: System tray icon and menu
-- **whisper.js**: Local whisper.cpp integration and model management
-- **parakeet.js**: NVIDIA Parakeet model management via sherpa-onnx
-- **parakeetServer.js**: sherpa-onnx CLI wrapper for transcription
+- **gigaamSidecarManager.js**: GigaAM sidecar lifecycle and status
 - **qdrantManager.js**: Qdrant vector DB sidecar process lifecycle (spawn, health check, shutdown)
 - **localEmbeddings.js**: Local text embedding via ONNX Runtime + all-MiniLM-L6-v2 (384-dim vectors)
 - **vectorIndex.js**: Qdrant collection management — upsert, delete, search, batch reindex
@@ -120,7 +118,6 @@ GigaType is an Electron-based desktop dictation application that uses whisper.cp
 - **OnboardingFlow.tsx**: 8-step first-time setup wizard
 - **PostMigrationOnboarding.tsx**: One-time modal for users returning from the pre-Gizmo bundle ID; reuses `PermissionsSection` to walk through re-granting Microphone, Accessibility, and System Audio. Triggered by `postMigrationDetector.js` (see Helper Modules)
 - **SettingsPage.tsx**: Comprehensive settings interface
-- **WhisperModelPicker.tsx**: Model selection and download UI
 - **ui/**: Reusable UI components (buttons, cards, inputs, etc.)
 
 ### React Hooks (src/hooks/)
@@ -135,7 +132,6 @@ GigaType is an Electron-based desktop dictation application that uses whisper.cp
   - `openSoundInputSettings()`: Opens OS sound input device settings
   - `openAccessibilitySettings()`: Opens OS accessibility settings (macOS only)
 - **useSettings.ts**: Application settings management
-- **useWhisper.ts**: Whisper binary availability check
 
 ### Services
 
@@ -145,29 +141,13 @@ GigaType is an Electron-based desktop dictation application that uses whisper.cp
   - Per-scope LLM config: 4 scopes (`dictationCleanup`, `dictationAgent`, `noteFormatting`, `chatIntelligence`) defined in `src/config/inferenceScopes.ts`
   - `selectResolvedLLMConfig(state, scope)` in `settingsStore.ts` resolves provider/model per scope with fallback chains
 
-### whisper.cpp Integration
+### GigaAM Integration
 
-- **whisper.js**: Native binary wrapper for local transcription
-  - Bundled binaries in `resources/bin/whisper-cpp-{platform}-{arch}`
-  - Falls back to system installation (`brew install whisper-cpp`)
-  - GGML model downloads from HuggingFace
-  - Models stored in `~/.cache/openwhispr/whisper-models/`
-
-### NVIDIA Parakeet Integration (via sherpa-onnx)
-
-- **parakeet.js**: Model management for NVIDIA Parakeet ASR models
-  - Uses sherpa-onnx runtime for cross-platform ONNX inference
-  - Bundled binaries in `resources/bin/sherpa-onnx-{platform}-{arch}`
-  - INT8 quantized models for efficient CPU inference
-  - Models stored in `~/.cache/openwhispr/parakeet-models/`
-  - Server pre-warming on startup when `LOCAL_TRANSCRIPTION_PROVIDER=nvidia` is set
-  - Provider preference persisted to `.env` via `saveAllKeysToEnvFile()` on server start/stop
-
-- **Available Models**:
-  - `parakeet-tdt-0.6b-v3`: Multilingual (25 languages), ~680MB
-  - `parakeet-unified-en-0.6b`: English-only, ~631MB, state-of-the-art EN accuracy (5.91% avg WER on Open ASR Leaderboard)
-
-- **Download URLs**: Models from sherpa-onnx ASR models release on GitHub
+- **GigaAM sidecar**: `main.js` starts `GigaamSidecarManager` when available
+- **ASR model**: `gigaam-v3-e2e-rnnt`
+- **Endpoint config**: renderer uses `gigaamBaseUrl` / `remoteTranscriptionUrl`
+- **Endpoint normalization**: `src/utils/gigaamTranscription.js` appends `/audio/transcriptions` when needed
+- **Auth**: no renderer BYOK API key path for transcription
 
 ### Local Semantic Search (Qdrant + MiniLM)
 
@@ -197,12 +177,11 @@ Always-on offline semantic search that finds notes by meaning, not just keywords
 
 ### Build Scripts (scripts/)
 
-- **download-whisper-cpp.js**: Downloads whisper.cpp binaries from GitHub releases
 - **download-llama-server.js**: Downloads llama.cpp server for local LLM inference
 - **download-nircmd.js**: Downloads nircmd.exe for Windows clipboard operations
 - **download-windows-key-listener.js**: Downloads prebuilt Windows key listener binary
 - **download-windows-mic-listener.js**: Downloads prebuilt Windows mic listener binary
-- **download-sherpa-onnx.js**: Downloads sherpa-onnx binaries for Parakeet support
+- **download-sherpa-onnx.js**: Downloads sherpa-onnx diarization binary
 - **download-qdrant.js**: Downloads Qdrant vector DB binary for local semantic search
 - **download-minilm.js**: Downloads all-MiniLM-L6-v2 ONNX model + tokenizer for local embeddings
 - **build-globe-listener.js**: Compiles macOS Globe key listener from Swift source
@@ -230,23 +209,11 @@ FFmpeg is bundled with the app and doesn't require system installation:
 1. User presses hotkey → MediaRecorder starts
 2. Audio chunks collected in array
 3. User presses hotkey again → Recording stops
-4. Blob created from chunks → Converted to ArrayBuffer
-5. Sent via IPC
-6. Main process writes to temporary file
-7. whisper.cpp processes file → Result sent back
-8. Temporary file deleted
+4. Blob created from chunks
+5. Renderer posts multipart audio to the configured GigaAM transcription endpoint
+6. GigaAM response is normalized and saved locally
 
-### 3. Local Whisper Models (GGML format)
-
-Models stored in `~/.cache/openwhispr/whisper-models/`:
-- tiny: ~75MB (fastest, lowest quality)
-- base: ~142MB (recommended balance)
-- small: ~466MB (better quality)
-- medium: ~1.5GB (high quality)
-- large: ~3GB (best quality)
-- turbo: ~1.6GB (fast with good quality)
-
-### 4. Database Schema
+### 3. Database Schema
 
 ```sql
 CREATE TABLE transcriptions (
@@ -261,33 +228,30 @@ CREATE TABLE transcriptions (
 );
 ```
 
-### 5. Settings Storage
+### 4. Settings Storage
 
 Settings stored in localStorage with these keys:
-- `whisperModel`: Selected Whisper model
-- `useLocalWhisper`: Boolean for local vs cloud
-- `language`: Selected language code
+- `gigaamBaseUrl`: GigaAM API base URL
+- `remoteTranscriptionUrl`: Optional explicit GigaAM transcription endpoint/base URL
+- `preferredLanguage`: Selected transcription language code
 - `agentName`: User's custom agent name
 - `reasoningModel`: Selected AI model for processing
 - `reasoningProvider`: AI provider (openai/anthropic/gemini/local)
 - `hotkey`: Custom hotkey configuration
 - `hasCompletedOnboarding`: Onboarding completion flag
-- `customDictionary`: JSON array of words/phrases for improved transcription accuracy
 
-Secret env vars (12 total: 7 BYOK API keys + 5 enterprise cloud creds — see `SECRET_KEYS` in `environment.js`) are encrypted at rest via Electron `safeStorage` and stored as per-key files under `userData/secure-keys/`. They are loaded into `process.env` at startup by `EnvironmentManager.init()`. Renderer reads them via IPC (`get-*-key`) and writes via debounced IPC (`save-*-key`). On Linux without a keyring, secrets fall back to plaintext.
+`SECRET_KEYS` is intentionally empty. The renderer no longer exposes BYOK API key storage for transcription.
 
-Non-secret env vars persisted to `.env` (via `saveAllKeysToEnvFile()`):
-- `LOCAL_TRANSCRIPTION_PROVIDER`: Transcription engine (`nvidia` for Parakeet)
-- `PARAKEET_MODEL`: Selected Parakeet model name (e.g., `parakeet-tdt-0.6b-v3`)
+Non-secret runtime config is persisted to `.env` via `saveRuntimeConfigToEnvFile()`.
 
-### 6. Language Support
+### 5. Language Support
 
 58 languages supported (see src/utils/languages.ts):
 - Each language has a two-letter code and label
 - "auto" for automatic detection
-- Passed to whisper.cpp via -l parameter
+- Passed to GigaAM as the transcription `language` field
 
-### 7. Agent Naming System
+### 6. Agent Naming System
 
 - User names their agent during onboarding (step 6/8)
 - Name stored in localStorage and database
@@ -313,7 +277,7 @@ Non-secret env vars persisted to `.env` (via `saveAllKeysToEnvFile()`):
     - Gemini 2.5 Flash Lite (`gemini-2.5-flash-lite`) - Lowest latency and cost
   - **Local**: GGUF models via llama.cpp (Qwen, Llama, Mistral, GPT-OSS)
 
-### 8. Model Registry Architecture
+### 7. Model Registry Architecture
 
 All AI model definitions are centralized in `src/models/modelRegistryData.json` as the single source of truth:
 ```json
@@ -335,7 +299,7 @@ All AI model definitions are centralized in `src/models/modelRegistryData.json` 
 - `promptTemplate` defines the chat format (ChatML, Llama, Mistral)
 - Download URLs constructed as: `{baseUrl}/{hfRepo}/resolve/main/{fileName}`
 
-### 9. API Integrations and Updates
+### 8. API Integrations and Updates
 
 **OpenAI Responses API (September 2025)**:
 - Migrated from Chat Completions to new Responses API
@@ -356,12 +320,7 @@ All AI model definitions are centralized in `src/models/modelRegistryData.json` 
 - Proper handling of thinking process in responses
 - Error handling for MAX_TOKENS finish reason
 
-**API Key Persistence**:
-- All API keys now properly persist to `.env` file
-- Keys stored in environment variables and reloaded on app start
-- Centralized `saveAllKeysToEnvFile()` method ensures consistency
-
-### 10. System Settings Integration
+### 9. System Settings Integration
 
 The app can open OS-level settings for microphone permissions, sound input selection, and accessibility:
 
@@ -382,7 +341,7 @@ The app can open OS-level settings for microphone permissions, sound input selec
 - Linux only shows "Open Sound Settings" (no separate privacy settings)
 - macOS/Windows show both sound and privacy buttons
 
-### 11. Debug Mode
+### 10. Debug Mode
 
 Enable with `--log-level=debug` or `OPENWHISPR_LOG_LEVEL=debug` (can be set in `.env`):
 - Logs saved to platform-specific app data directory
@@ -391,7 +350,7 @@ Enable with `--log-level=debug` or `OPENWHISPR_LOG_LEVEL=debug` (can be set in `
 - Audio level analysis
 - Complete reasoning pipeline debugging with stage-by-stage logging
 
-### 12. Windows Push-to-Talk
+### 11. Windows Push-to-Talk
 
 Native Windows support for true push-to-talk functionality using low-level keyboard hooks:
 
@@ -415,28 +374,7 @@ Native Windows support for true push-to-talk functionality using low-level keybo
 - `windows-key-listener:key-down`: Fired when hotkey pressed (start recording)
 - `windows-key-listener:key-up`: Fired when hotkey released (stop recording)
 
-### 13. Custom Dictionary
-
-Improve transcription accuracy for specific words, names, or technical terms:
-
-**How it works**:
-- User adds words/phrases through Settings → Custom Dictionary
-- Words stored as JSON array in localStorage (`customDictionary` key)
-- On transcription, words are joined and passed as `prompt` parameter to Whisper
-- Works with both local whisper.cpp and cloud OpenAI Whisper API
-
-**Implementation**:
-- `src/hooks/useSettings.ts`: Manages `customDictionary` state
-- `src/components/SettingsPage.tsx`: UI for adding/removing dictionary words
-- `src/helpers/audioManager.js`: Reads dictionary and adds to transcription options
-- `src/helpers/whisperServer.js`: Includes dictionary as `prompt` in API request
-
-**Whisper Prompt Parameter**:
-- Whisper uses the prompt as context/hints for transcription
-- Words in the prompt are more likely to be recognized correctly
-- Useful for: uncommon names, technical jargon, brand names, domain-specific terms
-
-### 14. GNOME Wayland Global Hotkeys
+### 12. GNOME Wayland Global Hotkeys
 
 On GNOME Wayland, Electron's `globalShortcut` API doesn't work due to Wayland's security model. GigaType uses native GNOME shortcuts:
 
@@ -462,7 +400,7 @@ On GNOME Wayland, Electron's `globalShortcut` API doesn't work due to Wayland's 
 - GNOME format: `<Alt>r`, `<Control><Shift>space`
 - Backtick (`) → `grave` in GNOME keysym format
 
-### 15. Hyprland Wayland Global Hotkeys
+### 13. Hyprland Wayland Global Hotkeys
 
 On Hyprland (wlroots Wayland compositor), Electron's `globalShortcut` API and the `GlobalShortcutsPortal` feature don't work reliably. GigaType uses native Hyprland keybindings:
 
@@ -491,7 +429,7 @@ On Hyprland (wlroots Wayland compositor), Electron's `globalShortcut` API and th
 - Push-to-talk not supported (Hyprland `bind` fires a single exec, not key-down/key-up)
 - Requires `hyprctl` on PATH (ships with Hyprland)
 
-### 16. Meeting Detection (Event-Driven)
+### 14. Meeting Detection (Event-Driven)
 
 Detects meetings via three independent sources, orchestrated by `MeetingDetectionEngine`:
 
@@ -543,7 +481,7 @@ import { useTranslation } from "react-i18next";
 
 const { t } = useTranslation();
 // Simple: t("notes.list.title")
-// With interpolation: t("notes.upload.using", { model: "Whisper" })
+// With interpolation: t("notes.upload.using", { model: "GigaAM" })
 ```
 
 **Rules**:
@@ -564,14 +502,12 @@ const { t } = useTranslation();
 
 ### Testing Checklist
 
-- [ ] Test both local and cloud processing modes
+- [ ] Test GigaAM transcription with the bundled sidecar
 - [ ] Verify hotkey works globally
 - [ ] Check clipboard pasting on all platforms
 - [ ] Test with different audio input devices
-- [ ] Verify whisper.cpp binary detection
-- [ ] Test all Whisper models
+- [ ] Verify GigaAM sidecar status and restart flow
 - [ ] Check agent naming functionality
-- [ ] Test custom dictionary with uncommon words
 - [ ] Verify Windows Push-to-Talk with compound hotkeys
 - [ ] Test GNOME Wayland hotkeys (if on GNOME + Wayland)
 - [ ] Test Hyprland Wayland hotkeys (if on Hyprland + Wayland)
@@ -591,10 +527,9 @@ const { t } = useTranslation();
    - Check audio levels in debug logs
 
 2. **Transcription Fails**:
-   - Ensure whisper.cpp binary is available
-   - Check model is downloaded
-   - Check temporary file creation
-   - Verify FFmpeg is executable
+   - Check GigaAM sidecar status
+   - Verify `gigaamBaseUrl` / `remoteTranscriptionUrl`
+   - Verify FFmpeg is executable if audio conversion was involved
 
 3. **Clipboard Not Working**:
    - macOS: Check accessibility permissions (required for AppleScript paste)
@@ -608,8 +543,6 @@ const { t } = useTranslation();
    - Use `npm run pack` for unsigned builds (CSC_IDENTITY_AUTO_DISCOVERY=false)
    - Signing requires Apple Developer account
    - ASAR unpacking needed for FFmpeg
-   - Run `npm run download:whisper-cpp` before packaging (current platform)
-   - Use `npm run download:whisper-cpp:all` for multi-platform packaging
    - afterSign.js automatically skips signing when CSC_IDENTITY_AUTO_DISCOVERY=false
    - **Lockfile**: Always use Node 24 when running `npm install` (matches CI). If your local Node version differs, use `nvm exec 24 npm install`. Running `npm install` with a different major version will produce an incompatible `package-lock.json` that breaks `npm ci` in CI.
 
@@ -642,7 +575,6 @@ const { t } = useTranslation();
 - Uses AppleScript for reliable pasting
 - Notarization needed for distribution
 - Shows in dock with indicator dot when running (LSUIElement: false)
-- whisper.cpp bundled for both arm64 and x64
 - System settings accessible via `x-apple.systempreferences:` URL scheme
 
 **Windows**:
@@ -650,7 +582,6 @@ const { t } = useTranslation();
 - Microphone privacy settings at `ms-settings:privacy-microphone`
 - Sound settings at `ms-settings:sound`
 - NSIS installer for distribution
-- whisper.cpp bundled for x64
 - **Push-to-Talk**: Native key listener binary (`windows-key-listener.exe`) enables true push-to-talk
   - Uses Windows Low-Level Keyboard Hook (`WH_KEYBOARD_LL`)
   - Supports compound hotkeys (e.g., `Ctrl+Shift+F11`)
@@ -661,7 +592,6 @@ const { t } = useTranslation();
 - Multiple package manager support
 - Standard XDG directories
 - AppImage for distribution
-- whisper.cpp bundled for x64
 - No standardized URL scheme for system settings (user must open manually)
 - Privacy settings button hidden in UI (not applicable on Linux)
 - Recommend `pavucontrol` for audio device management
@@ -690,10 +620,9 @@ const { t } = useTranslation();
 
 ## Performance Considerations
 
-- Whisper model size vs speed tradeoff
-- Audio blob size limits for IPC (10MB)
-- Temporary file cleanup
-- Memory usage with large models
+- GigaAM sidecar startup and endpoint health
+- Audio blob size before multipart upload
+- Memory usage with local LLM, embedding, and diarization models
 - Process timeout protection (5 minutes)
 - Meeting detection uses event-driven OS APIs (near-zero CPU) with polling fallback
 - Process list cache shared between detectors to avoid duplicate `tasklist`/`pgrep` calls

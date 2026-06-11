@@ -27,7 +27,7 @@
 
 ---
 
-GigaType turns your voice into text, notes, and actions from your desktop. Press a hotkey, speak, and your words appear at your cursor. Choose between fully private offline transcription with local speech-to-text engines like Whisper and NVIDIA Parakeet — where your audio never leaves your device — or cloud processing for speed. No data collection, no telemetry, fully open source.
+GigaType turns your voice into text, notes, and actions from your desktop. Press a hotkey, speak, and your words appear at your cursor. Transcription is handled by GigaAM, with no BYOK transcription API-key path in the renderer. No data collection, no telemetry, fully open source.
 
 ## Download
 
@@ -71,7 +71,7 @@ Visit **[docs.openwhispr.com](https://docs.openwhispr.com)** for:
 
 ## Tech stack
 
-React 19, TypeScript, Tailwind CSS v4, Electron 41, better-sqlite3, whisper.cpp, sherpa-onnx, shadcn/ui
+React 19, TypeScript, Tailwind CSS v4, Electron 41, better-sqlite3, GigaAM, sherpa-onnx diarization, shadcn/ui
 
 ## Star History
 
@@ -101,11 +101,9 @@ We welcome contributions. Fork the repo, create a feature branch, and open a pul
 
 ## Acknowledgments
 
-- **[OpenAI Whisper](https://github.com/openai/whisper)** — speech recognition model powering local and cloud transcription
-- **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** — high-performance C++ implementation for local processing
-- **[NVIDIA Parakeet](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)** — fast multilingual ASR model
-- **[sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)** — cross-platform ONNX runtime for Parakeet inference
-- **[Hugging Face](https://huggingface.co/)** — model hub hosting Whisper, Parakeet, and embedding model weights
+- **GigaAM** — speech recognition model powering transcription
+- **[sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)** — diarization runtime
+- **[Hugging Face](https://huggingface.co/)** — model hub hosting local LLM, VAD, diarization, and embedding model weights
 - **[llama.cpp](https://github.com/ggerganov/llama.cpp)** — local LLM inference for AI text processing
 - **[Electron](https://www.electronjs.org/)** — cross-platform desktop framework
 - **[React](https://react.dev/)** — UI component library

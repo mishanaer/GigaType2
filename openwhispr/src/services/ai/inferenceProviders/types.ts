@@ -1,13 +1,11 @@
 import type { ReasoningConfig } from "../../BaseReasoningService";
 
 export interface ProviderContext {
-  getApiKey(provider: string): Promise<string>;
   getSystemPrompt(agentName: string | null): string;
   getPreferredLanguage(): string;
   getUiLanguage(): string;
   callChatCompletionsApi(
     endpoint: string,
-    apiKey: string,
     model: string,
     text: string,
     agentName: string | null,

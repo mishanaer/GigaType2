@@ -1,26 +1,15 @@
 import React, { createContext, useContext, useEffect, useRef } from "react";
 import { useSettingsStore, initializeSettings } from "../stores/settingsStore";
 import logger from "../utils/logger";
-import type { LocalTranscriptionProvider, InferenceMode, SelfHostedType } from "../types/electron";
+import type { InferenceMode } from "../types/electron";
 
 export interface TranscriptionSettings {
   uiLanguage: string;
-  useLocalWhisper: boolean;
-  whisperModel: string;
-  localTranscriptionProvider: LocalTranscriptionProvider;
-  parakeetModel: string;
   allowOpenAIFallback: boolean;
   allowLocalFallback: boolean;
-  fallbackWhisperModel: string;
   preferredLanguage: string;
-  cloudTranscriptionProvider: string;
-  cloudTranscriptionModel: string;
-  cloudTranscriptionBaseUrl?: string;
-  cloudTranscriptionMode: string;
-  transcriptionMode: InferenceMode;
-  remoteTranscriptionType: SelfHostedType;
+  gigaamBaseUrl?: string;
   remoteTranscriptionUrl: string;
-  assemblyAiStreaming: boolean;
   showTranscriptionPreview: boolean;
 }
 
@@ -48,16 +37,6 @@ export interface MicrophoneSettings {
   selectedMicDeviceId: string;
 }
 
-export interface ApiKeySettings {
-  openaiApiKey: string;
-  anthropicApiKey: string;
-  geminiApiKey: string;
-  groqApiKey: string;
-  mistralApiKey: string;
-  customTranscriptionApiKey: string;
-  cleanupCustomApiKey: string;
-}
-
 export interface PrivacySettings {
   cloudBackupEnabled: boolean;
   telemetryEnabled: boolean;
@@ -77,14 +56,13 @@ export interface ChatAgentSettings {
   chatAgentMode: InferenceMode;
   chatAgentCloudBaseUrl: string;
   chatAgentRemoteUrl: string;
-  chatAgentCustomApiKey: string;
 }
 
 function useSettingsInternal() {
   const store = useSettingsStore();
 
-  // One-time initialization: sync API keys, dictation key, activation mode,
-  // and UI language from the main process / SQLite.
+  // One-time initialization: sync hotkeys, activation mode, and UI language
+  // from the main process / SQLite.
   const hasInitialized = useRef(false);
   useEffect(() => {
     if (hasInitialized.current) return;
@@ -98,24 +76,11 @@ function useSettingsInternal() {
     });
   }, []);
 
-  // Sync startup pre-warming preferences to main process
-  const {
-    useLocalWhisper,
-    localTranscriptionProvider,
-    whisperModel,
-    parakeetModel,
-  } = store;
-
   useEffect(() => {
     if (typeof window === "undefined" || !window.electronAPI?.syncStartupPreferences) return;
 
-    const model = localTranscriptionProvider === "nvidia" ? parakeetModel : whisperModel;
     window.electronAPI
-      .syncStartupPreferences({
-        useLocalWhisper,
-        localTranscriptionProvider,
-        model: model || undefined,
-      })
+      .syncStartupPreferences({})
       .catch((err) =>
         logger.warn(
           "Failed to sync startup preferences",
@@ -123,67 +88,35 @@ function useSettingsInternal() {
           "settings"
         )
       );
-  }, [
-    useLocalWhisper,
-    localTranscriptionProvider,
-    whisperModel,
-    parakeetModel,
-  ]);
+  }, []);
 
   return {
-    useLocalWhisper: store.useLocalWhisper,
-    whisperModel: store.whisperModel,
     uiLanguage: store.uiLanguage,
-    localTranscriptionProvider: store.localTranscriptionProvider,
-    parakeetModel: store.parakeetModel,
     allowOpenAIFallback: store.allowOpenAIFallback,
     allowLocalFallback: store.allowLocalFallback,
-    fallbackWhisperModel: store.fallbackWhisperModel,
     preferredLanguage: store.preferredLanguage,
-    cloudTranscriptionProvider: store.cloudTranscriptionProvider,
-    cloudTranscriptionModel: store.cloudTranscriptionModel,
-    cloudTranscriptionBaseUrl: store.cloudTranscriptionBaseUrl,
+    gigaamBaseUrl: store.gigaamBaseUrl,
     cleanupCloudBaseUrl: store.cleanupCloudBaseUrl,
-    cloudTranscriptionMode: store.cloudTranscriptionMode,
     cleanupCloudMode: store.cleanupCloudMode,
-    transcriptionMode: store.transcriptionMode,
-    remoteTranscriptionType: store.remoteTranscriptionType,
     remoteTranscriptionUrl: store.remoteTranscriptionUrl,
     cleanupMode: store.cleanupMode,
     cleanupRemoteUrl: store.cleanupRemoteUrl,
-    assemblyAiStreaming: store.assemblyAiStreaming,
-    setAssemblyAiStreaming: store.setAssemblyAiStreaming,
     autoGenerateNoteTitle: store.autoGenerateNoteTitle,
     setAutoGenerateNoteTitle: store.setAutoGenerateNoteTitle,
     cleanupModel: store.cleanupModel,
     cleanupProvider: store.cleanupProvider,
-    openaiApiKey: store.openaiApiKey,
-    anthropicApiKey: store.anthropicApiKey,
-    geminiApiKey: store.geminiApiKey,
-    groqApiKey: store.groqApiKey,
-    mistralApiKey: store.mistralApiKey,
     dictationKey: store.dictationKey,
     meetingKey: store.meetingKey,
     meetingHotkeyLayoutMode: store.meetingHotkeyLayoutMode,
     setMeetingHotkeyLayoutMode: store.setMeetingHotkeyLayoutMode,
     theme: store.theme,
-    setUseLocalWhisper: store.setUseLocalWhisper,
-    setWhisperModel: store.setWhisperModel,
     setUiLanguage: store.setUiLanguage,
-    setLocalTranscriptionProvider: store.setLocalTranscriptionProvider,
-    setParakeetModel: store.setParakeetModel,
     setAllowOpenAIFallback: store.setAllowOpenAIFallback,
     setAllowLocalFallback: store.setAllowLocalFallback,
-    setFallbackWhisperModel: store.setFallbackWhisperModel,
     setPreferredLanguage: store.setPreferredLanguage,
-    setCloudTranscriptionProvider: store.setCloudTranscriptionProvider,
-    setCloudTranscriptionModel: store.setCloudTranscriptionModel,
-    setCloudTranscriptionBaseUrl: store.setCloudTranscriptionBaseUrl,
-    setCloudTranscriptionMode: store.setCloudTranscriptionMode,
+    setGigaamBaseUrl: store.setGigaamBaseUrl,
     setCleanupCloudBaseUrl: store.setCleanupCloudBaseUrl,
     setCleanupCloudMode: store.setCleanupCloudMode,
-    setTranscriptionMode: store.setTranscriptionMode,
-    setRemoteTranscriptionType: store.setRemoteTranscriptionType,
     setRemoteTranscriptionUrl: store.setRemoteTranscriptionUrl,
     setCleanupMode: store.setCleanupMode,
     setCleanupRemoteUrl: store.setCleanupRemoteUrl,
@@ -191,15 +124,6 @@ function useSettingsInternal() {
     setUseDictationAgent: store.setUseDictationAgent,
     setCleanupModel: store.setCleanupModel,
     setCleanupProvider: store.setCleanupProvider,
-    setOpenaiApiKey: store.setOpenaiApiKey,
-    setAnthropicApiKey: store.setAnthropicApiKey,
-    setGeminiApiKey: store.setGeminiApiKey,
-    setGroqApiKey: store.setGroqApiKey,
-    setMistralApiKey: store.setMistralApiKey,
-    customTranscriptionApiKey: store.customTranscriptionApiKey,
-    setCustomTranscriptionApiKey: store.setCustomTranscriptionApiKey,
-    cleanupCustomApiKey: store.cleanupCustomApiKey,
-    setCleanupCustomApiKey: store.setCleanupCustomApiKey,
     setDictationKey: store.setDictationKey,
     setMeetingKey: store.setMeetingKey,
     setTheme: store.setTheme,
@@ -243,18 +167,18 @@ function useSettingsInternal() {
     setNoteRecordingSileroEnabled: store.setNoteRecordingSileroEnabled,
     meetingSileroEnabled: store.meetingSileroEnabled,
     setMeetingSileroEnabled: store.setMeetingSileroEnabled,
-    whisperVadThreshold: store.whisperVadThreshold,
-    setWhisperVadThreshold: store.setWhisperVadThreshold,
-    whisperVadMinSpeechDurationMs: store.whisperVadMinSpeechDurationMs,
-    setWhisperVadMinSpeechDurationMs: store.setWhisperVadMinSpeechDurationMs,
-    whisperVadMinSilenceDurationMs: store.whisperVadMinSilenceDurationMs,
-    setWhisperVadMinSilenceDurationMs: store.setWhisperVadMinSilenceDurationMs,
-    whisperVadMaxSpeechDurationS: store.whisperVadMaxSpeechDurationS,
-    setWhisperVadMaxSpeechDurationS: store.setWhisperVadMaxSpeechDurationS,
-    whisperVadSpeechPadMs: store.whisperVadSpeechPadMs,
-    setWhisperVadSpeechPadMs: store.setWhisperVadSpeechPadMs,
-    whisperVadSamplesOverlap: store.whisperVadSamplesOverlap,
-    setWhisperVadSamplesOverlap: store.setWhisperVadSamplesOverlap,
+    speechVadThreshold: store.speechVadThreshold,
+    setSpeechVadThreshold: store.setSpeechVadThreshold,
+    speechVadMinSpeechDurationMs: store.speechVadMinSpeechDurationMs,
+    setSpeechVadMinSpeechDurationMs: store.setSpeechVadMinSpeechDurationMs,
+    speechVadMinSilenceDurationMs: store.speechVadMinSilenceDurationMs,
+    setSpeechVadMinSilenceDurationMs: store.setSpeechVadMinSilenceDurationMs,
+    speechVadMaxSpeechDurationS: store.speechVadMaxSpeechDurationS,
+    setSpeechVadMaxSpeechDurationS: store.setSpeechVadMaxSpeechDurationS,
+    speechVadSpeechPadMs: store.speechVadSpeechPadMs,
+    setSpeechVadSpeechPadMs: store.setSpeechVadSpeechPadMs,
+    speechVadSamplesOverlap: store.speechVadSamplesOverlap,
+    setSpeechVadSamplesOverlap: store.setSpeechVadSamplesOverlap,
     cloudBackupEnabled: store.cloudBackupEnabled,
     setCloudBackupEnabled: store.setCloudBackupEnabled,
     telemetryEnabled: store.telemetryEnabled,
@@ -265,7 +189,6 @@ function useSettingsInternal() {
     setDataRetentionEnabled: store.setDataRetentionEnabled,
     updateTranscriptionSettings: store.updateTranscriptionSettings,
     updateCleanupSettings: store.updateCleanupSettings,
-    updateApiKeys: store.updateApiKeys,
   };
 }
 

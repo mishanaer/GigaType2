@@ -1,6 +1,6 @@
-const { DEFAULTS, LIMITS } = require("../constants/whisperVad.json");
+const { DEFAULTS, LIMITS } = require("../constants/speechVad.json");
 
-const DEFAULT_WHISPER_VAD_CONFIG = Object.freeze({ ...DEFAULTS });
+const DEFAULT_SPEECH_VAD_CONFIG = Object.freeze({ ...DEFAULTS });
 const VAD_LIMITS = Object.freeze(LIMITS);
 
 function clampVadField(key, value) {
@@ -12,7 +12,7 @@ function clampVadField(key, value) {
   return round ? Math.round(clamped) : clamped;
 }
 
-function sanitizeWhisperVadConfig(input = {}) {
+function sanitizeSpeechVadConfig(input = {}) {
   const merged = { ...DEFAULTS, ...(input || {}) };
   const out = {};
   for (const key of Object.keys(DEFAULTS)) {
@@ -21,17 +21,9 @@ function sanitizeWhisperVadConfig(input = {}) {
   return out;
 }
 
-function resolveContextSileroEnabled(settings = {}, context = "dictation") {
-  if (context === "dictation") return settings.dictationSileroEnabled !== false;
-  if (context === "noteRecording") return settings.noteRecordingSileroEnabled !== false;
-  if (context === "meeting") return settings.meetingSileroEnabled !== false;
-  return true;
-}
-
 module.exports = {
-  DEFAULT_WHISPER_VAD_CONFIG,
+  DEFAULT_SPEECH_VAD_CONFIG,
   VAD_LIMITS,
   clampVadField,
-  sanitizeWhisperVadConfig,
-  resolveContextSileroEnabled,
+  sanitizeSpeechVadConfig,
 };
