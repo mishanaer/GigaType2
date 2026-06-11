@@ -52,7 +52,7 @@ for crash in "$HOME/Library/Application Support/CrashReporter"/GigaType_*; do
 done
 shopt -u nullglob
 
-read -r -p "Remove downloaded Whisper models and caches (~/.cache/whisper, ~/Library/Application Support/whisper)? [y/N]: " wipe_models
+read -r -p "Remove legacy Whisper model caches (~/.cache/whisper, ~/Library/Application Support/whisper)? [y/N]: " wipe_models
 if [[ "$wipe_models" =~ ^[Yy]$ ]]; then
   remove_target "$HOME/.cache/whisper"
   remove_target "$HOME/Library/Application Support/whisper"

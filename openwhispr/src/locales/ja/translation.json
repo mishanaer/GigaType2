@@ -346,7 +346,7 @@
       "ollama": "（Ollama）",
       "localAi": "（LocalAI）",
       "apiKeyOptional": "API キー（任意）",
-      "apiKeyHelp": "任意。Bearer トークンとして認証に使用されます。OpenAI API キーとは別のものです。",
+      "apiKeyHelp": "Optional. Sent as a Bearer token for endpoint authentication.",
       "applyAndRefresh": "適用して更新",
       "queryPrefix": "問い合わせ先:",
       "querySuffix": "で利用可能なモデルを取得します。",
@@ -407,35 +407,12 @@
       }
     }
   },
-  "transcription": {
-    "deleteModel": {
-      "title": "モデルを削除",
-      "description": "このモデルを削除してもよろしいですか？再度使用するにはダウンロードし直す必要があります。"
-    },
-    "parakeet": {
-      "multilingual": "25 言語対応",
-      "english": "英語"
-    },
-    "apiKeyOptional": "API キー（任意）",
-    "getKey": "キーを取得 ->",
-    "endpointUrl": "エンドポイント URL",
-    "customProvider": "カスタム",
-    "fallback": {
-      "whisperModelDescription": "モデル",
-      "parakeetModelDescription": "NVIDIA Parakeet モデル"
-    },
-    "whisperModels": "Whisper モデル"
-  },
   "hooks": {
     "audioRecording": {
       "errorTitles": {
         "sessionExpired": "セッション期限切れ",
         "offline": "オフラインです",
         "dailyLimitReached": "1 日の上限に達しました"
-      },
-      "fallback": {
-        "title": "フォールバックモード",
-        "description": "ローカル Whisper が失敗しました。代わりに OpenAI API を使用しました。"
       },
       "noAudio": {
         "title": "音声が検出されませんでした",
@@ -491,15 +468,6 @@
       "downloadInProgress": {
         "title": "ダウンロード中",
         "description": "現在のダウンロードが完了するか、先にキャンセルしてください。"
-      },
-      "modelDeleted": {
-        "title": "モデルを削除しました",
-        "descriptionWithSpace": "モデルを削除しました！{{sizeMb}}MB のディスク容量を解放しました。",
-        "description": "モデルを削除しました！"
-      },
-      "deleteFailed": {
-        "title": "削除に失敗しました",
-        "description": "モデルの削除に失敗しました: {{error}}"
       },
       "downloadCancelled": {
         "title": "ダウンロードをキャンセルしました",
@@ -1189,7 +1157,7 @@
       "open": "開く",
       "removeModels": {
         "confirmText": "モデルを削除",
-        "description": "ローカルにキャッシュされたすべての Whisper モデル（{{path}}）を削除し、ディスク容量を解放します。モデルピッカーから再度ダウンロードできます。",
+        "description": "This deletes locally cached models ({{path}}) and frees disk space. You can download them again when needed.",
         "failedDescription": "モデルの削除中に問題が発生しました。もう一度お試しください。",
         "failedDescriptionShort": "キャッシュされたモデルを削除できませんでした。",
         "failedTitle": "モデルを削除できませんでした",
@@ -1515,7 +1483,7 @@
       "transcriptionPreviewDescription": "クリーンアップ前にフローティングウィンドウで文字起こしを表示",
       "vad": {
         "title": "音声アクティビティ検出",
-        "description": "ローカル Whisper 文字起こしで Silero VAD が発話を検出・分割する方法を設定します",
+        "description": "Configure how Silero VAD detects and segments speech.",
         "toggles": {
           "dictation": {
             "title": "ディクテーションで Silero VAD を使用",
@@ -1658,25 +1626,8 @@
   "models": {
     "learnMore": "詳細を見る",
     "descriptions": {
-      "parakeet": {
-        "parakeet_tdt_0_6b_v3": "高速多言語 ASR、自動言語検出対応（25 言語）",
-        "parakeet_unified_en_0_6b": "英語専用の最先端精度ASR（平均WER 5.91%）"
-      },
-      "whisper": {
-        "tiny": "最速、品質は低め",
-        "base": "速度と品質のバランス",
-        "small": "より高品質、やや低速",
-        "medium": "高品質",
-        "large": "最高品質、最も低速",
-        "turbo": "高速で高品質"
-      },
       "transcription": {
-        "openai_gpt_4o_mini_transcribe": "高速で正確な文字起こし",
-        "openai_gpt_4o_transcribe": "最も正確な文字起こし",
-        "openai_whisper_1": "オリジナル Whisper モデル",
-        "groq_whisper_large_v3_turbo": "リアルタイムの 216 倍速",
-        "groq_whisper_large_v3": "Large v3 モデル、高速かつ高精度",
-        "mistral_voxtral_mini_latest": "高速多言語文字起こし"
+        "gigaam_v3_e2e_rnnt": "GigaAM speech recognition"
       },
       "cloud": {
         "openai_gpt_5_2": "強力な推論モデル",

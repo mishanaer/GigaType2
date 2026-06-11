@@ -1,13 +1,10 @@
 import { create } from "zustand";
 import { API_ENDPOINTS } from "../config/constants";
 import i18n from "../i18n";
-import { useStreamingProvidersStore } from "./streamingProvidersStore";
 import logger from "../utils/logger";
-import whisperVadConstants from "../constants/whisperVad.json";
+import speechVadConstants from "../constants/speechVad.json";
 import type {
-  LocalTranscriptionProvider,
   InferenceMode,
-  SelfHostedType,
   GigaamSidecarStatus,
 } from "../types/electron";
 import type { GoogleCalendarAccount } from "../types/calendar";
@@ -23,7 +20,6 @@ import type {
   CleanupSettings,
   HotkeySettings,
   MicrophoneSettings,
-  ApiKeySettings,
   PrivacySettings,
   ThemeSettings,
   ChatAgentSettings,
@@ -38,16 +34,12 @@ const FIXED_AUDIO_CUES_ENABLED = true;
 const FIXED_PAUSE_MEDIA_ON_DICTATION = false;
 const FIXED_NOTIFICATIONS_ENABLED = false;
 const AUTH_BACKED_INFERENCE_MODE_KEYS = new Set([
-  "transcriptionMode",
-  "meetingTranscriptionMode",
   "cleanupMode",
   "noteFormattingMode",
   "chatAgentMode",
   "dictationAgentMode",
 ]);
 const AUTH_BACKED_CLOUD_MODE_KEYS = new Set([
-  "cloudTranscriptionMode",
-  "meetingCloudTranscriptionMode",
   "cleanupCloudMode",
   "noteFormattingCloudMode",
   "chatAgentCloudMode",
@@ -67,6 +59,19 @@ function normalizeAuthBackedSetting(key: string, value: string): string {
 function readString(key: string, fallback: string): string {
   if (!isBrowser) return fallback;
   return normalizeAuthBackedSetting(key, localStorage.getItem(key) ?? fallback);
+}
+
+function readMigratedString(key: string, legacyKey: string, fallback: string): string {
+  if (!isBrowser) return fallback;
+  const current = localStorage.getItem(key);
+  if (current !== null) return normalizeAuthBackedSetting(key, current);
+  const legacy = localStorage.getItem(legacyKey);
+  if (legacy !== null) {
+    localStorage.setItem(key, legacy);
+    localStorage.removeItem(legacyKey);
+    return normalizeAuthBackedSetting(key, legacy);
+  }
+  return fallback;
 }
 
 function readBoolean(key: string, fallback: boolean): boolean {
@@ -117,16 +122,8 @@ function disableAccountBackedFeatures() {
 // behavior. After migration the flag stays at "false" as a marker so this
 // never runs again. Safe to delete after a few releases.
 const MEETING_TRANSCRIPTION_PAIRS: ReadonlyArray<[string, string]> = [
-  ["useLocalWhisper", "meetingUseLocalWhisper"],
-  ["whisperModel", "meetingWhisperModel"],
-  ["localTranscriptionProvider", "meetingLocalTranscriptionProvider"],
-  ["parakeetModel", "meetingParakeetModel"],
-  ["cloudTranscriptionProvider", "meetingCloudTranscriptionProvider"],
-  ["cloudTranscriptionModel", "meetingCloudTranscriptionModel"],
   ["cloudTranscriptionBaseUrl", "meetingCloudTranscriptionBaseUrl"],
-  ["cloudTranscriptionMode", "meetingCloudTranscriptionMode"],
-  ["transcriptionMode", "meetingTranscriptionMode"],
-  ["remoteTranscriptionType", "meetingRemoteTranscriptionType"],
+  ["gigaamBaseUrl", "meetingGigaamBaseUrl"],
   ["remoteTranscriptionUrl", "meetingRemoteTranscriptionUrl"],
 ];
 const MEETING_REASONING_PAIRS: ReadonlyArray<[string, string]> = [
@@ -157,10 +154,8 @@ function migrateMeetingFollowFlags() {
 migrateMeetingFollowFlags();
 
 const BOOLEAN_SETTINGS = new Set([
-  "useLocalWhisper",
   "allowOpenAIFallback",
   "allowLocalFallback",
-  "assemblyAiStreaming",
   "autoGenerateNoteTitle",
   "useCleanupModel",
   "useDictationAgent",
@@ -195,24 +190,24 @@ const BOOLEAN_SETTINGS = new Set([
 const ARRAY_SETTINGS = new Set(["gcalAccounts"]);
 
 const NUMERIC_SETTINGS = new Set([
-  "whisperVadThreshold",
-  "whisperVadMinSpeechDurationMs",
-  "whisperVadMinSilenceDurationMs",
-  "whisperVadMaxSpeechDurationS",
-  "whisperVadSpeechPadMs",
-  "whisperVadSamplesOverlap",
+  "speechVadThreshold",
+  "speechVadMinSpeechDurationMs",
+  "speechVadMinSilenceDurationMs",
+  "speechVadMaxSpeechDurationS",
+  "speechVadSpeechPadMs",
+  "speechVadSamplesOverlap",
 ]);
 
-const WHISPER_VAD_DEFAULTS = whisperVadConstants.DEFAULTS;
-const WHISPER_VAD_LIMITS = whisperVadConstants.LIMITS;
+const SPEECH_VAD_DEFAULTS = speechVadConstants.DEFAULTS;
+const SPEECH_VAD_LIMITS = speechVadConstants.LIMITS;
 
-type WhisperVadKey = keyof typeof WHISPER_VAD_DEFAULTS;
+type SpeechVadKey = keyof typeof SPEECH_VAD_DEFAULTS;
 
-const clampVadValue = (key: WhisperVadKey, raw: unknown): number => {
-  const fallback = WHISPER_VAD_DEFAULTS[key];
+const clampVadValue = (key: SpeechVadKey, raw: unknown): number => {
+  const fallback = SPEECH_VAD_DEFAULTS[key];
   const n = raw === null || raw === undefined || raw === "" ? fallback : Number(raw);
   if (!Number.isFinite(n)) return fallback;
-  const { min, max, round } = WHISPER_VAD_LIMITS[key];
+  const { min, max, round } = SPEECH_VAD_LIMITS[key];
   const clamped = Math.min(max, Math.max(min, n));
   return round ? Math.round(clamped) : clamped;
 };
@@ -251,16 +246,44 @@ function enforceFixedBehaviorSettings() {
 
 enforceFixedBehaviorSettings();
 
-const GIGATYPE_TRANSCRIPTION_SETTING_KEYS = [
+const LEGACY_TRANSCRIPTION_LOCALSTORAGE_KEYS = [
   "useLocalWhisper",
+  "whisperModel",
+  "localTranscriptionProvider",
+  "parakeetModel",
+  "fallbackWhisperModel",
+  "meetingUseLocalWhisper",
+  "meetingWhisperModel",
+  "meetingLocalTranscriptionProvider",
+  "meetingParakeetModel",
   "cloudTranscriptionProvider",
   "cloudTranscriptionModel",
-  "cloudTranscriptionBaseUrl",
   "cloudTranscriptionMode",
+  "meetingCloudTranscriptionProvider",
+  "meetingCloudTranscriptionModel",
+  "meetingCloudTranscriptionMode",
+  "transcriptionMode",
+  "meetingTranscriptionMode",
+  "remoteTranscriptionType",
+  "meetingRemoteTranscriptionType",
+] as const;
+
+function enforceGigaamOnlyTranscriptionSettings() {
+  if (!isBrowser) return;
+  localStorage.setItem("allowOpenAIFallback", "false");
+  localStorage.setItem("allowLocalFallback", "false");
+  for (const key of LEGACY_TRANSCRIPTION_LOCALSTORAGE_KEYS) {
+    localStorage.removeItem(key);
+  }
+}
+
+enforceGigaamOnlyTranscriptionSettings();
+
+const GIGATYPE_TRANSCRIPTION_SETTING_KEYS = [
+  "gigaamBaseUrl",
+  "cloudTranscriptionBaseUrl",
   "useCleanupModel",
   "useDictationAgent",
-  "transcriptionMode",
-  "remoteTranscriptionType",
   "remoteTranscriptionUrl",
 ] as const;
 const hadUserTranscriptionSettingsBeforeProviderMigration =
@@ -271,25 +294,13 @@ function migrateProviderSettings() {
   if (!isBrowser) return;
   if (localStorage.getItem("_providerSettingsMigrated") === "1") return;
 
-  const cloudMode = localStorage.getItem("cloudTranscriptionMode");
-  const useLocal = localStorage.getItem("useLocalWhisper") === "true";
-  const provider = localStorage.getItem("cloudTranscriptionProvider");
-
-  let transcriptionMode: InferenceMode = "providers";
-  if (useLocal) {
-    transcriptionMode = "local";
-  } else if (cloudMode === "byok") {
-    transcriptionMode = provider === "custom" ? "self-hosted" : "providers";
+  const legacyBaseUrl = localStorage.getItem("cloudTranscriptionBaseUrl");
+  if (legacyBaseUrl && !localStorage.getItem("gigaamBaseUrl")) {
+    localStorage.setItem("gigaamBaseUrl", legacyBaseUrl);
   }
-  localStorage.setItem("transcriptionMode", transcriptionMode);
-
-  if (provider === "custom" && cloudMode === "byok") {
-    localStorage.setItem("remoteTranscriptionType", "openai-compatible");
-    const legacyBaseUrl = localStorage.getItem("cloudTranscriptionBaseUrl");
-    const existingRemoteUrl = localStorage.getItem("remoteTranscriptionUrl");
-    if (!existingRemoteUrl && legacyBaseUrl && legacyBaseUrl !== API_ENDPOINTS.TRANSCRIPTION_BASE) {
-      localStorage.setItem("remoteTranscriptionUrl", legacyBaseUrl);
-    }
+  const existingRemoteUrl = localStorage.getItem("remoteTranscriptionUrl");
+  if (!existingRemoteUrl && legacyBaseUrl && legacyBaseUrl !== API_ENDPOINTS.TRANSCRIPTION_BASE) {
+    localStorage.setItem("remoteTranscriptionUrl", legacyBaseUrl);
   }
 
   const reasoningMode = localStorage.getItem("cloudReasoningMode");
@@ -398,7 +409,6 @@ const LLM_SCOPE_KEY_PAIRS: ReadonlyArray<[string, string]> = [
   ["useReasoningModel", "useCleanupModel"],
   ["cloudReasoningMode", "cleanupCloudMode"],
   ["cloudReasoningBaseUrl", "cleanupCloudBaseUrl"],
-  ["customReasoningApiKey", "cleanupCustomApiKey"],
   ["remoteReasoningUrl", "cleanupRemoteUrl"],
   ["meetingReasoningMode", "noteFormattingMode"],
   ["meetingReasoningProvider", "noteFormattingProvider"],
@@ -439,7 +449,6 @@ export interface SettingsState
     CleanupSettings,
     HotkeySettings,
     MicrophoneSettings,
-    ApiKeySettings,
     PrivacySettings,
     ThemeSettings,
     ChatAgentSettings {
@@ -462,12 +471,12 @@ export interface SettingsState
   dictationSileroEnabled: boolean;
   noteRecordingSileroEnabled: boolean;
   meetingSileroEnabled: boolean;
-  whisperVadThreshold: number;
-  whisperVadMinSpeechDurationMs: number;
-  whisperVadMinSilenceDurationMs: number;
-  whisperVadMaxSpeechDurationS: number;
-  whisperVadSpeechPadMs: number;
-  whisperVadSamplesOverlap: number;
+  speechVadThreshold: number;
+  speechVadMinSpeechDurationMs: number;
+  speechVadMinSilenceDurationMs: number;
+  speechVadMaxSpeechDurationS: number;
+  speechVadSpeechPadMs: number;
+  speechVadSamplesOverlap: number;
   panelStartPosition: "bottom-right" | "center" | "bottom-left";
   showTranscriptionPreview: boolean;
   autoPasteEnabled: boolean;
@@ -475,22 +484,12 @@ export interface SettingsState
   noteFilesEnabled: boolean;
   noteFilesPath: string;
 
-  transcriptionMode: InferenceMode;
-  remoteTranscriptionType: SelfHostedType;
   remoteTranscriptionUrl: string;
+  gigaamBaseUrl: string;
   cleanupMode: InferenceMode;
   cleanupRemoteUrl: string;
 
-  meetingTranscriptionMode: InferenceMode;
-  meetingUseLocalWhisper: boolean;
-  meetingWhisperModel: string;
-  meetingLocalTranscriptionProvider: LocalTranscriptionProvider;
-  meetingParakeetModel: string;
-  meetingCloudTranscriptionProvider: string;
-  meetingCloudTranscriptionModel: string;
-  meetingCloudTranscriptionBaseUrl: string;
-  meetingCloudTranscriptionMode: string;
-  meetingRemoteTranscriptionType: SelfHostedType;
+  meetingGigaamBaseUrl: string;
   meetingRemoteTranscriptionUrl: string;
 
   noteFormattingMode: InferenceMode;
@@ -499,7 +498,6 @@ export interface SettingsState
   noteFormattingCloudMode: string;
   noteFormattingCloudBaseUrl: string;
   noteFormattingRemoteUrl: string;
-  noteFormattingCustomApiKey: string;
 
   dictationAgentMode: InferenceMode;
   dictationAgentProvider: string;
@@ -507,7 +505,6 @@ export interface SettingsState
   dictationAgentCloudMode: string;
   dictationAgentCloudBaseUrl: string;
   dictationAgentRemoteUrl: string;
-  dictationAgentCustomApiKey: string;
 
   cleanupDisableThinking: boolean;
   dictationAgentDisableThinking: boolean;
@@ -523,24 +520,13 @@ export interface SettingsState
   setDictationAgentCloudMode: (value: string) => void;
   setDictationAgentCloudBaseUrl: (value: string) => void;
   setDictationAgentRemoteUrl: (url: string) => void;
-  setDictationAgentCustomApiKey: (key: string) => void;
 
-  setTranscriptionMode: (mode: InferenceMode) => void;
-  setRemoteTranscriptionType: (type: SelfHostedType) => void;
   setRemoteTranscriptionUrl: (url: string) => void;
+  setGigaamBaseUrl: (value: string) => void;
   setCleanupMode: (mode: InferenceMode) => void;
   setCleanupRemoteUrl: (url: string) => void;
 
-  setMeetingTranscriptionMode: (mode: InferenceMode) => void;
-  setMeetingUseLocalWhisper: (value: boolean) => void;
-  setMeetingWhisperModel: (value: string) => void;
-  setMeetingLocalTranscriptionProvider: (value: LocalTranscriptionProvider) => void;
-  setMeetingParakeetModel: (value: string) => void;
-  setMeetingCloudTranscriptionProvider: (value: string) => void;
-  setMeetingCloudTranscriptionModel: (value: string) => void;
-  setMeetingCloudTranscriptionBaseUrl: (value: string) => void;
-  setMeetingCloudTranscriptionMode: (value: string) => void;
-  setMeetingRemoteTranscriptionType: (type: SelfHostedType) => void;
+  setMeetingGigaamBaseUrl: (value: string) => void;
   setMeetingRemoteTranscriptionUrl: (url: string) => void;
 
   setNoteFormattingMode: (mode: InferenceMode) => void;
@@ -549,28 +535,17 @@ export interface SettingsState
   setNoteFormattingCloudMode: (value: string) => void;
   setNoteFormattingCloudBaseUrl: (value: string) => void;
   setNoteFormattingRemoteUrl: (url: string) => void;
-  setNoteFormattingCustomApiKey: (key: string) => void;
 
   setCleanupDisableThinking: (value: boolean) => void;
   setDictationAgentDisableThinking: (value: boolean) => void;
   setNoteFormattingDisableThinking: (value: boolean) => void;
   setChatAgentDisableThinking: (value: boolean) => void;
 
-  setUseLocalWhisper: (value: boolean) => void;
-  setWhisperModel: (value: string) => void;
-  setLocalTranscriptionProvider: (value: LocalTranscriptionProvider) => void;
-  setParakeetModel: (value: string) => void;
   setAllowOpenAIFallback: (value: boolean) => void;
   setAllowLocalFallback: (value: boolean) => void;
-  setFallbackWhisperModel: (value: string) => void;
   setPreferredLanguage: (value: string) => void;
-  setCloudTranscriptionProvider: (value: string) => void;
-  setCloudTranscriptionModel: (value: string) => void;
-  setCloudTranscriptionBaseUrl: (value: string) => void;
-  setCloudTranscriptionMode: (value: string) => void;
   setCleanupCloudMode: (value: string) => void;
   setCleanupCloudBaseUrl: (value: string) => void;
-  setAssemblyAiStreaming: (value: boolean) => void;
   setAutoGenerateNoteTitle: (value: boolean) => void;
   setUseCleanupModel: (value: boolean) => void;
   setUseDictationAgent: (value: boolean) => void;
@@ -578,43 +553,25 @@ export interface SettingsState
   setCleanupProvider: (value: string) => void;
   setUiLanguage: (language: string) => void;
 
-  setOpenaiApiKey: (key: string) => void;
-  setAnthropicApiKey: (key: string) => void;
-  setGeminiApiKey: (key: string) => void;
-  setGroqApiKey: (key: string) => void;
-  setMistralApiKey: (key: string) => void;
-  setCustomTranscriptionApiKey: (key: string) => void;
-  setCleanupCustomApiKey: (key: string) => void;
-
   // Enterprise providers
   bedrockAuthMode: string;
   bedrockRegion: string;
   bedrockProfile: string;
-  bedrockAccessKeyId: string;
-  bedrockSecretAccessKey: string;
-  bedrockSessionToken: string;
   azureEndpoint: string;
-  azureApiKey: string;
   azureDeploymentName: string;
   azureApiVersion: string;
   vertexAuthMode: string;
   vertexProject: string;
   vertexLocation: string;
-  vertexApiKey: string;
   setBedrockAuthMode: (value: string) => void;
   setBedrockRegion: (value: string) => void;
   setBedrockProfile: (value: string) => void;
-  setBedrockAccessKeyId: (key: string) => void;
-  setBedrockSecretAccessKey: (key: string) => void;
-  setBedrockSessionToken: (key: string) => void;
   setAzureEndpoint: (value: string) => void;
-  setAzureApiKey: (key: string) => void;
   setAzureDeploymentName: (value: string) => void;
   setAzureApiVersion: (value: string) => void;
   setVertexAuthMode: (value: string) => void;
   setVertexProject: (value: string) => void;
   setVertexLocation: (value: string) => void;
-  setVertexApiKey: (key: string) => void;
 
   setDictationKey: (key: string) => void;
   setMeetingKey: (key: string) => void;
@@ -645,12 +602,12 @@ export interface SettingsState
   setDictationSileroEnabled: (value: boolean) => void;
   setNoteRecordingSileroEnabled: (value: boolean) => void;
   setMeetingSileroEnabled: (value: boolean) => void;
-  setWhisperVadThreshold: (value: number) => void;
-  setWhisperVadMinSpeechDurationMs: (value: number) => void;
-  setWhisperVadMinSilenceDurationMs: (value: number) => void;
-  setWhisperVadMaxSpeechDurationS: (value: number) => void;
-  setWhisperVadSpeechPadMs: (value: number) => void;
-  setWhisperVadSamplesOverlap: (value: number) => void;
+  setSpeechVadThreshold: (value: number) => void;
+  setSpeechVadMinSpeechDurationMs: (value: number) => void;
+  setSpeechVadMinSilenceDurationMs: (value: number) => void;
+  setSpeechVadMaxSpeechDurationS: (value: number) => void;
+  setSpeechVadSpeechPadMs: (value: number) => void;
+  setSpeechVadSamplesOverlap: (value: number) => void;
   setPanelStartPosition: (position: "bottom-right" | "center" | "bottom-left") => void;
   setShowTranscriptionPreview: (value: boolean) => void;
   setAutoPasteEnabled: (value: boolean) => void;
@@ -666,11 +623,9 @@ export interface SettingsState
   setChatAgentMode: (mode: InferenceMode) => void;
   setChatAgentCloudBaseUrl: (value: string) => void;
   setChatAgentRemoteUrl: (url: string) => void;
-  setChatAgentCustomApiKey: (key: string) => void;
 
   updateTranscriptionSettings: (settings: Partial<TranscriptionSettings>) => void;
   updateCleanupSettings: (settings: Partial<CleanupSettings>) => void;
-  updateApiKeys: (keys: Partial<ApiKeySettings>) => void;
   updateChatAgentSettings: (settings: Partial<ChatAgentSettings>) => void;
 }
 
@@ -690,7 +645,6 @@ function createBooleanSetter(key: string) {
 }
 
 const GIGATYPE_ASR_DEFAULTS_APPLIED_KEY = "_gigatypeAsrDefaultsApplied";
-const GIGATYPE_ASR_MODEL = "gigaam-v3-e2e-rnnt";
 const LOCAL_GIGAAM_API_BASE_RE =
   /^http:\/\/127\.0\.0\.1:(?:876[5-9]|877[0-5])\/v1(?:\/audio\/transcriptions)?\/?$/i;
 
@@ -706,11 +660,9 @@ function shouldSyncGigaamApiBase(value: string | null | undefined): boolean {
 function hasPartialGigaamAsrConfig(): boolean {
   if (!isBrowser) return false;
 
-  const transcriptionMode = localStorage.getItem("transcriptionMode");
-  if (transcriptionMode === "self-hosted") return false;
-
   return (
     isLocalGigaamApiBase(localStorage.getItem("remoteTranscriptionUrl")) ||
+    isLocalGigaamApiBase(localStorage.getItem("gigaamBaseUrl")) ||
     isLocalGigaamApiBase(localStorage.getItem("cloudTranscriptionBaseUrl"))
   );
 }
@@ -754,14 +706,8 @@ async function syncGigaTypeAsrSettings(status?: GigaamSidecarStatus | null): Pro
 
   if (isFreshProfile || shouldRepairPartialGigaamConfig) {
     Object.assign(patch, {
-      transcriptionMode: "self-hosted" as InferenceMode,
-      remoteTranscriptionType: "openai-compatible" as SelfHostedType,
       remoteTranscriptionUrl: apiBaseUrl,
-      useLocalWhisper: false,
-      cloudTranscriptionProvider: "custom",
-      cloudTranscriptionMode: "byok",
-      cloudTranscriptionModel: GIGATYPE_ASR_MODEL,
-      cloudTranscriptionBaseUrl: apiBaseUrl,
+      gigaamBaseUrl: apiBaseUrl,
       useCleanupModel: false,
       useDictationAgent: false,
       preferredLanguage: "ru",
@@ -770,8 +716,12 @@ async function syncGigaTypeAsrSettings(status?: GigaamSidecarStatus | null): Pro
     if (shouldSyncGigaamApiBase(localStorage.getItem("remoteTranscriptionUrl"))) {
       patch.remoteTranscriptionUrl = apiBaseUrl;
     }
-    if (shouldSyncGigaamApiBase(localStorage.getItem("cloudTranscriptionBaseUrl"))) {
-      patch.cloudTranscriptionBaseUrl = apiBaseUrl;
+    if (
+      shouldSyncGigaamApiBase(
+        localStorage.getItem("gigaamBaseUrl") || localStorage.getItem("cloudTranscriptionBaseUrl")
+      )
+    ) {
+      patch.gigaamBaseUrl = apiBaseUrl;
     }
   }
 
@@ -787,51 +737,14 @@ function debouncedPersistToEnv() {
   if (!isBrowser) return;
   if (envPersistTimer) clearTimeout(envPersistTimer);
   envPersistTimer = setTimeout(() => {
-    window.electronAPI?.saveAllKeysToEnv?.().catch((err) => {
+    window.electronAPI?.saveRuntimeConfigToEnv?.().catch((err) => {
       logger.warn(
-        "Failed to persist API keys to .env",
+        "Failed to persist runtime config to .env",
         { error: (err as Error).message },
         "settings"
       );
     });
   }, 1000);
-}
-
-const SECRET_IPC_SAVERS = {
-  openai: "saveOpenAIKey",
-  anthropic: "saveAnthropicKey",
-  gemini: "saveGeminiKey",
-  groq: "saveGroqKey",
-  mistral: "saveMistralKey",
-  customTranscription: "saveCustomTranscriptionKey",
-  cleanupCustom: "saveCleanupCustomKey",
-  bedrockAccessKeyId: "saveBedrockAccessKeyId",
-  bedrockSecretAccessKey: "saveBedrockSecretAccessKey",
-  bedrockSessionToken: "saveBedrockSessionToken",
-  azureApiKey: "saveAzureApiKey",
-  vertexApiKey: "saveVertexApiKey",
-} as const;
-
-type SecretProvider = keyof typeof SECRET_IPC_SAVERS;
-
-const secretSaveTimers: Partial<Record<SecretProvider, ReturnType<typeof setTimeout>>> = {};
-function debouncedSaveSecret(provider: SecretProvider, key: string) {
-  if (!isBrowser) return;
-  const timer = secretSaveTimers[provider];
-  if (timer) clearTimeout(timer);
-  secretSaveTimers[provider] = setTimeout(() => {
-    const api = window.electronAPI;
-    const save = api?.[SECRET_IPC_SAVERS[provider]] as
-      | ((k: string) => Promise<unknown>)
-      | undefined;
-    save?.(key)?.catch((err) => {
-      logger.warn(
-        "Failed to persist secret",
-        { provider, error: (err as Error).message },
-        "settings"
-      );
-    });
-  }, 250);
 }
 
 const STALE_SECRET_LOCALSTORAGE_KEYS = [
@@ -850,68 +763,41 @@ const STALE_SECRET_LOCALSTORAGE_KEYS = [
   "vertexApiKey",
 ] as const;
 
-function invalidateApiKeyCaches(
-  _provider?: "openai" | "anthropic" | "gemini" | "groq" | "mistral" | "custom"
-) {
-  if (isBrowser) window.dispatchEvent(new Event("api-key-changed"));
-  debouncedPersistToEnv();
+function clearLegacySecretLocalStorage() {
+  if (!isBrowser) return;
+  for (const key of STALE_SECRET_LOCALSTORAGE_KEYS) {
+    localStorage.removeItem(key);
+  }
 }
 
 export const useSettingsStore = create<SettingsState>()((set, get) => ({
   uiLanguage: FIXED_UI_LANGUAGE,
-  useLocalWhisper: readBoolean("useLocalWhisper", false),
-  whisperModel: readString("whisperModel", "base"),
-  localTranscriptionProvider: (readString("localTranscriptionProvider", "whisper") === "nvidia"
-    ? "nvidia"
-    : "whisper") as LocalTranscriptionProvider,
-  parakeetModel: readString("parakeetModel", ""),
   allowOpenAIFallback: readBoolean("allowOpenAIFallback", false),
   allowLocalFallback: readBoolean("allowLocalFallback", false),
-  fallbackWhisperModel: readString("fallbackWhisperModel", "base"),
   preferredLanguage: FIXED_TRANSCRIPTION_LANGUAGE,
-  cloudTranscriptionProvider: readString("cloudTranscriptionProvider", "openai"),
-  cloudTranscriptionModel: readString("cloudTranscriptionModel", "gpt-4o-mini-transcribe"),
-  cloudTranscriptionBaseUrl: readString(
+  gigaamBaseUrl: readMigratedString(
+    "gigaamBaseUrl",
     "cloudTranscriptionBaseUrl",
     API_ENDPOINTS.TRANSCRIPTION_BASE
   ),
-  // Secrets aren't hydrated yet at construction; the BYOK default is set
-  // post-hydration in initializeSettings.
-  cloudTranscriptionMode: readString("cloudTranscriptionMode", "byok"),
   cleanupCloudMode: readString("cleanupCloudMode", "byok"),
   cleanupCloudBaseUrl: readString("cleanupCloudBaseUrl", API_ENDPOINTS.OPENAI_BASE),
-  assemblyAiStreaming: readBoolean("assemblyAiStreaming", true),
-
   autoGenerateNoteTitle: readBoolean("autoGenerateNoteTitle", true),
   useCleanupModel: readBoolean("useCleanupModel", false),
   useDictationAgent: readBoolean("useDictationAgent", false),
   cleanupModel: readString("cleanupModel", ""),
   cleanupProvider: readString("cleanupProvider", "openai"),
 
-  // Secrets hydrate from main process in initializeSettings, never from localStorage.
-  openaiApiKey: "",
-  anthropicApiKey: "",
-  geminiApiKey: "",
-  groqApiKey: "",
-  mistralApiKey: "",
-  customTranscriptionApiKey: "",
-  cleanupCustomApiKey: "",
-
   // Enterprise providers
   bedrockAuthMode: readString("bedrockAuthMode", "sso"),
   bedrockRegion: readString("bedrockRegion", "us-east-1"),
   bedrockProfile: readString("bedrockProfile", ""),
-  bedrockAccessKeyId: "",
-  bedrockSecretAccessKey: "",
-  bedrockSessionToken: "",
   azureEndpoint: readString("azureEndpoint", ""),
-  azureApiKey: "",
   azureDeploymentName: readString("azureDeploymentName", ""),
   azureApiVersion: readString("azureApiVersion", "2024-10-21"),
   vertexAuthMode: readString("vertexAuthMode", "adc"),
   vertexProject: readString("vertexProject", ""),
   vertexLocation: readString("vertexLocation", "us-central1"),
-  vertexApiKey: "",
 
   dictationKey: readString("dictationKey", ""),
   meetingKey: readString("meetingKey", ""),
@@ -957,23 +843,37 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   dictationSileroEnabled: readBoolean("dictationSileroEnabled", true),
   noteRecordingSileroEnabled: readBoolean("noteRecordingSileroEnabled", true),
   meetingSileroEnabled: readBoolean("meetingSileroEnabled", true),
-  whisperVadThreshold: clampVadValue("threshold", readString("whisperVadThreshold", "0.5")),
-  whisperVadMinSpeechDurationMs: clampVadValue(
+  speechVadThreshold: clampVadValue(
+    "threshold",
+    readMigratedString("speechVadThreshold", "whisperVadThreshold", "0.5")
+  ),
+  speechVadMinSpeechDurationMs: clampVadValue(
     "minSpeechDurationMs",
-    readString("whisperVadMinSpeechDurationMs", "250")
+    readMigratedString(
+      "speechVadMinSpeechDurationMs",
+      "whisperVadMinSpeechDurationMs",
+      "250"
+    )
   ),
-  whisperVadMinSilenceDurationMs: clampVadValue(
+  speechVadMinSilenceDurationMs: clampVadValue(
     "minSilenceDurationMs",
-    readString("whisperVadMinSilenceDurationMs", "200")
+    readMigratedString(
+      "speechVadMinSilenceDurationMs",
+      "whisperVadMinSilenceDurationMs",
+      "200"
+    )
   ),
-  whisperVadMaxSpeechDurationS: clampVadValue(
+  speechVadMaxSpeechDurationS: clampVadValue(
     "maxSpeechDurationS",
-    readString("whisperVadMaxSpeechDurationS", "30")
+    readMigratedString("speechVadMaxSpeechDurationS", "whisperVadMaxSpeechDurationS", "30")
   ),
-  whisperVadSpeechPadMs: clampVadValue("speechPadMs", readString("whisperVadSpeechPadMs", "100")),
-  whisperVadSamplesOverlap: clampVadValue(
+  speechVadSpeechPadMs: clampVadValue(
+    "speechPadMs",
+    readMigratedString("speechVadSpeechPadMs", "whisperVadSpeechPadMs", "100")
+  ),
+  speechVadSamplesOverlap: clampVadValue(
     "samplesOverlap",
-    readString("whisperVadSamplesOverlap", "0.5")
+    readMigratedString("speechVadSamplesOverlap", "whisperVadSamplesOverlap", "0.5")
   ),
   panelStartPosition: (() => {
     const v = readString("panelStartPosition", "bottom-right");
@@ -987,15 +887,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   noteFilesPath: readString("noteFilesPath", ""),
   isSignedIn: false,
 
-  transcriptionMode: (() => {
-    const v = readString("transcriptionMode", "providers");
-    if (v === "providers" || v === "local" || v === "self-hosted") return v;
-    return "providers" as InferenceMode;
-  })(),
-  remoteTranscriptionType: (() => {
-    const v = readString("remoteTranscriptionType", "lan");
-    return v === "openai-compatible" ? "openai-compatible" : ("lan" as SelfHostedType);
-  })(),
   remoteTranscriptionUrl: readString("remoteTranscriptionUrl", ""),
   cleanupMode: (() => {
     const v = readString("cleanupMode", "providers");
@@ -1004,26 +895,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   })(),
   cleanupRemoteUrl: readString("cleanupRemoteUrl", ""),
 
-  meetingTranscriptionMode: (() => {
-    const v = readString("meetingTranscriptionMode", "providers");
-    if (v === "providers" || v === "local" || v === "self-hosted") return v;
-    return "providers" as InferenceMode;
-  })(),
-  meetingUseLocalWhisper: readBoolean("meetingUseLocalWhisper", false),
-  meetingWhisperModel: readString("meetingWhisperModel", ""),
-  meetingLocalTranscriptionProvider: (readString("meetingLocalTranscriptionProvider", "whisper") ===
-  "nvidia"
-    ? "nvidia"
-    : "whisper") as LocalTranscriptionProvider,
-  meetingParakeetModel: readString("meetingParakeetModel", ""),
-  meetingCloudTranscriptionProvider: readString("meetingCloudTranscriptionProvider", ""),
-  meetingCloudTranscriptionModel: readString("meetingCloudTranscriptionModel", ""),
-  meetingCloudTranscriptionBaseUrl: readString("meetingCloudTranscriptionBaseUrl", ""),
-  meetingCloudTranscriptionMode: readString("meetingCloudTranscriptionMode", ""),
-  meetingRemoteTranscriptionType: (() => {
-    const v = readString("meetingRemoteTranscriptionType", "lan");
-    return v === "openai-compatible" ? "openai-compatible" : ("lan" as SelfHostedType);
-  })(),
+  meetingGigaamBaseUrl: readMigratedString(
+    "meetingGigaamBaseUrl",
+    "meetingCloudTranscriptionBaseUrl",
+    ""
+  ),
   meetingRemoteTranscriptionUrl: readString("meetingRemoteTranscriptionUrl", ""),
 
   noteFormattingMode: (() => {
@@ -1036,33 +912,13 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   noteFormattingCloudMode: readString("noteFormattingCloudMode", ""),
   noteFormattingCloudBaseUrl: readString("noteFormattingCloudBaseUrl", ""),
   noteFormattingRemoteUrl: readString("noteFormattingRemoteUrl", ""),
-  noteFormattingCustomApiKey: readString("noteFormattingCustomApiKey", ""),
 
-  setTranscriptionMode: createStringSetter("transcriptionMode") as (mode: InferenceMode) => void,
-  setRemoteTranscriptionType: createStringSetter("remoteTranscriptionType") as (
-    type: SelfHostedType
-  ) => void,
   setRemoteTranscriptionUrl: createStringSetter("remoteTranscriptionUrl"),
+  setGigaamBaseUrl: createStringSetter("gigaamBaseUrl"),
   setCleanupMode: createStringSetter("cleanupMode") as (mode: InferenceMode) => void,
   setCleanupRemoteUrl: createStringSetter("cleanupRemoteUrl"),
 
-  setMeetingTranscriptionMode: createStringSetter("meetingTranscriptionMode") as (
-    mode: InferenceMode
-  ) => void,
-  setMeetingUseLocalWhisper: createBooleanSetter("meetingUseLocalWhisper"),
-  setMeetingWhisperModel: createStringSetter("meetingWhisperModel"),
-  setMeetingLocalTranscriptionProvider: (value: LocalTranscriptionProvider) => {
-    if (isBrowser) localStorage.setItem("meetingLocalTranscriptionProvider", value);
-    useSettingsStore.setState({ meetingLocalTranscriptionProvider: value });
-  },
-  setMeetingParakeetModel: createStringSetter("meetingParakeetModel"),
-  setMeetingCloudTranscriptionProvider: createStringSetter("meetingCloudTranscriptionProvider"),
-  setMeetingCloudTranscriptionModel: createStringSetter("meetingCloudTranscriptionModel"),
-  setMeetingCloudTranscriptionBaseUrl: createStringSetter("meetingCloudTranscriptionBaseUrl"),
-  setMeetingCloudTranscriptionMode: createStringSetter("meetingCloudTranscriptionMode"),
-  setMeetingRemoteTranscriptionType: createStringSetter("meetingRemoteTranscriptionType") as (
-    type: SelfHostedType
-  ) => void,
+  setMeetingGigaamBaseUrl: createStringSetter("meetingGigaamBaseUrl"),
   setMeetingRemoteTranscriptionUrl: createStringSetter("meetingRemoteTranscriptionUrl"),
 
   setNoteFormattingMode: createStringSetter("noteFormattingMode") as (mode: InferenceMode) => void,
@@ -1071,8 +927,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setNoteFormattingCloudMode: createStringSetter("noteFormattingCloudMode"),
   setNoteFormattingCloudBaseUrl: createStringSetter("noteFormattingCloudBaseUrl"),
   setNoteFormattingRemoteUrl: createStringSetter("noteFormattingRemoteUrl"),
-  setNoteFormattingCustomApiKey: createStringSetter("noteFormattingCustomApiKey"),
-
   chatAgentModel: readString("chatAgentModel", "openai/gpt-oss-120b"),
   chatAgentProvider: readString("chatAgentProvider", "groq"),
   chatAgentKey: readString("chatAgentKey", ""),
@@ -1084,7 +938,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   })(),
   chatAgentRemoteUrl: readString("chatAgentRemoteUrl", ""),
   chatAgentCloudBaseUrl: readString("chatAgentCloudBaseUrl", ""),
-  chatAgentCustomApiKey: readString("chatAgentCustomApiKey", ""),
 
   dictationAgentMode: (() => {
     const v = readString("dictationAgentMode", "");
@@ -1096,7 +949,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   dictationAgentCloudMode: readString("dictationAgentCloudMode", ""),
   dictationAgentCloudBaseUrl: readString("dictationAgentCloudBaseUrl", ""),
   dictationAgentRemoteUrl: readString("dictationAgentRemoteUrl", ""),
-  dictationAgentCustomApiKey: readString("dictationAgentCustomApiKey", ""),
 
   cleanupDisableThinking: readBoolean("cleanupDisableThinking", true),
   dictationAgentDisableThinking: readBoolean("dictationAgentDisableThinking", true),
@@ -1120,34 +972,26 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setDictationAgentCloudMode: createStringSetter("dictationAgentCloudMode"),
   setDictationAgentCloudBaseUrl: createStringSetter("dictationAgentCloudBaseUrl"),
   setDictationAgentRemoteUrl: createStringSetter("dictationAgentRemoteUrl"),
-  setDictationAgentCustomApiKey: createStringSetter("dictationAgentCustomApiKey"),
 
   setCleanupDisableThinking: createBooleanSetter("cleanupDisableThinking"),
   setDictationAgentDisableThinking: createBooleanSetter("dictationAgentDisableThinking"),
   setNoteFormattingDisableThinking: createBooleanSetter("noteFormattingDisableThinking"),
   setChatAgentDisableThinking: createBooleanSetter("chatAgentDisableThinking"),
 
-  setUseLocalWhisper: createBooleanSetter("useLocalWhisper"),
-  setWhisperModel: createStringSetter("whisperModel"),
-  setLocalTranscriptionProvider: (value: LocalTranscriptionProvider) => {
-    if (isBrowser) localStorage.setItem("localTranscriptionProvider", value);
-    set({ localTranscriptionProvider: value });
+  setAllowOpenAIFallback: () => {
+    if (isBrowser) localStorage.setItem("allowOpenAIFallback", "false");
+    set({ allowOpenAIFallback: false });
   },
-  setParakeetModel: createStringSetter("parakeetModel"),
-  setAllowOpenAIFallback: createBooleanSetter("allowOpenAIFallback"),
-  setAllowLocalFallback: createBooleanSetter("allowLocalFallback"),
-  setFallbackWhisperModel: createStringSetter("fallbackWhisperModel"),
+  setAllowLocalFallback: () => {
+    if (isBrowser) localStorage.setItem("allowLocalFallback", "false");
+    set({ allowLocalFallback: false });
+  },
   setPreferredLanguage: () => {
     if (isBrowser) localStorage.setItem("preferredLanguage", FIXED_TRANSCRIPTION_LANGUAGE);
     set({ preferredLanguage: FIXED_TRANSCRIPTION_LANGUAGE });
   },
-  setCloudTranscriptionProvider: createStringSetter("cloudTranscriptionProvider"),
-  setCloudTranscriptionModel: createStringSetter("cloudTranscriptionModel"),
-  setCloudTranscriptionBaseUrl: createStringSetter("cloudTranscriptionBaseUrl"),
-  setCloudTranscriptionMode: createStringSetter("cloudTranscriptionMode"),
   setCleanupCloudMode: createStringSetter("cleanupCloudMode"),
   setCleanupCloudBaseUrl: createStringSetter("cleanupCloudBaseUrl"),
-  setAssemblyAiStreaming: createBooleanSetter("assemblyAiStreaming"),
   setAutoGenerateNoteTitle: createBooleanSetter("autoGenerateNoteTitle"),
   setUseCleanupModel: createBooleanSetter("useCleanupModel"),
   setUseDictationAgent: createBooleanSetter("useDictationAgent"),
@@ -1169,42 +1013,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     }
   },
 
-  setOpenaiApiKey: (key: string) => {
-    set({ openaiApiKey: key });
-    debouncedSaveSecret("openai", key);
-    invalidateApiKeyCaches("openai");
-  },
-  setAnthropicApiKey: (key: string) => {
-    set({ anthropicApiKey: key });
-    debouncedSaveSecret("anthropic", key);
-    invalidateApiKeyCaches("anthropic");
-  },
-  setGeminiApiKey: (key: string) => {
-    set({ geminiApiKey: key });
-    debouncedSaveSecret("gemini", key);
-    invalidateApiKeyCaches("gemini");
-  },
-  setGroqApiKey: (key: string) => {
-    set({ groqApiKey: key });
-    debouncedSaveSecret("groq", key);
-    invalidateApiKeyCaches("groq");
-  },
-  setMistralApiKey: (key: string) => {
-    set({ mistralApiKey: key });
-    debouncedSaveSecret("mistral", key);
-    invalidateApiKeyCaches("mistral");
-  },
-  setCustomTranscriptionApiKey: (key: string) => {
-    set({ customTranscriptionApiKey: key });
-    debouncedSaveSecret("customTranscription", key);
-    invalidateApiKeyCaches("custom");
-  },
-  setCleanupCustomApiKey: (key: string) => {
-    set({ cleanupCustomApiKey: key });
-    debouncedSaveSecret("cleanupCustom", key);
-    invalidateApiKeyCaches("custom");
-  },
-
   // Enterprise provider setters
   setBedrockAuthMode: (value: string) => {
     if (isBrowser) localStorage.setItem("bedrockAuthMode", value);
@@ -1222,30 +1030,10 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     window.electronAPI?.saveBedrockProfile?.(value);
     debouncedPersistToEnv();
   },
-  setBedrockAccessKeyId: (key: string) => {
-    set({ bedrockAccessKeyId: key });
-    debouncedSaveSecret("bedrockAccessKeyId", key);
-    debouncedPersistToEnv();
-  },
-  setBedrockSecretAccessKey: (key: string) => {
-    set({ bedrockSecretAccessKey: key });
-    debouncedSaveSecret("bedrockSecretAccessKey", key);
-    debouncedPersistToEnv();
-  },
-  setBedrockSessionToken: (key: string) => {
-    set({ bedrockSessionToken: key });
-    debouncedSaveSecret("bedrockSessionToken", key);
-    debouncedPersistToEnv();
-  },
   setAzureEndpoint: (value: string) => {
     if (isBrowser) localStorage.setItem("azureEndpoint", value);
     set({ azureEndpoint: value });
     window.electronAPI?.saveAzureEndpoint?.(value);
-    debouncedPersistToEnv();
-  },
-  setAzureApiKey: (key: string) => {
-    set({ azureApiKey: key });
-    debouncedSaveSecret("azureApiKey", key);
     debouncedPersistToEnv();
   },
   setAzureDeploymentName: (value: string) => {
@@ -1274,11 +1062,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (isBrowser) localStorage.setItem("vertexLocation", value);
     set({ vertexLocation: value });
     window.electronAPI?.saveVertexLocation?.(value);
-    debouncedPersistToEnv();
-  },
-  setVertexApiKey: (key: string) => {
-    set({ vertexApiKey: key });
-    debouncedSaveSecret("vertexApiKey", key);
     debouncedPersistToEnv();
   },
 
@@ -1413,69 +1196,69 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (isBrowser) localStorage.setItem("dictationSileroEnabled", String(value));
     useSettingsStore.setState({ dictationSileroEnabled: value });
     if (isBrowser) {
-      window.electronAPI?.setWhisperVadConfig?.({ dictationSileroEnabled: value });
+      window.electronAPI?.setSpeechVadConfig?.({ dictationSileroEnabled: value });
     }
   },
   setNoteRecordingSileroEnabled: (value: boolean) => {
     if (isBrowser) localStorage.setItem("noteRecordingSileroEnabled", String(value));
     useSettingsStore.setState({ noteRecordingSileroEnabled: value });
     if (isBrowser) {
-      window.electronAPI?.setWhisperVadConfig?.({ noteRecordingSileroEnabled: value });
+      window.electronAPI?.setSpeechVadConfig?.({ noteRecordingSileroEnabled: value });
     }
   },
   setMeetingSileroEnabled: (value: boolean) => {
     if (isBrowser) localStorage.setItem("meetingSileroEnabled", String(value));
     useSettingsStore.setState({ meetingSileroEnabled: value });
     if (isBrowser) {
-      window.electronAPI?.setWhisperVadConfig?.({ meetingSileroEnabled: value });
+      window.electronAPI?.setSpeechVadConfig?.({ meetingSileroEnabled: value });
     }
   },
-  setWhisperVadThreshold: (value: number) => {
+  setSpeechVadThreshold: (value: number) => {
     const next = clampVadValue("threshold", value);
-    if (isBrowser) localStorage.setItem("whisperVadThreshold", String(next));
-    useSettingsStore.setState({ whisperVadThreshold: next });
+    if (isBrowser) localStorage.setItem("speechVadThreshold", String(next));
+    useSettingsStore.setState({ speechVadThreshold: next });
     if (isBrowser) {
-      window.electronAPI?.setWhisperVadConfig?.({ threshold: next });
+      window.electronAPI?.setSpeechVadConfig?.({ threshold: next });
     }
   },
-  setWhisperVadMinSpeechDurationMs: (value: number) => {
+  setSpeechVadMinSpeechDurationMs: (value: number) => {
     const next = clampVadValue("minSpeechDurationMs", value);
-    if (isBrowser) localStorage.setItem("whisperVadMinSpeechDurationMs", String(next));
-    useSettingsStore.setState({ whisperVadMinSpeechDurationMs: next });
+    if (isBrowser) localStorage.setItem("speechVadMinSpeechDurationMs", String(next));
+    useSettingsStore.setState({ speechVadMinSpeechDurationMs: next });
     if (isBrowser) {
-      window.electronAPI?.setWhisperVadConfig?.({ minSpeechDurationMs: next });
+      window.electronAPI?.setSpeechVadConfig?.({ minSpeechDurationMs: next });
     }
   },
-  setWhisperVadMinSilenceDurationMs: (value: number) => {
+  setSpeechVadMinSilenceDurationMs: (value: number) => {
     const next = clampVadValue("minSilenceDurationMs", value);
-    if (isBrowser) localStorage.setItem("whisperVadMinSilenceDurationMs", String(next));
-    useSettingsStore.setState({ whisperVadMinSilenceDurationMs: next });
+    if (isBrowser) localStorage.setItem("speechVadMinSilenceDurationMs", String(next));
+    useSettingsStore.setState({ speechVadMinSilenceDurationMs: next });
     if (isBrowser) {
-      window.electronAPI?.setWhisperVadConfig?.({ minSilenceDurationMs: next });
+      window.electronAPI?.setSpeechVadConfig?.({ minSilenceDurationMs: next });
     }
   },
-  setWhisperVadMaxSpeechDurationS: (value: number) => {
+  setSpeechVadMaxSpeechDurationS: (value: number) => {
     const next = clampVadValue("maxSpeechDurationS", value);
-    if (isBrowser) localStorage.setItem("whisperVadMaxSpeechDurationS", String(next));
-    useSettingsStore.setState({ whisperVadMaxSpeechDurationS: next });
+    if (isBrowser) localStorage.setItem("speechVadMaxSpeechDurationS", String(next));
+    useSettingsStore.setState({ speechVadMaxSpeechDurationS: next });
     if (isBrowser) {
-      window.electronAPI?.setWhisperVadConfig?.({ maxSpeechDurationS: next });
+      window.electronAPI?.setSpeechVadConfig?.({ maxSpeechDurationS: next });
     }
   },
-  setWhisperVadSpeechPadMs: (value: number) => {
+  setSpeechVadSpeechPadMs: (value: number) => {
     const next = clampVadValue("speechPadMs", value);
-    if (isBrowser) localStorage.setItem("whisperVadSpeechPadMs", String(next));
-    useSettingsStore.setState({ whisperVadSpeechPadMs: next });
+    if (isBrowser) localStorage.setItem("speechVadSpeechPadMs", String(next));
+    useSettingsStore.setState({ speechVadSpeechPadMs: next });
     if (isBrowser) {
-      window.electronAPI?.setWhisperVadConfig?.({ speechPadMs: next });
+      window.electronAPI?.setSpeechVadConfig?.({ speechPadMs: next });
     }
   },
-  setWhisperVadSamplesOverlap: (value: number) => {
+  setSpeechVadSamplesOverlap: (value: number) => {
     const next = clampVadValue("samplesOverlap", value);
-    if (isBrowser) localStorage.setItem("whisperVadSamplesOverlap", String(next));
-    useSettingsStore.setState({ whisperVadSamplesOverlap: next });
+    if (isBrowser) localStorage.setItem("speechVadSamplesOverlap", String(next));
+    useSettingsStore.setState({ speechVadSamplesOverlap: next });
     if (isBrowser) {
-      window.electronAPI?.setWhisperVadConfig?.({ samplesOverlap: next });
+      window.electronAPI?.setSpeechVadConfig?.({ samplesOverlap: next });
     }
   },
   setPanelStartPosition: (position: "bottom-right" | "center" | "bottom-left") => {
@@ -1544,34 +1327,17 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setChatAgentMode: createStringSetter("chatAgentMode") as (mode: InferenceMode) => void,
   setChatAgentCloudBaseUrl: createStringSetter("chatAgentCloudBaseUrl"),
   setChatAgentRemoteUrl: createStringSetter("chatAgentRemoteUrl"),
-  setChatAgentCustomApiKey: createStringSetter("chatAgentCustomApiKey"),
 
   updateTranscriptionSettings: (settings: Partial<TranscriptionSettings>) => {
     const s = useSettingsStore.getState();
-    if (settings.useLocalWhisper !== undefined) s.setUseLocalWhisper(settings.useLocalWhisper);
     if (settings.uiLanguage !== undefined) s.setUiLanguage(settings.uiLanguage);
-    if (settings.whisperModel !== undefined) s.setWhisperModel(settings.whisperModel);
-    if (settings.localTranscriptionProvider !== undefined)
-      s.setLocalTranscriptionProvider(settings.localTranscriptionProvider);
-    if (settings.parakeetModel !== undefined) s.setParakeetModel(settings.parakeetModel);
     if (settings.allowOpenAIFallback !== undefined)
       s.setAllowOpenAIFallback(settings.allowOpenAIFallback);
     if (settings.allowLocalFallback !== undefined)
       s.setAllowLocalFallback(settings.allowLocalFallback);
-    if (settings.fallbackWhisperModel !== undefined)
-      s.setFallbackWhisperModel(settings.fallbackWhisperModel);
     if (settings.preferredLanguage !== undefined)
       s.setPreferredLanguage(settings.preferredLanguage);
-    if (settings.cloudTranscriptionProvider !== undefined)
-      s.setCloudTranscriptionProvider(settings.cloudTranscriptionProvider);
-    if (settings.cloudTranscriptionModel !== undefined)
-      s.setCloudTranscriptionModel(settings.cloudTranscriptionModel);
-    if (settings.cloudTranscriptionBaseUrl !== undefined)
-      s.setCloudTranscriptionBaseUrl(settings.cloudTranscriptionBaseUrl);
-    if (settings.cloudTranscriptionMode !== undefined)
-      s.setCloudTranscriptionMode(settings.cloudTranscriptionMode);
-    if (settings.assemblyAiStreaming !== undefined)
-      s.setAssemblyAiStreaming(settings.assemblyAiStreaming);
+    if (settings.gigaamBaseUrl !== undefined) s.setGigaamBaseUrl(settings.gigaamBaseUrl);
     if (settings.showTranscriptionPreview !== undefined)
       s.setShowTranscriptionPreview(settings.showTranscriptionPreview);
   },
@@ -1588,18 +1354,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     if (settings.cleanupCloudMode !== undefined) s.setCleanupCloudMode(settings.cleanupCloudMode);
   },
 
-  updateApiKeys: (keys: Partial<ApiKeySettings>) => {
-    const s = useSettingsStore.getState();
-    if (keys.openaiApiKey !== undefined) s.setOpenaiApiKey(keys.openaiApiKey);
-    if (keys.anthropicApiKey !== undefined) s.setAnthropicApiKey(keys.anthropicApiKey);
-    if (keys.geminiApiKey !== undefined) s.setGeminiApiKey(keys.geminiApiKey);
-    if (keys.groqApiKey !== undefined) s.setGroqApiKey(keys.groqApiKey);
-    if (keys.mistralApiKey !== undefined) s.setMistralApiKey(keys.mistralApiKey);
-    if (keys.customTranscriptionApiKey !== undefined)
-      s.setCustomTranscriptionApiKey(keys.customTranscriptionApiKey);
-    if (keys.cleanupCustomApiKey !== undefined) s.setCleanupCustomApiKey(keys.cleanupCustomApiKey);
-  },
-
   updateChatAgentSettings: (settings: Partial<ChatAgentSettings>) => {
     const s = useSettingsStore.getState();
     if (settings.chatAgentModel !== undefined) s.setChatAgentModel(settings.chatAgentModel);
@@ -1613,8 +1367,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
 // --- Selectors (derived state, not stored) ---
 
-export const selectIsCloudCleanupMode = (_state: SettingsState) => false;
-
 export const selectEffectiveCleanupProvider = (state: SettingsState) => state.cleanupProvider;
 
 export const selectIsCloudChatAgentMode = (_state: SettingsState) => false;
@@ -1622,39 +1374,15 @@ export const selectIsCloudChatAgentMode = (_state: SettingsState) => false;
 export const selectIsCloudNoteFormattingMode = (_state: SettingsState) => false;
 
 export interface ResolvedMeetingTranscription {
-  useLocalWhisper: boolean;
-  whisperModel: string;
-  localTranscriptionProvider: LocalTranscriptionProvider;
-  parakeetModel: string;
-  cloudTranscriptionProvider: string;
-  cloudTranscriptionModel: string;
-  cloudTranscriptionBaseUrl: string;
-  cloudTranscriptionMode: string;
-  transcriptionMode: InferenceMode;
-  remoteTranscriptionType: SelfHostedType;
+  gigaamBaseUrl: string;
   remoteTranscriptionUrl: string;
 }
 
 export const selectResolvedMeetingTranscription = (
   state: SettingsState
 ): ResolvedMeetingTranscription => {
-  const catalog = useStreamingProvidersStore.getState().providers;
-  // TODO(1.8.0): Catalog has one cloud entry today (OpenAI Realtime).
-  // When a second is added, resolve as `meetingCloudTranscriptionProvider || cloudTranscriptionProvider || catalog[0]?.id`, then validate against catalog.
-  const cloudTranscriptionProvider = catalog?.[0]?.id ?? "";
-
   return {
-    useLocalWhisper: state.meetingUseLocalWhisper,
-    whisperModel: state.meetingWhisperModel || state.whisperModel,
-    localTranscriptionProvider: state.meetingLocalTranscriptionProvider,
-    parakeetModel: state.meetingParakeetModel || state.parakeetModel,
-    cloudTranscriptionProvider,
-    cloudTranscriptionModel: state.meetingCloudTranscriptionModel || state.cloudTranscriptionModel,
-    cloudTranscriptionBaseUrl:
-      state.meetingCloudTranscriptionBaseUrl || state.cloudTranscriptionBaseUrl || "",
-    cloudTranscriptionMode: state.meetingCloudTranscriptionMode || state.cloudTranscriptionMode,
-    transcriptionMode: state.meetingTranscriptionMode,
-    remoteTranscriptionType: state.meetingRemoteTranscriptionType,
+    gigaamBaseUrl: state.meetingGigaamBaseUrl || state.gigaamBaseUrl || "",
     remoteTranscriptionUrl: state.meetingRemoteTranscriptionUrl || state.remoteTranscriptionUrl,
   };
 };
@@ -1688,7 +1416,6 @@ export interface ResolvedLLMConfig {
   cloudMode?: string;
   cloudBaseUrl?: string;
   remoteUrl?: string;
-  customApiKey?: string;
   disableThinking: boolean;
 }
 
@@ -1724,7 +1451,6 @@ export const selectResolvedLLMConfig = (
         : undefined) || fallback?.cloudMode,
     cloudBaseUrl: read("cloudBaseUrl") || fallback?.cloudBaseUrl,
     remoteUrl: read("remoteUrl") || fallback?.remoteUrl,
-    customApiKey: read("customApiKey"),
     disableThinking,
   };
 };
@@ -1741,13 +1467,6 @@ export function setResolvedLLMConfig(
     if (!storeKey) continue;
     const storedValue =
       typeof value === "string" ? normalizeAuthBackedSetting(storeKey as string, value) : value;
-    // cleanupCustomApiKey is a secret kept in the OS secure store, not
-    // localStorage (which is stripped on startup). Route it through the
-    // dedicated setter so it survives restarts.
-    if (storeKey === "cleanupCustomApiKey") {
-      useSettingsStore.getState().setCleanupCustomApiKey(storedValue as string);
-      continue;
-    }
     if (isBrowser) {
       localStorage.setItem(
         storeKey as string,
@@ -1769,18 +1488,6 @@ export function getSettings() {
   return useSettingsStore.getState();
 }
 
-export function getEffectiveCleanupModel() {
-  const state = useSettingsStore.getState();
-  if (selectIsCloudCleanupMode(state)) {
-    return "";
-  }
-  return state.cleanupModel;
-}
-
-export function isCloudCleanupMode() {
-  return selectIsCloudCleanupMode(useSettingsStore.getState());
-}
-
 // --- Initialization ---
 
 let hasInitialized = false;
@@ -1791,64 +1498,11 @@ export async function initializeSettings(): Promise<void> {
 
   if (!isBrowser) return;
 
+  clearLegacySecretLocalStorage();
+
   const state = useSettingsStore.getState();
 
   if (window.electronAPI) {
-    try {
-      const [
-        openai,
-        anthropic,
-        gemini,
-        groq,
-        mistral,
-        customTx,
-        customRx,
-        bedrockAccessKeyId,
-        bedrockSecretAccessKey,
-        bedrockSessionToken,
-        azureApiKey,
-        vertexApiKey,
-      ] = await Promise.all([
-        window.electronAPI.getOpenAIKey?.(),
-        window.electronAPI.getAnthropicKey?.(),
-        window.electronAPI.getGeminiKey?.(),
-        window.electronAPI.getGroqKey?.(),
-        window.electronAPI.getMistralKey?.(),
-        window.electronAPI.getCustomTranscriptionKey?.(),
-        window.electronAPI.getCleanupCustomKey?.(),
-        window.electronAPI.getBedrockAccessKeyId?.(),
-        window.electronAPI.getBedrockSecretAccessKey?.(),
-        window.electronAPI.getBedrockSessionToken?.(),
-        window.electronAPI.getAzureApiKey?.(),
-        window.electronAPI.getVertexApiKey?.(),
-      ]);
-
-      useSettingsStore.setState({
-        openaiApiKey: openai || "",
-        anthropicApiKey: anthropic || "",
-        geminiApiKey: gemini || "",
-        groqApiKey: groq || "",
-        mistralApiKey: mistral || "",
-        customTranscriptionApiKey: customTx || "",
-        cleanupCustomApiKey: customRx || "",
-        bedrockAccessKeyId: bedrockAccessKeyId || "",
-        bedrockSecretAccessKey: bedrockSecretAccessKey || "",
-        bedrockSessionToken: bedrockSessionToken || "",
-        azureApiKey: azureApiKey || "",
-        vertexApiKey: vertexApiKey || "",
-      });
-
-      for (const key of STALE_SECRET_LOCALSTORAGE_KEYS) {
-        localStorage.removeItem(key);
-      }
-    } catch (err) {
-      logger.warn(
-        "Failed to hydrate secrets from main process",
-        { error: (err as Error).message },
-        "settings"
-      );
-    }
-
     // Sync dictation key from main process.
     // localStorage holds the user's preferred hotkey. Only populate from .env
     // when localStorage is empty (fresh install / cleared data).
@@ -1995,20 +1649,20 @@ export async function initializeSettings(): Promise<void> {
 
     try {
       const currentState = useSettingsStore.getState();
-      await window.electronAPI.setWhisperVadConfig?.({
+      await window.electronAPI.setSpeechVadConfig?.({
         dictationSileroEnabled: currentState.dictationSileroEnabled,
         noteRecordingSileroEnabled: currentState.noteRecordingSileroEnabled,
         meetingSileroEnabled: currentState.meetingSileroEnabled,
-        threshold: currentState.whisperVadThreshold,
-        minSpeechDurationMs: currentState.whisperVadMinSpeechDurationMs,
-        minSilenceDurationMs: currentState.whisperVadMinSilenceDurationMs,
-        maxSpeechDurationS: currentState.whisperVadMaxSpeechDurationS,
-        speechPadMs: currentState.whisperVadSpeechPadMs,
-        samplesOverlap: currentState.whisperVadSamplesOverlap,
+        threshold: currentState.speechVadThreshold,
+        minSpeechDurationMs: currentState.speechVadMinSpeechDurationMs,
+        minSilenceDurationMs: currentState.speechVadMinSilenceDurationMs,
+        maxSpeechDurationS: currentState.speechVadMaxSpeechDurationS,
+        speechPadMs: currentState.speechVadSpeechPadMs,
+        samplesOverlap: currentState.speechVadSamplesOverlap,
       });
     } catch (err) {
       logger.warn(
-        "Failed to sync whisper VAD config on startup",
+        "Failed to sync speech VAD config on startup",
         { error: (err as Error).message },
         "settings"
       );

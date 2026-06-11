@@ -35,7 +35,7 @@ appimageTools.wrapType2 {
     libsecret # Electron safeStorage keyring (API keys at rest)
     libnotify # Electron desktop notifications
     libpulseaudio # Chromium mic capture via PulseAudio/PipeWire
-    stdenv.cc.cc.lib # libstdc++/libgomp for bundled whisper/llama/sherpa/qdrant
+    stdenv.cc.cc.lib # libstdc++/libgomp for bundled llama/sherpa/qdrant
   ];
 
   extraInstallCommands = ''

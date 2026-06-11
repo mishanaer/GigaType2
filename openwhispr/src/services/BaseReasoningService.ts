@@ -8,7 +8,6 @@ export interface ReasoningConfig {
   systemPrompt?: string;
   lanUrl?: string;
   baseUrl?: string;
-  customApiKey?: string;
   provider?: string;
   disableThinking?: boolean;
 }

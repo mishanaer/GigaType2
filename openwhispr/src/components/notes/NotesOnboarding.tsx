@@ -41,8 +41,6 @@ export default function NotesOnboarding({ onComplete }: NotesOnboardingProps) {
   const setCleanupMode = useSettingsStore((s) => s.setCleanupMode);
   const cleanupCloudBaseUrl = useSettingsStore((s) => s.cleanupCloudBaseUrl);
   const setCleanupCloudBaseUrl = useSettingsStore((s) => s.setCleanupCloudBaseUrl);
-  const cleanupCustomApiKey = useSettingsStore((s) => s.cleanupCustomApiKey);
-  const setCleanupCustomApiKey = useSettingsStore((s) => s.setCleanupCustomApiKey);
 
   const { alertDialog, hideAlertDialog } = useDialogs();
   const {
@@ -166,8 +164,6 @@ export default function NotesOnboarding({ onComplete }: NotesOnboardingProps) {
                   setLocalReasoningProvider={setCleanupProvider}
                   cloudReasoningBaseUrl={cleanupCloudBaseUrl}
                   setCloudReasoningBaseUrl={setCleanupCloudBaseUrl}
-                  customReasoningApiKey={cleanupCustomApiKey}
-                  setCustomReasoningApiKey={setCleanupCustomApiKey}
                   setReasoningMode={setCleanupMode}
                 />
               </div>

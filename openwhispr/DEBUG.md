@@ -36,7 +36,7 @@ OPENWHISPR_LOG_LEVEL=debug
 |-------|---------|
 | FFmpeg | Path resolution, permissions, ASAR unpacking |
 | Audio Recording | Permission requests, chunk sizes, audio levels |
-| Audio Processing | File creation, Whisper command, process output |
+| Audio Processing | GigaAM endpoint resolution, request status, response parsing |
 | IPC | Messages between renderer and main process |
 | Agent Mode | Streaming responses, conversation management, model selection |
 | Meeting Detection | Process monitoring, audio activity, calendar event matching |
@@ -55,9 +55,9 @@ Look for:
 
 ### Transcription Fails
 Look for:
-- `Whisper stderr:` → whisper.cpp/FFmpeg errors
-- `Process closed with code: [non-zero]` → Process failure
-- `Failed to parse Whisper output` → Invalid JSON
+- `GigaAM sidecar` → sidecar startup/status errors
+- `STT endpoint resolution failed` → invalid or insecure GigaAM endpoint
+- `Transcription API error response` → GigaAM request failed
 
 ### Permission Issues
 Look for:

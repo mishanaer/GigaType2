@@ -346,7 +346,7 @@
       "ollama": "（Ollama）",
       "localAi": "（LocalAI）",
       "apiKeyOptional": "API Key（選填）",
-      "apiKeyHelp": "選填。作為 Bearer token 傳送以進行驗證。這與你的 OpenAI API Key 無關。",
+      "apiKeyHelp": "Optional. Sent as a Bearer token for endpoint authentication.",
       "applyAndRefresh": "套用並重新整理",
       "queryPrefix": "我們將查詢",
       "querySuffix": "以取得可用模型。",
@@ -407,35 +407,12 @@
       }
     }
   },
-  "transcription": {
-    "deleteModel": {
-      "title": "刪除模型",
-      "description": "確定要刪除此模型嗎？如果之後要使用，需要重新下載。"
-    },
-    "parakeet": {
-      "multilingual": "25 種語言",
-      "english": "英文"
-    },
-    "apiKeyOptional": "API Key（選填）",
-    "getKey": "取得金鑰 ->",
-    "endpointUrl": "端點 URL",
-    "customProvider": "自訂",
-    "fallback": {
-      "whisperModelDescription": "模型",
-      "parakeetModelDescription": "NVIDIA Parakeet 模型"
-    },
-    "whisperModels": "Whisper 模型"
-  },
   "hooks": {
     "audioRecording": {
       "errorTitles": {
         "sessionExpired": "工作階段已過期",
         "offline": "你目前離線",
         "dailyLimitReached": "已達每日上限"
-      },
-      "fallback": {
-        "title": "備援模式",
-        "description": "本機 Whisper 失敗，已改用 OpenAI API。"
       },
       "noAudio": {
         "title": "未偵測到音訊",
@@ -491,15 +468,6 @@
       "downloadInProgress": {
         "title": "下載進行中",
         "description": "請等待目前的下載完成，或先取消它。"
-      },
-      "modelDeleted": {
-        "title": "模型已刪除",
-        "descriptionWithSpace": "模型已成功刪除！釋放了 {{sizeMb}}MB 的磁碟空間。",
-        "description": "模型已成功刪除！"
-      },
-      "deleteFailed": {
-        "title": "刪除失敗",
-        "description": "無法刪除模型：{{error}}"
       },
       "downloadCancelled": {
         "title": "下載已取消",
@@ -1189,7 +1157,7 @@
       "open": "開啟",
       "removeModels": {
         "confirmText": "刪除模型",
-        "description": "這將刪除所有本機快取的 Whisper 模型（{{path}}），並釋放磁碟空間。你可以從模型選擇器重新下載。",
+        "description": "This deletes locally cached models ({{path}}) and frees disk space. You can download them again when needed.",
         "failedDescription": "移除模型時發生錯誤。請再試一次。",
         "failedDescriptionShort": "無法移除快取的模型。",
         "failedTitle": "無法移除模型",
@@ -1515,7 +1483,7 @@
       "transcriptionPreviewDescription": "在浮動視窗中顯示轉錄結果，再進行文字整理",
       "vad": {
         "title": "語音活動偵測",
-        "description": "設定 Silero VAD 如何為本機 Whisper 轉錄偵測並切分語音",
+        "description": "Configure how Silero VAD detects and segments speech.",
         "toggles": {
           "dictation": {
             "title": "聽寫使用 Silero VAD",
@@ -1658,25 +1626,8 @@
   "models": {
     "learnMore": "瞭解更多",
     "descriptions": {
-      "parakeet": {
-        "parakeet_tdt_0_6b_v3": "快速多語言 ASR，自動語言偵測（25 種語言）",
-        "parakeet_unified_en_0_6b": "僅英語 ASR，最先進的準確度（平均 WER 5.91%）"
-      },
-      "whisper": {
-        "tiny": "最快速，品質較低",
-        "base": "均衡表現",
-        "small": "品質更佳，速度較慢",
-        "medium": "高品質",
-        "large": "最佳品質，速度最慢",
-        "turbo": "速度快且品質佳"
-      },
       "transcription": {
-        "openai_gpt_4o_mini_transcribe": "快速且準確的轉錄",
-        "openai_gpt_4o_transcribe": "最高準確度的轉錄",
-        "openai_whisper_1": "原始 Whisper 模型",
-        "groq_whisper_large_v3_turbo": "216 倍即時速度",
-        "groq_whisper_large_v3": "Large v3 模型，快速且精準",
-        "mistral_voxtral_mini_latest": "快速多語言轉錄"
+        "gigaam_v3_e2e_rnnt": "GigaAM speech recognition"
       },
       "cloud": {
         "openai_gpt_5_2": "強大的推理模型",

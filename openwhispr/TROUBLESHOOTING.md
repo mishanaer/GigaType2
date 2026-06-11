@@ -6,7 +6,6 @@
 |-------|---------|
 | Host architecture | `uname -m` |
 | Node architecture | `node -p "process.arch"` |
-| whisper.cpp install | `which whisper` or `which whisper-cpp` |
 | FFmpeg availability | `ffmpeg -version` |
 
 ## Common Issues
@@ -50,14 +49,14 @@
 
 **Causes:**
 - Microphone permission revoked mid-session
-- Stale Whisper cache with corrupted clips
+- GigaAM sidecar unavailable or returning no text
 - Hotkey triggering without audio input
 - Wrong audio input device selected
 
 **Fix:**
 1. Check microphone permissions (see above)
 2. Open sound settings and verify the correct input device is selected
-3. Clear caches: `rm -rf ~/.cache/whisper`
+3. Check GigaAM sidecar status in the app
 4. Try a different hotkey
 5. Re-run onboarding
 
@@ -70,18 +69,15 @@
 2. If using packaged app, try reinstalling
 3. **Windows:** check that antivirus / Windows Defender hasn't quarantined the bundled FFmpeg binary
 
-### whisper.cpp Issues
+### GigaAM Issues
 
-**Symptoms:** Local transcription fails, "whisper.cpp not found"
+**Symptoms:** Transcription fails, GigaAM sidecar unavailable, or endpoint resolution fails.
 
 **Fix:**
-1. The whisper.cpp binary is bundled with the app
-2. If running from source, download the current-platform binary: `npm run download:whisper-cpp`
-3. If bundled binary fails, install via package manager:
-   - macOS: `brew install whisper-cpp`
-   - Linux: Build from source at https://github.com/ggml-org/whisper.cpp
-4. Clear model cache: `rm -rf ~/.cache/openwhispr/whisper-models`
-5. Try cloud transcription as fallback
+1. Check GigaAM sidecar status in the app.
+2. If you override the endpoint, verify `GIGAAM_API_BASE`, `gigaamBaseUrl`, or `remoteTranscriptionUrl`.
+3. Restart the GigaAM sidecar from the app.
+4. Re-run onboarding if the local endpoint was migrated from an older install.
 
 ### Wayland Clipboard Issues (Linux)
 
@@ -120,7 +116,7 @@ GigaType tries clipboard methods in order: `wl-copy` (most reliable) → rendere
 
 **All Platforms:**
 1. Check that meeting detection is enabled in settings
-2. Verify your OpenAI API key is valid (required for Realtime API transcription)
+2. Check GigaAM sidecar status and endpoint configuration
 3. Ensure your meeting app (Zoom, Teams, FaceTime) is running — process detection looks for known meeting applications
 4. If auto-detection fails, you can manually start recording from the meeting notification
 
@@ -144,7 +140,7 @@ GigaType tries clipboard methods in order: `wl-copy` (most reliable) → rendere
 
 **Antivirus / Windows Defender blocking binaries:**
 
-whisper.cpp and FFmpeg may be quarantined silently. Add GigaType to exclusions: Settings → Virus & threat protection → Exclusions.
+FFmpeg or bundled sidecars may be quarantined silently. Add GigaType to exclusions: Settings → Virus & threat protection → Exclusions.
 
 **Permission errors:**
 

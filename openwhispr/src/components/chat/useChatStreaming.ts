@@ -150,7 +150,6 @@ export function useChatStreaming({
             systemPrompt,
             lanUrl: isLanAgent ? settings.chatAgentRemoteUrl : undefined,
             baseUrl: isCustomAgent ? settings.chatAgentCloudBaseUrl || undefined : undefined,
-            customApiKey: isCustomAgent ? settings.chatAgentCustomApiKey || undefined : undefined,
             disableThinking: settings.chatAgentDisableThinking,
           },
           aiTools

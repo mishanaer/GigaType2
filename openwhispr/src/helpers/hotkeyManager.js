@@ -866,7 +866,7 @@ class HotkeyManager extends EventEmitter {
     try {
       const EnvironmentManager = require("./environment");
       const envManager = new EnvironmentManager();
-      await envManager.saveAllKeysToEnvFile();
+      await envManager.saveRuntimeConfigToEnvFile();
       debugLogger.log(`[HotkeyManager] Persisted hotkey "${hotkey}" to .env file`);
     } catch (err) {
       debugLogger.warn("[HotkeyManager] Failed to persist hotkey to .env file:", err.message);

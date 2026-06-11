@@ -12,7 +12,7 @@ function getOutputDir() {
   if (outputDirIndex !== -1 && process.argv[outputDirIndex + 1]) {
     return path.resolve(process.argv[outputDirIndex + 1]);
   }
-  return path.join(__dirname, "..", "resources", "bin", "whisper-vad");
+  return path.join(__dirname, "..", "resources", "bin", "speech-vad");
 }
 
 async function main() {
@@ -21,19 +21,19 @@ async function main() {
   const outputPath = path.join(outputDir, VAD_MODEL_FILE);
 
   if (fs.existsSync(outputPath) && !args.isForce) {
-    console.log(`[whisper-vad-model] ${VAD_MODEL_FILE} already exists`);
+    console.log(`[speech-vad-model] ${VAD_MODEL_FILE} already exists`);
     return;
   }
 
   fs.mkdirSync(outputDir, { recursive: true });
 
-  console.log(`[whisper-vad-model] Downloading ${VAD_MODEL_FILE}`);
+  console.log(`[speech-vad-model] Downloading ${VAD_MODEL_FILE}`);
   try {
     await downloadFile(VAD_MODEL_URL, outputPath);
     const sizeKb = Math.round(fs.statSync(outputPath).size / 1024);
-    console.log(`[whisper-vad-model] Downloaded ${VAD_MODEL_FILE} (${sizeKb}KB)`);
+    console.log(`[speech-vad-model] Downloaded ${VAD_MODEL_FILE} (${sizeKb}KB)`);
   } catch (error) {
-    console.error(`[whisper-vad-model] Download failed: ${error.message}`);
+    console.error(`[speech-vad-model] Download failed: ${error.message}`);
     if (fs.existsSync(outputPath)) fs.unlinkSync(outputPath);
     process.exitCode = 1;
   }

@@ -206,9 +206,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     void window.electronAPI?.markBundleMigrated?.();
 
     try {
-      await window.electronAPI?.saveAllKeysToEnv?.();
+      await window.electronAPI?.saveRuntimeConfigToEnv?.();
     } catch (error) {
-      logger.error("Failed to persist API keys", { error }, "onboarding");
+      logger.error("Failed to persist runtime config", { error }, "onboarding");
     }
 
     return true;

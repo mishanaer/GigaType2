@@ -5,11 +5,10 @@ import {
   isEnterpriseProvider,
 } from "../models/ModelRegistry";
 import { BaseReasoningService, ReasoningConfig } from "./BaseReasoningService";
-import { SecureCache } from "../utils/SecureCache";
 import { withRetry, createApiRetryStrategy } from "../utils/retry";
 import { API_ENDPOINTS, TOKEN_LIMITS, buildApiUrl, ensureV1Suffix } from "../config/constants";
 import logger from "../utils/logger";
-import { getSettings, isCloudCleanupMode } from "../stores/settingsStore";
+import { getSettings } from "../stores/settingsStore";
 import { streamText, stepCountIs } from "ai";
 import { getAIModel } from "./ai/providers";
 import { PROVIDER_REGISTRY, type ProviderContext } from "./ai/inferenceProviders";
@@ -29,20 +28,14 @@ export type AgentStreamChunk =
   | { type: "done"; finishReason?: string };
 
 class ReasoningService extends BaseReasoningService {
-  private apiKeyCache: SecureCache<string>;
   private static readonly MAX_TOOL_STEPS = 20;
-  private cacheCleanupStop: (() => void) | undefined;
   private streamAbortController: AbortController | null = null;
 
   private readonly providerContext: ProviderContext;
 
   constructor() {
     super();
-    this.apiKeyCache = new SecureCache();
-    this.cacheCleanupStop = this.apiKeyCache.startAutoCleanup();
     this.providerContext = {
-      getApiKey: (provider: string) =>
-        this.getApiKey(provider as Parameters<ReasoningService["getApiKey"]>[0]),
       getSystemPrompt: this.getSystemPrompt.bind(this),
       getPreferredLanguage: this.getPreferredLanguage.bind(this),
       getUiLanguage: this.getUiLanguage.bind(this),
@@ -60,81 +53,8 @@ class ReasoningService extends BaseReasoningService {
     return settings.cleanupMode === "self-hosted" && !!settings.cleanupRemoteUrl;
   }
 
-  private async getApiKey(
-    provider: "openai" | "anthropic" | "gemini" | "groq" | "custom"
-  ): Promise<string> {
-    if (provider === "custom") {
-      let customKey = "";
-      try {
-        customKey = (await window.electronAPI?.getCleanupCustomKey?.()) || "";
-      } catch (err) {
-        logger.logReasoning("CUSTOM_KEY_IPC_FALLBACK", { error: (err as Error)?.message });
-      }
-      if (!customKey || !customKey.trim()) {
-        customKey = getSettings().cleanupCustomApiKey || "";
-      }
-      const trimmedKey = customKey.trim();
-
-      logger.logReasoning("CUSTOM_KEY_RETRIEVAL", {
-        provider,
-        hasKey: !!trimmedKey,
-        keyLength: trimmedKey.length,
-      });
-
-      return trimmedKey;
-    }
-
-    let apiKey = this.apiKeyCache.get(provider);
-
-    logger.logReasoning(`${provider.toUpperCase()}_KEY_RETRIEVAL`, {
-      provider,
-      fromCache: !!apiKey,
-      cacheSize: this.apiKeyCache.size || 0,
-    });
-
-    if (!apiKey) {
-      try {
-        const keyGetters = {
-          openai: () => window.electronAPI.getOpenAIKey(),
-          anthropic: () => window.electronAPI.getAnthropicKey(),
-          gemini: () => window.electronAPI.getGeminiKey(),
-          groq: () => window.electronAPI.getGroqKey(),
-        };
-        apiKey = (await keyGetters[provider]()) ?? undefined;
-
-        logger.logReasoning(`${provider.toUpperCase()}_KEY_FETCHED`, {
-          provider,
-          hasKey: !!apiKey,
-          keyLength: apiKey?.length || 0,
-        });
-
-        if (apiKey) {
-          this.apiKeyCache.set(provider, apiKey);
-        }
-      } catch (error) {
-        logger.logReasoning(`${provider.toUpperCase()}_KEY_FETCH_ERROR`, {
-          provider,
-          error: (error as Error).message,
-          stack: (error as Error).stack,
-        });
-      }
-    }
-
-    if (!apiKey) {
-      const errorMsg = `${provider.charAt(0).toUpperCase() + provider.slice(1)} API key not configured`;
-      logger.logReasoning(`${provider.toUpperCase()}_KEY_MISSING`, {
-        provider,
-        error: errorMsg,
-      });
-      throw new Error(errorMsg);
-    }
-
-    return apiKey;
-  }
-
   private async callChatCompletionsApi(
     endpoint: string,
-    apiKey: string,
     model: string,
     text: string,
     agentName: string | null,
@@ -171,7 +91,6 @@ class ReasoningService extends BaseReasoningService {
     logger.logReasoning(`${providerName.toUpperCase()}_REQUEST`, {
       endpoint,
       model,
-      hasApiKey: !!apiKey,
       requestBody: JSON.stringify(requestBody).substring(0, 200),
     });
 
@@ -179,16 +98,9 @@ class ReasoningService extends BaseReasoningService {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 30000);
       try {
-        const headers: Record<string, string> = {
-          "Content-Type": "application/json",
-        };
-        if (apiKey) {
-          headers["Authorization"] = `Bearer ${apiKey}`;
-        }
-
         const res = await fetch(endpoint, {
           method: "POST",
-          headers,
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(requestBody),
           signal: controller.signal,
         });
@@ -342,7 +254,6 @@ class ReasoningService extends BaseReasoningService {
     const isLanCleanup = !!lanOverride || this.isLanCleanupMode();
 
     let endpoint: string;
-    let apiKey = "";
 
     if (isLanCleanup) {
       const rawUrl = lanOverride || settings.cleanupRemoteUrl.trim();
@@ -356,27 +267,14 @@ class ReasoningService extends BaseReasoningService {
       endpoint = `http://127.0.0.1:${serverResult.port}/v1/chat/completions`;
     } else {
       const providerKey = provider as "openai" | "groq" | "gemini" | "anthropic" | "custom";
-      const overrideKey = providerKey === "custom" ? config.customApiKey?.trim() : "";
-      apiKey = overrideKey || (await this.getApiKey(providerKey));
-
-      switch (providerKey) {
-        case "groq":
-          endpoint = buildApiUrl(API_ENDPOINTS.GROQ_BASE, "/chat/completions");
-          break;
-        case "gemini":
-          endpoint = buildApiUrl(API_ENDPOINTS.GEMINI, "/openai/chat/completions");
-          break;
-        case "openai":
-        case "custom":
-          endpoint = buildApiUrl(
-            config.baseUrl?.trim() || getConfiguredOpenAIBase(),
-            "/chat/completions"
-          );
-          break;
-        default:
-          endpoint = buildApiUrl(API_ENDPOINTS.OPENAI_BASE, "/chat/completions");
-          break;
+      if (providerKey !== "custom") {
+        throw new Error(`${providerKey} cloud reasoning is disabled`);
       }
+
+      endpoint = buildApiUrl(
+        config.baseUrl?.trim() || getConfiguredOpenAIBase(),
+        "/chat/completions"
+      );
     }
 
     const apiConfig = getOpenAiApiConfig(model);
@@ -414,9 +312,6 @@ class ReasoningService extends BaseReasoningService {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
-    if (apiKey) {
-      headers["Authorization"] = `Bearer ${apiKey}`;
-    }
 
     this.streamAbortController = new AbortController();
     const controller = this.streamAbortController;
@@ -553,7 +448,6 @@ class ReasoningService extends BaseReasoningService {
       return;
     }
 
-    let apiKey = "";
     let baseURL: string | undefined;
 
     if (isLanCleanup) {
@@ -567,15 +461,16 @@ class ReasoningService extends BaseReasoningService {
       baseURL = `http://127.0.0.1:${serverResult.port}/v1`;
     } else {
       const providerKey = provider as "openai" | "groq" | "gemini" | "anthropic" | "custom";
-      const overrideKey = providerKey === "custom" ? config.customApiKey?.trim() : "";
-      apiKey = overrideKey || (await this.getApiKey(providerKey));
+      if (providerKey !== "custom") {
+        throw new Error(`${providerKey} cloud reasoning is disabled`);
+      }
       baseURL =
         provider === "custom" ? config.baseUrl?.trim() || getConfiguredOpenAIBase() : undefined;
     }
     const apiConfig = getOpenAiApiConfig(model);
 
     const aiProvider = isLocalProvider || isLanCleanup ? "local" : provider;
-    const aiModel = getAIModel(aiProvider, model, apiKey, baseURL);
+    const aiModel = getAIModel(aiProvider, model, baseURL);
 
     const modelDef = getCloudModel(model);
     const userSuppressesThinking = config.disableThinking === true && !!modelDef?.supportsThinking;
@@ -642,63 +537,29 @@ class ReasoningService extends BaseReasoningService {
 
   async isAvailable(): Promise<boolean> {
     try {
-      if (isCloudCleanupMode()) {
-        logger.logReasoning("API_KEY_CHECK", { cloudCleanupMode: true });
-        return true;
-      }
-
       if (this.isLanCleanupMode()) {
-        logger.logReasoning("API_KEY_CHECK", { lanCleanup: true });
+        logger.logReasoning("PROVIDER_AVAILABILITY_CHECK", { lanCleanup: true });
         return true;
       }
 
       const settings = getSettings();
       if (settings.cleanupProvider === "custom" && settings.cleanupCloudBaseUrl?.trim()) {
-        logger.logReasoning("API_KEY_CHECK", {
+        logger.logReasoning("PROVIDER_AVAILABILITY_CHECK", {
           customProvider: true,
           hasCustomEndpoint: true,
         });
         return true;
       }
 
-      // Enterprise providers: detect credentials by provider, short-circuit.
-      // Runtime auth errors (expired SSO, missing ADC) surface via
-      // mapEnterpriseError with actionable remediation copy.
-      if (settings.cleanupProvider === "bedrock") {
-        const hasBedrockCreds =
-          !!settings.bedrockProfile?.trim() ||
-          (!!settings.bedrockAccessKeyId?.trim() && !!settings.bedrockSecretAccessKey?.trim());
-        logger.logReasoning("API_KEY_CHECK", { bedrock: true, hasBedrockCreds });
-        if (hasBedrockCreds) return true;
-      }
-      if (settings.cleanupProvider === "azure") {
-        const hasAzureCreds = !!settings.azureApiKey?.trim() && !!settings.azureEndpoint?.trim();
-        logger.logReasoning("API_KEY_CHECK", { azure: true, hasAzureCreds });
-        if (hasAzureCreds) return true;
-      }
-      if (settings.cleanupProvider === "vertex") {
-        const hasVertexCreds = !!settings.vertexApiKey?.trim() || !!settings.vertexProject?.trim();
-        logger.logReasoning("API_KEY_CHECK", { vertex: true, hasVertexCreds });
-        if (hasVertexCreds) return true;
-      }
-
-      const openaiKey = await window.electronAPI?.getOpenAIKey?.();
-      const anthropicKey = await window.electronAPI?.getAnthropicKey?.();
-      const geminiKey = await window.electronAPI?.getGeminiKey?.();
-      const groqKey = await window.electronAPI?.getGroqKey?.();
       const localAvailable = await window.electronAPI?.checkLocalReasoningAvailable?.();
 
-      logger.logReasoning("API_KEY_CHECK", {
-        hasOpenAI: !!openaiKey,
-        hasAnthropic: !!anthropicKey,
-        hasGemini: !!geminiKey,
-        hasGroq: !!groqKey,
+      logger.logReasoning("PROVIDER_AVAILABILITY_CHECK", {
         hasLocal: !!localAvailable,
       });
 
-      return !!(openaiKey || anthropicKey || geminiKey || groqKey || localAvailable);
+      return !!localAvailable;
     } catch (error) {
-      logger.logReasoning("API_KEY_CHECK_ERROR", {
+      logger.logReasoning("PROVIDER_AVAILABILITY_CHECK_ERROR", {
         error: (error as Error).message,
         stack: (error as Error).stack,
         name: (error as Error).name,
@@ -707,25 +568,8 @@ class ReasoningService extends BaseReasoningService {
     }
   }
 
-  clearApiKeyCache(
-    provider?: "openai" | "anthropic" | "gemini" | "groq" | "mistral" | "custom"
-  ): void {
-    if (provider) {
-      if (provider !== "custom") {
-        this.apiKeyCache.delete(provider);
-      }
-      logger.logReasoning("API_KEY_CACHE_CLEARED", { provider });
-    } else {
-      this.apiKeyCache.clear();
-      logger.logReasoning("API_KEY_CACHE_CLEARED", { provider: "all" });
-    }
-  }
-
   destroy(): void {
     this.cancelActiveStream();
-    if (this.cacheCleanupStop) {
-      this.cacheCleanupStop();
-    }
   }
 }
 

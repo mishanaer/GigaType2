@@ -61,10 +61,7 @@ const DEFAULT_OPENAI_BASE = computeBaseUrl(
 );
 
 const DEFAULT_TRANSCRIPTION_BASE = computeBaseUrl(
-  [
-    env.OPENWHISPR_TRANSCRIPTION_BASE_URL as string | undefined,
-    env.WHISPER_BASE_URL as string | undefined,
-  ],
+  [env.OPENWHISPR_TRANSCRIPTION_BASE_URL as string | undefined],
   DEFAULT_OPENAI_BASE
 );
 
@@ -106,7 +103,6 @@ export const TOKEN_LIMITS = {
 
 // Cache Configuration
 export const CACHE_CONFIG = {
-  API_KEY_TTL: 3600000, // 1 hour in milliseconds
   MODEL_CACHE_SIZE: 3, // Maximum models to keep in memory
   AVAILABILITY_CHECK_TTL: 30000, // 30s for accessibility, FFmpeg, tool availability checks
   PASTE_DELAY_MS: 50, // Delay before paste simulation to allow clipboard to settle

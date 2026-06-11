@@ -8,14 +8,14 @@
 // app startup doesn't eager-load ~100 MB of AWS/Azure/Google SDKs for users
 // who never select an enterprise provider.
 
-function getEnterpriseAIModel(provider, model, apiKey, enterprise) {
+function getEnterpriseAIModel(provider, model, enterprise) {
   switch (provider) {
     case "bedrock":
       return createBedrockModel(model, enterprise);
     case "azure":
-      return createAzureModel(model, apiKey, enterprise);
+      return createAzureModel(model, enterprise);
     case "vertex":
-      return createVertexModel(model, apiKey, enterprise);
+      return createVertexModel(model, enterprise);
     default:
       throw new Error(`Unsupported enterprise provider: ${provider}`);
   }
@@ -33,32 +33,19 @@ function createBedrockModel(model, enterprise) {
     })(model);
   }
 
-  if (enterprise?.bedrockAccessKeyId && enterprise?.bedrockSecretAccessKey) {
-    return createAmazonBedrock({
-      region,
-      accessKeyId: enterprise.bedrockAccessKeyId,
-      secretAccessKey: enterprise.bedrockSecretAccessKey,
-      sessionToken: enterprise.bedrockSessionToken,
-    })(model);
-  }
-
   return createAmazonBedrock({ region })(model);
 }
 
-function createAzureModel(model, apiKey, enterprise) {
+function createAzureModel(model, enterprise) {
   const { createAzure } = require("@ai-sdk/azure");
   return createAzure({
-    apiKey,
     baseURL: enterprise?.azureEndpoint,
     apiVersion: enterprise?.azureApiVersion || "2024-10-21",
   })(model);
 }
 
-function createVertexModel(model, apiKey, enterprise) {
+function createVertexModel(model, enterprise) {
   const { createVertex } = require("@ai-sdk/google-vertex");
-  if (apiKey) {
-    return createVertex({ apiKey })(model);
-  }
   return createVertex({
     project: enterprise?.vertexProject,
     location: enterprise?.vertexLocation || "us-central1",

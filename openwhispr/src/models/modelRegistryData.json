@@ -1,54 +1,4 @@
 {
-  "parakeetModels": {
-    "parakeet-tdt-0.6b-v3": {
-      "name": "Parakeet TDT 0.6B",
-      "description": "Fast multilingual ASR with auto language detection",
-      "size": "680MB",
-      "sizeMb": 680,
-      "language": "multilingual",
-      "supportedLanguages": [
-        "bg",
-        "hr",
-        "cs",
-        "da",
-        "nl",
-        "en",
-        "et",
-        "fi",
-        "fr",
-        "de",
-        "el",
-        "hu",
-        "it",
-        "lv",
-        "lt",
-        "mt",
-        "pl",
-        "pt",
-        "ro",
-        "sk",
-        "sl",
-        "es",
-        "sv",
-        "ru",
-        "uk"
-      ],
-      "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2",
-      "extractDir": "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
-      "descriptionKey": "models.descriptions.parakeet.parakeet_tdt_0_6b_v3"
-    },
-    "parakeet-unified-en-0.6b": {
-      "name": "Parakeet Unified EN 0.6B",
-      "description": "English-only ASR with state-of-the-art accuracy (5.91% avg WER)",
-      "size": "631MB",
-      "sizeMb": 631,
-      "language": "en",
-      "supportedLanguages": ["en"],
-      "downloadUrl": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-unified-en-0.6b-int8-non-streaming.tar.bz2",
-      "extractDir": "sherpa-onnx-nemo-parakeet-unified-en-0.6b-int8-non-streaming",
-      "descriptionKey": "models.descriptions.parakeet.parakeet_unified_en_0_6b"
-    }
-  },
   "diarizationModels": {
     "sherpa-onnx-pyannote-segmentation-3-0": {
       "name": "Pyannote Segmentation 3.0",
@@ -69,126 +19,17 @@
       "descriptionKey": "models.descriptions.diarization.embedding_en"
     }
   },
-  "whisperModels": {
-    "tiny": {
-      "name": "Tiny",
-      "description": "Fastest, lower quality",
-      "size": "75MB",
-      "sizeMb": 75,
-      "expectedSizeBytes": 78000000,
-      "fileName": "ggml-tiny.bin",
-      "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin",
-      "descriptionKey": "models.descriptions.whisper.tiny"
-    },
-    "base": {
-      "name": "Base",
-      "description": "Good balance",
-      "size": "142MB",
-      "sizeMb": 142,
-      "expectedSizeBytes": 148000000,
-      "fileName": "ggml-base.bin",
-      "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin",
-      "recommended": true,
-      "descriptionKey": "models.descriptions.whisper.base"
-    },
-    "small": {
-      "name": "Small",
-      "description": "Better quality, slower",
-      "size": "466MB",
-      "sizeMb": 466,
-      "expectedSizeBytes": 488000000,
-      "fileName": "ggml-small.bin",
-      "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.bin",
-      "descriptionKey": "models.descriptions.whisper.small"
-    },
-    "medium": {
-      "name": "Medium",
-      "description": "High quality",
-      "size": "1.5GB",
-      "sizeMb": 1500,
-      "expectedSizeBytes": 1570000000,
-      "fileName": "ggml-medium.bin",
-      "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-medium.bin",
-      "descriptionKey": "models.descriptions.whisper.medium"
-    },
-    "large": {
-      "name": "Large",
-      "description": "Best quality, slowest",
-      "size": "3GB",
-      "sizeMb": 3000,
-      "expectedSizeBytes": 3140000000,
-      "fileName": "ggml-large-v3.bin",
-      "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3.bin",
-      "descriptionKey": "models.descriptions.whisper.large"
-    },
-    "turbo": {
-      "name": "Turbo",
-      "description": "Fast with good quality",
-      "size": "1.6GB",
-      "sizeMb": 1600,
-      "expectedSizeBytes": 1670000000,
-      "fileName": "ggml-large-v3-turbo.bin",
-      "downloadUrl": "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin",
-      "descriptionKey": "models.descriptions.whisper.turbo"
-    }
-  },
   "transcriptionProviders": [
     {
-      "id": "openai",
-      "name": "OpenAI",
-      "baseUrl": "https://api.openai.com/v1",
+      "id": "gigaam",
+      "name": "GigaAM",
+      "baseUrl": "",
       "models": [
         {
-          "id": "gpt-4o-mini-transcribe",
-          "name": "GPT-4o Mini Transcribe",
-          "description": "Fast and accurate transcription",
-          "descriptionKey": "models.descriptions.transcription.openai_gpt_4o_mini_transcribe",
-          "streaming": true
-        },
-        {
-          "id": "gpt-4o-transcribe",
-          "name": "GPT-4o Transcribe",
-          "description": "Most accurate transcription",
-          "descriptionKey": "models.descriptions.transcription.openai_gpt_4o_transcribe",
-          "streaming": true
-        },
-        {
-          "id": "whisper-1",
-          "name": "Whisper",
-          "description": "Original Whisper model",
-          "descriptionKey": "models.descriptions.transcription.openai_whisper_1"
-        }
-      ]
-    },
-    {
-      "id": "groq",
-      "name": "Groq",
-      "baseUrl": "https://api.groq.com/openai/v1",
-      "models": [
-        {
-          "id": "whisper-large-v3",
-          "name": "Whisper Large v3",
-          "description": "High accuracy speech recognition",
-          "descriptionKey": "models.descriptions.transcription.groq_whisper_large_v3"
-        },
-        {
-          "id": "whisper-large-v3-turbo",
-          "name": "Whisper Large v3 Turbo",
-          "description": "216x real-time speed",
-          "descriptionKey": "models.descriptions.transcription.groq_whisper_large_v3_turbo"
-        }
-      ]
-    },
-    {
-      "id": "mistral",
-      "name": "Mistral",
-      "baseUrl": "https://api.mistral.ai/v1",
-      "models": [
-        {
-          "id": "voxtral-mini-latest",
-          "name": "Voxtral Mini",
-          "description": "Fast multilingual transcription",
-          "descriptionKey": "models.descriptions.transcription.mistral_voxtral_mini_latest"
+          "id": "gigaam-v3-e2e-rnnt",
+          "name": "GigaAM v3",
+          "description": "GigaAM speech recognition",
+          "descriptionKey": "models.descriptions.transcription.gigaam_v3_e2e_rnnt"
         }
       ]
     }
@@ -831,63 +672,5 @@
         }
       ]
     }
-  ],
-  "openwhisprCloudModels": {
-    "tiers": [
-      {
-        "id": "fast",
-        "label": "Fast",
-        "provider": "groq",
-        "models": [
-          {
-            "id": "llama-3.3-70b-versatile",
-            "name": "Llama 3.3 70B",
-            "description": "Fast, high-quality reasoning",
-            "recommended": true
-          },
-          {
-            "id": "llama-3.1-8b-instant",
-            "name": "Llama 3.1 8B",
-            "description": "Ultra-fast, low latency"
-          }
-        ]
-      },
-      {
-        "id": "balanced",
-        "label": "Balanced",
-        "provider": "openrouter",
-        "models": [
-          {
-            "id": "anthropic/claude-sonnet-4",
-            "name": "Claude Sonnet 4",
-            "description": "Balanced performance and quality",
-            "recommended": true
-          },
-          {
-            "id": "google/gemini-2.5-flash",
-            "name": "Gemini 2.5 Flash",
-            "description": "Fast with strong reasoning"
-          }
-        ]
-      },
-      {
-        "id": "quality",
-        "label": "Quality",
-        "provider": "openrouter",
-        "models": [
-          {
-            "id": "anthropic/claude-opus-4",
-            "name": "Claude Opus 4",
-            "description": "Most capable, highest quality",
-            "recommended": true
-          },
-          {
-            "id": "openai/gpt-4.1",
-            "name": "GPT-4.1",
-            "description": "Strong general-purpose reasoning"
-          }
-        ]
-      }
-    ]
-  }
+  ]
 }

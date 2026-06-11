@@ -66,7 +66,6 @@ export default function TranscriptionItem({
 
   const errorCode = item.error_code as TranscriptionErrorCode;
   const isConfigError =
-    errorCode === "API_KEY_MISSING" ||
     errorCode === "INVALID_KEY" ||
     errorCode === "MODEL_NOT_AVAILABLE";
   const isLimitError = errorCode === "LIMIT_REACHED";

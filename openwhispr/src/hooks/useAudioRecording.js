@@ -153,14 +153,6 @@ export const useAudioRecording = (toast, options = {}) => {
             clientTranscriptionId: result.clientTranscriptionId,
           });
 
-          if (result.source === "openai" && getSettings().useLocalWhisper) {
-            toast({
-              title: t("hooks.audioRecording.fallback.title"),
-              description: t("hooks.audioRecording.fallback.description"),
-              variant: "default",
-            });
-          }
-
           if (audioManagerRef.current.shouldUseStreaming()) {
             audioManagerRef.current.warmupStreamingConnection();
           }
