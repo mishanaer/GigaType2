@@ -1,9 +1,10 @@
 import logger from "./logger";
-import transitionDownUrl from "../assets/sounds/transition_down.wav";
-import transitionUpUrl from "../assets/sounds/transition_up.wav";
+import tapDownUrl from "../assets/sounds/tap_02.wav";
+import tapUpUrl from "../assets/sounds/tap_01.wav";
 import { getSettings } from "../stores/settingsStore";
 
 const cueAudio = new Map();
+const CUE_VOLUME = 0.6;
 
 const getCueAudio = (url) => {
   if (typeof window === "undefined") {
@@ -30,6 +31,7 @@ const playCue = async (url) => {
 
     audio.pause();
     audio.currentTime = 0;
+    audio.volume = CUE_VOLUME;
     await audio.play();
   } catch (error) {
     logger.debug(
@@ -40,6 +42,6 @@ const playCue = async (url) => {
   }
 };
 
-export const playStartCue = () => playCue(transitionUpUrl);
+export const playStartCue = () => playCue(tapUpUrl);
 
-export const playStopCue = () => playCue(transitionDownUrl);
+export const playStopCue = () => playCue(tapDownUrl);

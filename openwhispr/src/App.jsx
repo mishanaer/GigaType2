@@ -1,16 +1,16 @@
 import React, { useEffect, useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import SiriWave from "siriwave";
 import "./index.css";
 import { useToast } from "./components/ui/useToast";
 import { useAudioRecording } from "./hooks/useAudioRecording";
 import { useSettingsStore } from "./stores/settingsStore";
+import CustomSiriWave from "./utils/customSiriWave";
 
 const WAVE_SPEED = 0.12;
 const WAVE_MIN_AMPLITUDE = 0;
 const WAVE_MAX_AMPLITUDE = 2.4;
-const WAVE_WIDTH = 380;
-const WAVE_HEIGHT = 180;
+const WAVE_WIDTH = 95;
+const WAVE_HEIGHT = 90;
 
 const SiriWaveIndicator = ({ audioLevel, isProcessing }) => {
   const containerRef = useRef(null);
@@ -19,7 +19,7 @@ const SiriWaveIndicator = ({ audioLevel, isProcessing }) => {
   useEffect(() => {
     if (!containerRef.current) return undefined;
 
-    const wave = new SiriWave({
+    const wave = new CustomSiriWave({
       container: containerRef.current,
       style: "ios9",
       width: WAVE_WIDTH,
@@ -29,11 +29,12 @@ const SiriWaveIndicator = ({ audioLevel, isProcessing }) => {
       autostart: true,
       cover: true,
       lerpSpeed: 0.15,
+      edgeFadeStart: 0.82,
       globalCompositeOperation: "lighter",
       ranges: {
         noOfCurves: [3, 5],
         amplitude: [0.3, 1],
-        width: [1, 3],
+        width: [2.5, 5],
         speed: [0.5, 1],
       },
     });
@@ -61,7 +62,7 @@ const SiriWaveIndicator = ({ audioLevel, isProcessing }) => {
     <div
       ref={containerRef}
       aria-hidden="true"
-      className="pointer-events-none absolute left-1/2 top-1/2 z-[1] h-[180px] w-[380px] -translate-x-1/2 -translate-y-1/2"
+      className="pointer-events-none relative z-[1] flex h-[90px] w-[95px] items-center justify-center"
     />
   );
 };
@@ -182,8 +183,8 @@ export default function App() {
   return (
     <div className="dictation-window">
       {isWaveVisible && (
-        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
-          <div className="relative h-[180px] w-[400px]">
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-end justify-center">
+          <div className="relative flex h-[70px] w-[135px] items-center justify-center overflow-hidden rounded-full border border-white/20 bg-black">
             <SiriWaveIndicator audioLevel={audioLevel} isProcessing={isProcessing} />
           </div>
         </div>

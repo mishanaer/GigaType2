@@ -154,22 +154,16 @@ const TRANSCRIPTION_PREVIEW_CONFIG = {
 class WindowPositionUtil {
   static getMainWindowPosition(display, customSize = null, _position = "bottom-right") {
     const { width, height } = customSize || WINDOW_SIZES.BASE;
-    const workArea = display.workArea || display.bounds;
+    const bounds = display.bounds || display.workArea;
 
     const x = Math.max(
-      workArea.x,
+      bounds.x,
       Math.min(
-        Math.round(workArea.x + (workArea.width - width) / 2),
-        workArea.x + workArea.width - width
+        Math.round(bounds.x + (bounds.width - width) / 2),
+        bounds.x + bounds.width - width
       )
     );
-    const y = Math.max(
-      workArea.y,
-      Math.min(
-        Math.round(workArea.y + (workArea.height - height) / 2),
-        workArea.y + workArea.height - height
-      )
-    );
+    const y = Math.max(bounds.y, bounds.y + bounds.height - height);
 
     return { x, y, width, height };
   }
