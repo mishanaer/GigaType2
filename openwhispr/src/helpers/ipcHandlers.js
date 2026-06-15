@@ -31,7 +31,7 @@ const {
   DEFAULT_SPEECH_VAD_CONFIG,
   sanitizeSpeechVadConfig,
 } = require("./speechVadConfig");
-const { resolveGigaamTranscriptionUrl } = require("../utils/gigaamTranscription");
+const { resolveGigaamTranscriptionUrl } = require("../utils/gigaamTranscription.cjs");
 
 const ALLOWED_MEETING_PROVIDERS = new Set(["gigaam"]);
 const GIGAAM_TRANSCRIPTION_MODEL = "gigaam-v3-e2e-rnnt";

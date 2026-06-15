@@ -758,7 +758,7 @@
     "fnCaptureHint": "Нажмите клавишу для комбинации или отпустите для Globe",
     "fnHeldHint": "+ клавиша или отпустите для Globe",
     "globe": "Globe",
-    "hotkeyLabel": "Горячая клавиша",
+    "hotkeyLabel": "Хоткей",
     "keyHint": "+ клавиша",
     "listening": "Ожидание...",
     "pressAnyKey": "Нажмите любую клавишу или Ctrl+Shift+K",
@@ -1193,7 +1193,7 @@
       "hotkey": {
         "activationMode": "Режим активации",
         "resetToDefault": "Сбросить на {{hotkey}}",
-        "title": "Горячая клавиша диктовки",
+        "title": "Хоткей",
         "linuxPttPermissionTitle": "Для режима «Удерживать для речи» нужна настройка",
         "linuxPttPermissionDescription": "Выполните команду и перезайдите: sudo usermod -aG input $USER",
         "linuxPttSetupTitle": "Для режима «Удерживать для речи» нужна настройка",

@@ -564,9 +564,6 @@ export function HotkeyInput({
                 </kbd>
               )}
             </div>
-            <span className="text-xs text-muted-foreground/60 group-hover:text-muted-foreground transition-colors">
-              {t("hotkeyInput.clickToChange")}
-            </span>
           </div>
         ) : (
           /* Empty state */
@@ -647,10 +644,7 @@ export function HotkeyInput({
             )}
           </>
         ) : value ? (
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">
-              {t("hotkeyInput.hotkeyLabel")}
-            </span>
+          <div className="flex items-center justify-center">
             <div className="flex items-center gap-2">
               {hotkeyParts.length > 0 ? (
                 <div className="flex items-center gap-1">
@@ -675,9 +669,6 @@ export function HotkeyInput({
                   {displayValue}
                 </kbd>
               )}
-              <span className="text-xs text-muted-foreground/50">
-                {t("hotkeyInput.clickToChangeLower")}
-              </span>
             </div>
           </div>
         ) : (

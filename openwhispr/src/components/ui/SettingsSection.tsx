@@ -21,7 +21,9 @@ export const SettingsSection: React.FC<SettingsSectionProps> = ({
       <div>
         <h3 className="text-xs font-semibold text-foreground tracking-tight">{title}</h3>
         {description && (
-          <p className="text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">{description}</p>
+          <p className="truncate text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">
+            {description}
+          </p>
         )}
       </div>
       {children}
@@ -73,17 +75,17 @@ export const SettingsRow: React.FC<SettingsRowProps> = ({
 
   return (
     <div
-      className={`flex ${
-        isCompact ? "flex-col items-start gap-2" : "items-center justify-between gap-4"
-      } ${className}`}
+      className={`flex items-center justify-between ${isCompact ? "gap-3" : "gap-4"} ${className}`}
     >
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium text-foreground">{label}</p>
         {description && (
-          <p className="text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">{description}</p>
+          <p className="truncate text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">
+            {description}
+          </p>
         )}
       </div>
-      <div className={isCompact ? "" : "shrink-0"}>{children}</div>
+      <div className="shrink-0">{children}</div>
     </div>
   );
 };
@@ -123,7 +125,9 @@ export function SectionHeader({ title, description }: { title: string; descripti
     <div className="mb-3">
       <h3 className="text-xs font-semibold text-foreground tracking-tight">{title}</h3>
       {description && (
-        <p className="text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">{description}</p>
+        <p className="truncate text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">
+          {description}
+        </p>
       )}
     </div>
   );
