@@ -6,16 +6,30 @@ import { playStartCue, playStopCue } from "../utils/dictationCues";
 import { getSettings } from "../stores/settingsStore";
 import { getRecordingErrorTitle, getRecordingErrorDescription } from "../utils/recordingErrors";
 
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
+const RMS_NOISE_FLOOR = 0.009;
+const RMS_ACTIVE_RANGE = 0.018;
+const PEAK_NOISE_FLOOR = 0.024;
+const PEAK_ACTIVE_RANGE = 0.07;
+
+const normalizeAudioLevel = ({ rms = 0, peak = 0 } = {}) => {
+  const rmsLevel = clamp01((rms - RMS_NOISE_FLOOR) / RMS_ACTIVE_RANGE);
+  const peakLevel = clamp01((peak - PEAK_NOISE_FLOOR) / PEAK_ACTIVE_RANGE);
+  return Math.pow(Math.max(rmsLevel, peakLevel * 0.75), 0.72);
+};
+
 export const useAudioRecording = (toast, options = {}) => {
   const { t } = useTranslation();
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [audioLevel, setAudioLevel] = useState(0);
   const [transcript, setTranscript] = useState("");
   const [partialTranscript, setPartialTranscript] = useState("");
   const audioManagerRef = useRef(null);
   const startLockRef = useRef(false);
   const stopLockRef = useRef(false);
+  const audioLevelLogRef = useRef(0);
   const { onToggle } = options;
 
   const performStartRecording = useCallback(async () => {
@@ -82,9 +96,32 @@ export const useAudioRecording = (toast, options = {}) => {
         setIsRecording(isRecording);
         setIsProcessing(isProcessing);
         setIsStreaming(isStreaming ?? false);
+        if (!isRecording) {
+          setAudioLevel(0);
+        }
         if (!isStreaming) {
           setPartialTranscript("");
         }
+      },
+      onAudioLevel: (level) => {
+        const targetLevel = normalizeAudioLevel(level);
+        const now = Date.now();
+        if (now - audioLevelLogRef.current > 1000) {
+          audioLevelLogRef.current = now;
+          logger.info(
+            "Audio level sample",
+            {
+              rms: Number((level?.rms ?? 0).toFixed(4)),
+              peak: Number((level?.peak ?? 0).toFixed(4)),
+              audioLevel: Number(targetLevel.toFixed(3)),
+            },
+            "audio"
+          );
+        }
+        setAudioLevel((currentLevel) => {
+          const smoothing = targetLevel > currentLevel ? 0.7 : 0.39;
+          return currentLevel + (targetLevel - currentLevel) * smoothing;
+        });
       },
       onError: (error) => {
         if (error?.title !== "Paste Error") {
@@ -249,6 +286,7 @@ export const useAudioRecording = (toast, options = {}) => {
     isRecording,
     isProcessing,
     isStreaming,
+    audioLevel,
     transcript,
     partialTranscript,
     startRecording: performStartRecording,

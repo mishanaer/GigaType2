@@ -25,6 +25,7 @@ class AudioManager {
     this.onError = null;
     this.onTranscriptionComplete = null;
     this.onPartialTranscript = null;
+    this.onAudioLevel = null;
     this.cachedTranscriptionEndpoint = null;
     this.cachedEndpointProvider = null;
     this.cachedEndpointBaseUrl = null;
@@ -52,6 +53,9 @@ class AudioManager {
     this.lastAudioBlob = null;
     this.lastAudioMetadata = null;
     this._localSpeechGateState = null;
+    this._silenceInterval = null;
+    this._silenceCtx = null;
+    this._silenceAnalyser = null;
   }
 
   getWorkletBlobUrl() {
@@ -103,12 +107,14 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     onError,
     onTranscriptionComplete,
     onPartialTranscript,
+    onAudioLevel,
     onStreamingCommit,
   }) {
     this.onStateChange = onStateChange;
     this.onError = onError;
     this.onTranscriptionComplete = onTranscriptionComplete;
     this.onPartialTranscript = onPartialTranscript;
+    this.onAudioLevel = onAudioLevel;
     this.onStreamingCommit = onStreamingCommit;
   }
 
@@ -118,6 +124,17 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
   setSttConfig(config) {
     this.sttConfig = config;
+  }
+
+  stopAudioLevelMonitoring() {
+    if (this._silenceInterval) {
+      clearInterval(this._silenceInterval);
+      this._silenceInterval = null;
+    }
+    this._silenceCtx?.close().catch(() => {});
+    this._silenceCtx = null;
+    this._silenceAnalyser = null;
+    this.onAudioLevel?.({ rms: 0, peak: 0 });
   }
 
   getStreamingProvider() {
@@ -247,7 +264,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           }
           const rms = Math.sqrt(sum / dataArray.length);
           recordLocalSpeechWindow(this._localSpeechGateState, rms, peak);
-        }, 100);
+          this.onAudioLevel?.({ rms, peak });
+        }, 50);
       } catch (e) {
         logger.warn("Audio level gate setup failed, skipping", { error: e.message }, "audio");
         this._localSpeechGateState = null;
@@ -263,13 +281,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       };
 
       this.mediaRecorder.onstop = async () => {
-        if (this._silenceInterval) {
-          clearInterval(this._silenceInterval);
-          this._silenceInterval = null;
-        }
-        this._silenceCtx?.close().catch(() => {});
-        this._silenceCtx = null;
-        this._silenceAnalyser = null;
+        this.stopAudioLevelMonitoring();
 
         this.cleanupPreview({ showCleanup: this.shouldShowPreviewCleanupState() });
 
@@ -340,6 +352,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   cancelRecording() {
     if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
       this.mediaRecorder.onstop = () => {
+        this.stopAudioLevelMonitoring();
         this.cleanupPreview({ dismiss: true });
         this.isRecording = false;
         this.isProcessing = false;

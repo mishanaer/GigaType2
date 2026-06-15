@@ -29,7 +29,7 @@ const FLOATING_OVERLAY_TYPE =
       : "normal";
 
 const WINDOW_SIZES = {
-  BASE: { width: 96, height: 96 },
+  BASE: { width: 820, height: 260 },
   WITH_MENU: { width: 240, height: 280 },
   WITH_TOAST: { width: 400, height: 500 },
   EXPANDED: { width: 400, height: 500 },
@@ -152,23 +152,24 @@ const TRANSCRIPTION_PREVIEW_CONFIG = {
 };
 
 class WindowPositionUtil {
-  static getMainWindowPosition(display, customSize = null, position = "bottom-right") {
+  static getMainWindowPosition(display, customSize = null, _position = "bottom-right") {
     const { width, height } = customSize || WINDOW_SIZES.BASE;
-    const MARGIN = 4;
     const workArea = display.workArea || display.bounds;
 
-    let x, y;
-    if (position === "bottom-left") {
-      x = workArea.x + MARGIN;
-      y = Math.max(0, workArea.y + workArea.height - height - MARGIN);
-    } else if (position === "center") {
-      x = Math.round(workArea.x + (workArea.width - width) / 2);
-      y = Math.max(0, workArea.y + workArea.height - height - MARGIN);
-    } else {
-      // bottom-right (default)
-      x = Math.max(0, workArea.x + workArea.width - width - MARGIN);
-      y = Math.max(0, workArea.y + workArea.height - height - MARGIN);
-    }
+    const x = Math.max(
+      workArea.x,
+      Math.min(
+        Math.round(workArea.x + (workArea.width - width) / 2),
+        workArea.x + workArea.width - width
+      )
+    );
+    const y = Math.max(
+      workArea.y,
+      Math.min(
+        Math.round(workArea.y + (workArea.height - height) / 2),
+        workArea.y + workArea.height - height
+      )
+    );
 
     return { x, y, width, height };
   }

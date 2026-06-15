@@ -1,10 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Toggle } from "./toggle";
-import { SettingsRow } from "./SettingsSection";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
-import { Button } from "./button";
-import { RefreshCw, Mic } from "lucide-react";
 import { isBuiltInMicrophone } from "../../utils/audioDeviceUtils";
 
 interface AudioDevice {
@@ -28,23 +24,9 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
 }) => {
   const { t } = useTranslation();
   const [devices, setDevices] = useState<AudioDevice[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Use refs to access current values without triggering re-renders
-  const preferBuiltInRef = useRef(preferBuiltInMic);
-  const selectedDeviceRef = useRef(selectedMicDeviceId);
-  const onDeviceSelectRef = useRef(onDeviceSelect);
-
-  // Keep refs in sync
-  useEffect(() => {
-    preferBuiltInRef.current = preferBuiltInMic;
-    selectedDeviceRef.current = selectedMicDeviceId;
-    onDeviceSelectRef.current = onDeviceSelect;
-  }, [preferBuiltInMic, selectedMicDeviceId, onDeviceSelect]);
-
   const loadDevices = useCallback(async () => {
-    setIsLoading(true);
     setError(null);
 
     try {
@@ -62,15 +44,8 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
         }));
 
       setDevices(audioInputs);
-
-      // If no device is selected and not preferring built-in, select the first device
-      if (!preferBuiltInRef.current && !selectedDeviceRef.current && audioInputs.length > 0) {
-        onDeviceSelectRef.current(audioInputs[0].deviceId);
-      }
     } catch {
       setError(t("microphoneSettings.errors.unableToAccess"));
-    } finally {
-      setIsLoading(false);
     }
   }, [t]);
 
@@ -86,86 +61,54 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
   }, [loadDevices]);
 
   const builtInDevice = devices.find((d) => d.isBuiltIn);
-  const selectedDevice = devices.find((d) => d.deviceId === selectedMicDeviceId);
+  const selectDevices = devices.filter((device) => device.deviceId !== "default");
+  const activeDeviceId = preferBuiltInMic
+    ? builtInDevice?.deviceId || "default"
+    : selectedMicDeviceId || "default";
+  const activeDevice = devices.find((d) => d.deviceId === activeDeviceId);
+  const activeDeviceLabel =
+    activeDeviceId === "default"
+      ? t("microphoneSettings.systemDefault")
+      : activeDevice?.label || t("microphoneSettings.unknownDevice");
+
+  const handleDeviceSelect = (deviceId: string) => {
+    onPreferBuiltInChange(false);
+    onDeviceSelect(deviceId === "default" ? "" : deviceId);
+  };
 
   return (
-    <div className="space-y-4">
-      <SettingsRow
-        label={t("microphoneSettings.preferBuiltIn.label")}
-        description={t("microphoneSettings.preferBuiltIn.description")}
-      >
-        <Toggle checked={preferBuiltInMic} onChange={onPreferBuiltInChange} />
-      </SettingsRow>
-
-      {preferBuiltInMic && builtInDevice && (
-        <div className="p-3 bg-success/10 dark:bg-success/20 border border-success/30 rounded-lg">
-          <div className="flex items-center gap-2">
-            <Mic className="w-4 h-4 text-success dark:text-success" />
-            <span className="text-sm text-success dark:text-success">
-              {t("microphoneSettings.using", { device: builtInDevice.label })}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {preferBuiltInMic && !builtInDevice && devices.length > 0 && (
-        <div className="p-3 bg-warning/10 dark:bg-warning/20 border border-warning/30 rounded-lg">
-          <p className="text-sm text-warning dark:text-warning">
-            {t("microphoneSettings.noBuiltInDetected")}
-          </p>
-        </div>
-      )}
-
-      {!preferBuiltInMic && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-foreground">
-              {t("microphoneSettings.inputDevice")}
-            </label>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={loadDevices}
-              disabled={isLoading}
-              className="h-7 w-7 p-0"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
-            </Button>
-          </div>
-
-          {error ? (
-            <p className="text-sm text-destructive">{error}</p>
-          ) : (
-            <Select
-              value={selectedMicDeviceId || "default"}
-              onValueChange={(value) => onDeviceSelect(value === "default" ? "" : value)}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={t("microphoneSettings.selectPlaceholder")}>
-                  {selectedMicDeviceId
-                    ? selectedDevice?.label || t("microphoneSettings.unknownDevice")
-                    : t("microphoneSettings.systemDefault")}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="default">{t("microphoneSettings.systemDefault")}</SelectItem>
-                {devices.map((device) => (
-                  <SelectItem key={device.deviceId} value={device.deviceId}>
-                    {device.label}
-                    {device.isBuiltIn && (
-                      <span className="ml-2 text-xs text-muted-foreground">
-                        {t("microphoneSettings.builtIn")}
-                      </span>
-                    )}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          <p className="text-xs text-muted-foreground">{t("microphoneSettings.helpText")}</p>
-        </div>
-      )}
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="min-w-0">
+        <label className="text-sm font-medium text-foreground">
+          {t("microphoneSettings.inputDevice")}
+        </label>
+      </div>
+      <div className="w-full shrink-0 sm:w-[282px]">
+        {error ? (
+          <p className="text-sm text-destructive">{error}</p>
+        ) : (
+          <Select value={activeDeviceId} onValueChange={handleDeviceSelect}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder={t("microphoneSettings.selectPlaceholder")}>
+                {activeDeviceLabel}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="default">{t("microphoneSettings.systemDefault")}</SelectItem>
+              {selectDevices.map((device) => (
+                <SelectItem key={device.deviceId} value={device.deviceId}>
+                  {device.label}
+                  {device.isBuiltIn && (
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {t("microphoneSettings.builtIn")}
+                    </span>
+                  )}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
     </div>
   );
 };

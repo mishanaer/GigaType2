@@ -14,6 +14,7 @@ import {
   Copy,
 } from "lucide-react";
 import MicPermissionWarning from "./ui/MicPermissionWarning";
+import MicrophoneSettings from "./ui/MicrophoneSettings";
 import PermissionCard from "./ui/PermissionCard";
 import PasteToolsInfo from "./ui/PasteToolsInfo";
 import NixOsPasteInfo from "./ui/NixOsPasteInfo";
@@ -99,6 +100,10 @@ export default function SettingsPage({
   const {
     dictationKey,
     setDictationKey,
+    preferBuiltInMic,
+    selectedMicDeviceId,
+    setPreferBuiltInMic,
+    setSelectedMicDeviceId,
     showTranscriptionPreview,
     setShowTranscriptionPreview,
     floatingIconAutoHide,
@@ -227,6 +232,21 @@ export default function SettingsPage({
         return (
           <div className="space-y-6">
             {renderDictationHotkeySettings()}
+
+            {/* Microphone */}
+            <div>
+              <SectionHeader title={t("settingsPage.general.microphone.title")} />
+              <SettingsPanel>
+                <SettingsPanelRow>
+                  <MicrophoneSettings
+                    preferBuiltInMic={preferBuiltInMic}
+                    selectedMicDeviceId={selectedMicDeviceId}
+                    onPreferBuiltInChange={setPreferBuiltInMic}
+                    onDeviceSelect={setSelectedMicDeviceId}
+                  />
+                </SettingsPanelRow>
+              </SettingsPanel>
+            </div>
 
             {/* Floating Icon */}
             <div>
