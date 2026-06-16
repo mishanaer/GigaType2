@@ -332,7 +332,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         <TitleBar
           showTitle={true}
           showQuitButton={false}
-          className="bg-background backdrop-blur-xl border-b border-border shadow-sm"
+          className="bg-background backdrop-blur-xl"
         ></TitleBar>
       </div>
 

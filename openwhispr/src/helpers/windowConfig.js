@@ -66,7 +66,7 @@ const MAIN_WINDOW_CONFIG = {
 
 // Control panel window configuration
 const CONTROL_PANEL_CONFIG = {
-  width: 900,
+  width: 600,
   height: 560,
   minHeight: 360,
   backgroundColor: "#1c1c2e",

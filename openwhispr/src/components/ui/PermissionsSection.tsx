@@ -26,7 +26,7 @@ export default function PermissionsSection({ permissions }: PermissionsSectionPr
           description={t("onboarding.permissions.microphoneDescription")}
           granted={permissions.micPermissionGranted}
           onRequest={permissions.requestMicPermission}
-          buttonText={t("onboarding.permissions.grantAccess")}
+          buttonText={t("onboarding.permissions.grant")}
         />
 
         {shouldShowAccessibilityPermission && (
@@ -36,7 +36,7 @@ export default function PermissionsSection({ permissions }: PermissionsSectionPr
             description={t("onboarding.permissions.accessibilityDescription")}
             granted={permissions.accessibilityPermissionGranted}
             onRequest={permissions.requestAccessibilityPermission}
-            buttonText={t("onboarding.permissions.grantAccess")}
+            buttonText={t("onboarding.permissions.openSystemSettings")}
           />
         )}
       </div>
