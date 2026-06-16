@@ -311,11 +311,11 @@ class EnvironmentManager {
   }
 
   getStartMinimized() {
-    return this._getKey("START_MINIMIZED") === "true";
+    return true;
   }
 
-  saveStartMinimized(enabled) {
-    const result = this._saveKey("START_MINIMIZED", String(enabled));
+  saveStartMinimized(_enabled) {
+    const result = this._saveKey("START_MINIMIZED", "true");
     this.saveRuntimeConfigToEnvFile().catch(() => {});
     return result;
   }

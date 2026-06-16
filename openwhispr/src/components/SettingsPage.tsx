@@ -35,9 +35,6 @@ import { HotkeyInput } from "./ui/HotkeyInput";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { validateHotkeyForSlot } from "../utils/hotkeyValidation";
 import { getCachedPlatform } from "../utils/platform";
-import { Toggle } from "./ui/toggle";
-import logger from "../utils/logger";
-import { SettingsRow } from "./ui/SettingsSection";
 import { useSettingsLayout } from "./ui/useSettingsLayout";
 
 export type SettingsSectionType = "general" | "privacyData";
@@ -101,8 +98,6 @@ export default function SettingsPage({
     selectedMicDeviceId,
     setPreferBuiltInMic,
     setSelectedMicDeviceId,
-    startMinimized,
-    setStartMinimized,
   } = useSettings();
 
   const { t } = useTranslation();
@@ -165,44 +160,6 @@ export default function SettingsPage({
   const shouldShowPermissionsSection =
     shouldShowMicrophonePermission || shouldShowAccessibilityPermission || shouldShowPasteToolsInfo;
 
-  const [autoStartEnabled, setAutoStartEnabled] = useState(false);
-  const [autoStartLoading, setAutoStartLoading] = useState(true);
-
-  useEffect(() => {
-    if (platform === "linux") {
-      setAutoStartLoading(false);
-      return;
-    }
-    const loadAutoStart = async () => {
-      if (window.electronAPI?.getAutoStartEnabled) {
-        try {
-          const enabled = await window.electronAPI.getAutoStartEnabled();
-          setAutoStartEnabled(enabled);
-        } catch (error) {
-          logger.error("Failed to get auto-start status", error, "settings");
-        }
-      }
-      setAutoStartLoading(false);
-    };
-    loadAutoStart();
-  }, [platform]);
-
-  const handleAutoStartChange = async (enabled: boolean) => {
-    if (window.electronAPI?.setAutoStartEnabled) {
-      try {
-        setAutoStartLoading(true);
-        const result = await window.electronAPI.setAutoStartEnabled(enabled);
-        if (result.success) {
-          setAutoStartEnabled(enabled);
-        }
-      } catch (error) {
-        logger.error("Failed to set auto-start", error, "settings");
-      } finally {
-        setAutoStartLoading(false);
-      }
-    }
-  };
-
   const renderDictationHotkeySettings = () => (
     <div>
       <SectionHeader title={t("settingsPage.general.hotkey.title")} />
@@ -227,45 +184,12 @@ export default function SettingsPage({
             {/* Microphone */}
             <div>
               <SectionHeader title={t("settingsPage.general.microphone.title")} />
-              <SettingsPanel>
-                <SettingsPanelRow>
-                  <MicrophoneSettings
-                    preferBuiltInMic={preferBuiltInMic}
-                    selectedMicDeviceId={selectedMicDeviceId}
-                    onPreferBuiltInChange={setPreferBuiltInMic}
-                    onDeviceSelect={setSelectedMicDeviceId}
-                  />
-                </SettingsPanelRow>
-              </SettingsPanel>
-            </div>
-
-            {/* Startup */}
-            <div>
-              <SectionHeader title={t("settingsPage.general.startup.title")} />
-              <SettingsPanel>
-                {platform !== "linux" && (
-                  <SettingsPanelRow>
-                    <SettingsRow
-                      label={t("settingsPage.general.startup.launchAtLogin")}
-                      description={t("settingsPage.general.startup.launchAtLoginDescription")}
-                    >
-                      <Toggle
-                        checked={autoStartEnabled}
-                        onChange={(checked: boolean) => handleAutoStartChange(checked)}
-                        disabled={autoStartLoading}
-                      />
-                    </SettingsRow>
-                  </SettingsPanelRow>
-                )}
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.general.startup.startMinimized")}
-                    description={t("settingsPage.general.startup.startMinimizedDescription")}
-                  >
-                    <Toggle checked={startMinimized} onChange={setStartMinimized} />
-                  </SettingsRow>
-                </SettingsPanelRow>
-              </SettingsPanel>
+              <MicrophoneSettings
+                preferBuiltInMic={preferBuiltInMic}
+                selectedMicDeviceId={selectedMicDeviceId}
+                onPreferBuiltInChange={setPreferBuiltInMic}
+                onDeviceSelect={setSelectedMicDeviceId}
+              />
             </div>
 
             {/* Wayland Paste Diagnostics — only on Linux + Wayland */}

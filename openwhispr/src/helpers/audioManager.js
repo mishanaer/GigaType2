@@ -12,6 +12,8 @@ import { getSettings } from "../stores/settingsStore";
 import { syncService } from "../services/SyncService.js";
 
 const GIGATYPE_ASR_MODEL = "gigaam-v3-e2e-rnnt";
+const MIN_TRANSCRIBABLE_AUDIO_BYTES = 512;
+const MIN_TRANSCRIBABLE_DURATION_SECONDS = 0.2;
 
 const isNoTextTranscription = (error) => error?.message?.startsWith("No text transcribed");
 
@@ -220,14 +222,26 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     }
   }
 
-  async startRecording() {
+  async startRecording(options = {}) {
+    const { shouldCancelStart } = options;
+
     try {
       if (this.isRecording || this.isProcessing || this.mediaRecorder?.state === "recording") {
         return false;
       }
 
       const constraints = await this.getAudioConstraints();
+      if (shouldCancelStart?.()) {
+        logger.debug("Recording start cancelled before microphone request", {}, "audio");
+        return false;
+      }
+
       const micStream = await navigator.mediaDevices.getUserMedia(constraints);
+      if (shouldCancelStart?.()) {
+        micStream.getTracks().forEach((track) => track.stop());
+        logger.debug("Recording start cancelled after microphone opened", {}, "audio");
+        return false;
+      }
 
       const audioTrack = micStream.getAudioTracks()[0];
       if (audioTrack) {
@@ -383,9 +397,38 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
   async processAudio(audioBlob, metadata = {}) {
     const pipelineStart = performance.now();
-    const settings = getSettings();
     const speechGateDecision = getLocalSpeechGateDecision(this._localSpeechGateState);
     this._localSpeechGateState = null;
+    const durationSeconds = Number.isFinite(metadata?.durationSeconds)
+      ? metadata.durationSeconds
+      : null;
+
+    if (
+      audioBlob.size < MIN_TRANSCRIBABLE_AUDIO_BYTES ||
+      (durationSeconds !== null && durationSeconds < MIN_TRANSCRIBABLE_DURATION_SECONDS)
+    ) {
+      logger.info(
+        "Skipping transcription for too-short audio",
+        {
+          blobSize: audioBlob.size,
+          durationSeconds,
+          minBytes: MIN_TRANSCRIBABLE_AUDIO_BYTES,
+          minDurationSeconds: MIN_TRANSCRIBABLE_DURATION_SECONDS,
+        },
+        "audio"
+      );
+      this.isProcessing = false;
+      this.lastAudioBlob = null;
+      this.lastAudioMetadata = null;
+      this.onStateChange?.({ isRecording: false, isProcessing: false });
+      this.onTranscriptionComplete?.({
+        success: true,
+        text: "",
+        silent: true,
+        reason: "too-short-audio",
+      });
+      return;
+    }
 
     if (speechGateDecision.skip && speechGateDecision.reason === "silence") {
       logger.info(

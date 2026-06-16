@@ -74,7 +74,9 @@ export const useAudioRecording = (toast, options = {}) => {
 
       didStart = audioManagerRef.current.shouldUseStreaming()
         ? await audioManagerRef.current.startStreamingRecording()
-        : await audioManagerRef.current.startRecording();
+        : await audioManagerRef.current.startRecording({
+            shouldCancelStart: () => pendingStopRef.current,
+          });
 
       if (didStart) {
         if (getSettings().pauseMediaOnDictation) {
@@ -175,6 +177,9 @@ export const useAudioRecording = (toast, options = {}) => {
 
           if (!transcribedText) {
             window.electronAPI?.hideDictationPreview?.();
+            if (result.silent) {
+              return;
+            }
             notify({
               title: t("hooks.audioRecording.noAudio.title"),
               description: t("hooks.audioRecording.noAudio.description"),

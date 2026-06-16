@@ -317,6 +317,34 @@ function logStartupState() {
   );
 }
 
+function ensureAutoStartEnabledByDefault() {
+  if (process.platform === "linux") {
+    return;
+  }
+
+  if (!app.isPackaged) {
+    debugLogger?.debug("Auto-start default skipped in development", {}, "startup");
+    return;
+  }
+
+  try {
+    const loginSettings = app.getLoginItemSettings();
+    if (loginSettings.openAtLogin) {
+      return;
+    }
+
+    app.setLoginItemSettings({
+      openAtLogin: true,
+      openAsHidden: true,
+    });
+    debugLogger?.info("Auto-start enabled by default", {}, "startup");
+  } catch (error) {
+    debugLogger?.error("Failed to enable auto-start by default", {
+      error: error?.message,
+    });
+  }
+}
+
 function registerSidecars() {
   if (diarizationManager) {
     sidecarRegistry.register("diarization", () => diarizationManager.shutdown());
@@ -439,6 +467,7 @@ async function startApp() {
   initializeCoreManagers();
   await environmentManager.init();
   logStartupState();
+  ensureAutoStartEnabledByDefault();
   registerSidecars();
   setupGigaamSidecarIpc();
 

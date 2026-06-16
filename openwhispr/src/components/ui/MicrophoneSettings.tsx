@@ -77,38 +77,26 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
-        <label className="text-base font-normal leading-5 text-foreground">
-          {t("microphoneSettings.inputDevice")}
-        </label>
-      </div>
-      <div className="w-full shrink-0 sm:w-[282px]">
-        {error ? (
-          <p className="text-sm text-destructive">{error}</p>
-        ) : (
-          <Select value={activeDeviceId} onValueChange={handleDeviceSelect}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder={t("microphoneSettings.selectPlaceholder")}>
-                {activeDeviceLabel}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="default">{t("microphoneSettings.systemDefault")}</SelectItem>
-              {selectDevices.map((device) => (
-                <SelectItem key={device.deviceId} value={device.deviceId}>
-                  {device.label}
-                  {device.isBuiltIn && (
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {t("microphoneSettings.builtIn")}
-                    </span>
-                  )}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
+    <div className="w-full sm:w-[282px]">
+      {error ? (
+        <p className="text-sm text-destructive">{error}</p>
+      ) : (
+        <Select value={activeDeviceId} onValueChange={handleDeviceSelect}>
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder={t("microphoneSettings.selectPlaceholder")}>
+              {activeDeviceLabel}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="default">{t("microphoneSettings.systemDefault")}</SelectItem>
+            {selectDevices.map((device) => (
+              <SelectItem key={device.deviceId} value={device.deviceId}>
+                {device.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
     </div>
   );
 };

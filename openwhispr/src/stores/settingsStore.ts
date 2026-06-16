@@ -33,6 +33,7 @@ const FIXED_ACTIVATION_MODE = "push" as const;
 const FIXED_AUDIO_CUES_ENABLED = true;
 const FIXED_PAUSE_MEDIA_ON_DICTATION = false;
 const FIXED_NOTIFICATIONS_ENABLED = false;
+const FIXED_START_MINIMIZED = true;
 const AUTH_BACKED_INFERENCE_MODE_KEYS = new Set([
   "cleanupMode",
   "noteFormattingMode",
@@ -235,6 +236,7 @@ function enforceFixedBehaviorSettings() {
   localStorage.setItem("activationMode", FIXED_ACTIVATION_MODE);
   localStorage.setItem("audioCuesEnabled", String(FIXED_AUDIO_CUES_ENABLED));
   localStorage.setItem("pauseMediaOnDictation", String(FIXED_PAUSE_MEDIA_ON_DICTATION));
+  localStorage.setItem("startMinimized", String(FIXED_START_MINIMIZED));
   localStorage.setItem("notificationsEnabled", String(FIXED_NOTIFICATIONS_ENABLED));
   localStorage.setItem("notifyMeetingDetection", String(FIXED_NOTIFICATIONS_ENABLED));
   localStorage.setItem("notifyCalendarReminders", String(FIXED_NOTIFICATIONS_ENABLED));
@@ -805,7 +807,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   dataRetentionEnabled: false,
   audioCuesEnabled: FIXED_AUDIO_CUES_ENABLED,
   pauseMediaOnDictation: FIXED_PAUSE_MEDIA_ON_DICTATION,
-  startMinimized: readBoolean("startMinimized", false),
+  startMinimized: FIXED_START_MINIMIZED,
   notificationsEnabled: FIXED_NOTIFICATIONS_ENABLED,
   notifyMeetingDetection: FIXED_NOTIFICATIONS_ENABLED,
   notifyCalendarReminders: FIXED_NOTIFICATIONS_ENABLED,
@@ -1112,12 +1114,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ pauseMediaOnDictation: FIXED_PAUSE_MEDIA_ON_DICTATION });
   },
 
-  setStartMinimized: (enabled: boolean) => {
-    if (get().startMinimized === enabled) return;
-    if (isBrowser) localStorage.setItem("startMinimized", String(enabled));
-    set({ startMinimized: enabled });
+  setStartMinimized: (_enabled: boolean) => {
+    if (get().startMinimized === FIXED_START_MINIMIZED) return;
+    if (isBrowser) localStorage.setItem("startMinimized", String(FIXED_START_MINIMIZED));
+    set({ startMinimized: FIXED_START_MINIMIZED });
     if (isBrowser) {
-      window.electronAPI?.notifyStartMinimizedChanged?.(enabled);
+      window.electronAPI?.notifyStartMinimizedChanged?.(FIXED_START_MINIMIZED);
     }
   },
 
