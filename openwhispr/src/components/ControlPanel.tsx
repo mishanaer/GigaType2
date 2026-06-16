@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import PostMigrationOnboarding from "./PostMigrationOnboarding";
@@ -38,6 +38,8 @@ export default function ControlPanel() {
   });
   const updateReadyToastShown = useRef(false);
   const updateErrorToastShown = useRef<Error | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const resizeFrameRef = useRef<number | null>(null);
 
   const navigateToSettings = useCallback((section = "general") => {
     setSettingsNavigation((current) => ({
@@ -131,15 +133,50 @@ export default function ControlPanel() {
 
   const showGigaamPreparation = shouldShowGigaamModelPreparation(gigaamStatus);
 
+  const resizeWindowToContent = useCallback(() => {
+    if (resizeFrameRef.current !== null) {
+      cancelAnimationFrame(resizeFrameRef.current);
+    }
+
+    resizeFrameRef.current = requestAnimationFrame(() => {
+      resizeFrameRef.current = null;
+      const content = contentRef.current;
+      if (!content) return;
+
+      const height = Math.ceil(content.getBoundingClientRect().height);
+      window.electronAPI?.resizeControlPanelToContent?.(height)?.catch(() => undefined);
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    resizeWindowToContent();
+
+    const content = contentRef.current;
+    if (!content) {
+      return undefined;
+    }
+
+    const observer = new ResizeObserver(resizeWindowToContent);
+    observer.observe(content);
+
+    return () => {
+      observer.disconnect();
+      if (resizeFrameRef.current !== null) {
+        cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+    };
+  }, [resizeWindowToContent, showGigaamPreparation, showPostMigration]);
+
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div ref={contentRef} className="flex flex-col bg-background">
       <PostMigrationOnboarding
         open={showPostMigration}
         onOpenChange={setShowPostMigration}
         onDone={dismissPostMigrationPermanently}
       />
 
-      <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <main className="flex flex-col">
         <div
           className="flex h-10 w-full shrink-0 items-center justify-between"
           style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
@@ -153,8 +190,8 @@ export default function ControlPanel() {
         </div>
 
         {showGigaamPreparation ? (
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-10 md:px-12">
-            <div className="mx-auto flex min-h-full w-full max-w-3xl items-center justify-center">
+          <div className="px-6 py-10 md:px-12">
+            <div className="mx-auto flex w-full max-w-3xl items-center justify-center">
               <GigaamModelPreparationStep
                 status={gigaamStatus}
                 restart={restartGigaam}
@@ -163,12 +200,12 @@ export default function ControlPanel() {
             </div>
           </div>
         ) : (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="flex flex-col">
             <div className="shrink-0 space-y-3 px-6 pb-3 pt-1">
               <GigaamAsrStatusPanel className="mx-auto w-full max-w-3xl" />
             </div>
 
-            <div className="min-h-0 flex-1 overflow-hidden border-t border-border/50">
+            <div className="border-t border-border/50">
               <SettingsWorkspace
                 requestedSection={settingsNavigation.section}
                 requestId={settingsNavigation.requestId}

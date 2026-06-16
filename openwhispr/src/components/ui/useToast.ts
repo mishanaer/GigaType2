@@ -27,16 +27,7 @@ const isDictationPanel = () =>
   window.location.pathname.indexOf("control") === -1 &&
   window.location.search.indexOf("panel=true") === -1
 
-const syncDictationToastWindow = () => {
-  if (!isDictationPanel()) return
-  if (activeToastIds.size > 0) {
-    window.electronAPI?.setMainWindowInteractivity?.(true)
-    window.electronAPI?.resizeMainWindow?.("WITH_TOAST")
-  } else {
-    window.electronAPI?.setMainWindowInteractivity?.(false)
-    window.electronAPI?.resizeMainWindow?.("BASE")
-  }
-}
+const syncDictationToastWindow = () => {}
 
 const removeToast = (id?: string) => {
   if (id) {
@@ -51,7 +42,7 @@ export const useToast = (): ToastContextType => {
   const toast = React.useCallback((props: Omit<ToastProps, "id">): string => {
     const { title, description, action, duration, onClose, variant = "default" } = props
 
-    if (isDictationPanel() && variant === "destructive") {
+    if (isDictationPanel()) {
       onClose?.()
       return ""
     }

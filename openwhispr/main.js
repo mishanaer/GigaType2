@@ -460,31 +460,15 @@ async function startApp() {
   });
 
   windowManager.setActivationModeCache(environmentManager.getActivationMode());
-  windowManager.setFloatingIconAutoHide(environmentManager.getFloatingIconAutoHide());
-  windowManager.setPanelStartPosition(environmentManager.getPanelStartPosition());
 
   ipcMain.on("activation-mode-changed", (_event, mode) => {
     windowManager.setActivationModeCache(mode);
     environmentManager.saveActivationMode(mode);
   });
 
-  ipcMain.on("floating-icon-auto-hide-changed", (_event, enabled) => {
-    windowManager.setFloatingIconAutoHide(enabled);
-    environmentManager.saveFloatingIconAutoHide(enabled);
-    // Relay to the floating icon window so it can react immediately
-    if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
-      windowManager.mainWindow.webContents.send("floating-icon-auto-hide-changed", enabled);
-    }
-  });
-
   ipcMain.on("start-minimized-changed", (_event, enabled) => {
     if (debugLogger) debugLogger.info("Start minimized changed", { enabled });
     environmentManager.saveStartMinimized(enabled);
-  });
-
-  ipcMain.on("panel-start-position-changed", (_event, position) => {
-    windowManager.setPanelStartPosition(position);
-    environmentManager.savePanelStartPosition(position);
   });
 
   if (process.platform === "darwin") {
@@ -576,11 +560,10 @@ async function startApp() {
       isMouseButtonHotkey,
       isModifierOnlyHotkey,
     } = require("./src/helpers/hotkeyManager");
-    let globeKeyDownTime = 0;
     let globeKeyIsRecording = false;
     let globeLastStopTime = 0;
     const MIN_HOLD_DURATION_MS = 150;
-    const POST_STOP_COOLDOWN_MS = 300;
+    const POST_STOP_COOLDOWN_MS = 100;
 
     globeKeyManager.on("globe-down", async () => {
       const currentHotkey = hotkeyManager.getCurrentHotkey && hotkeyManager.getCurrentHotkey();
@@ -609,16 +592,11 @@ async function startApp() {
               return;
             }
             windowManager.showDictationPanel();
-            const pressTime = now;
-            globeKeyDownTime = pressTime;
-            globeKeyIsRecording = false;
-            setTimeout(async () => {
-              if (globeKeyDownTime === pressTime && !globeKeyIsRecording) {
-                globeKeyIsRecording = true;
-                debugLogger?.debug("[Globe] Starting dictation (push hold)");
-                windowManager.sendStartDictation();
-              }
-            }, MIN_HOLD_DURATION_MS);
+            if (!globeKeyIsRecording) {
+              globeKeyIsRecording = true;
+              debugLogger?.debug("[Globe] Starting dictation (push immediate)");
+              windowManager.sendStartDictation();
+            }
           } else {
             windowManager.sendToggleDictation();
           }
@@ -643,7 +621,6 @@ async function startApp() {
       if (hotkeyManager.getCurrentHotkey && isGlobeLikeHotkey(hotkeyManager.getCurrentHotkey())) {
         const activationMode = windowManager.getActivationMode();
         if (activationMode === "push") {
-          globeKeyDownTime = 0;
           globeLastStopTime = Date.now();
           if (globeKeyIsRecording) {
             globeKeyIsRecording = false;
@@ -841,7 +818,6 @@ async function startApp() {
 
     // Reset native key state when hotkey changes
     ipcMain.on("hotkey-changed", (_event, _newHotkey) => {
-      globeKeyDownTime = 0;
       globeKeyIsRecording = false;
       globeLastStopTime = 0;
       rightModDownTime = 0;

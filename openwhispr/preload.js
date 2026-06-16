@@ -25,6 +25,7 @@ const registerListener = (channel, handlerFactory) => {
 contextBridge.exposeInMainWorld("electronAPI", {
   pasteText: (text, options) => ipcRenderer.invoke("paste-text", text, options),
   hideWindow: () => ipcRenderer.invoke("hide-window"),
+  hideDictationPanel: () => ipcRenderer.invoke("hide-dictation-panel"),
   showDictationPanel: () => ipcRenderer.invoke("show-dictation-panel"),
   onToggleDictation: registerListener("toggle-dictation", (callback) => () => callback()),
   onStartDictation: registerListener("start-dictation", (callback) => () => callback()),
@@ -220,6 +221,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setNotificationInteractivity: (interactive) =>
     ipcRenderer.invoke("set-notification-interactivity", interactive),
   resizeMainWindow: (sizeKey) => ipcRenderer.invoke("resize-main-window", sizeKey),
+  resizeControlPanelToContent: (height) =>
+    ipcRenderer.invoke("resize-control-panel-to-content", height),
 
   // Update functions
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
@@ -440,18 +443,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Notify main process of activation mode changes (for Windows Push-to-Talk)
   notifyActivationModeChanged: (mode) => ipcRenderer.send("activation-mode-changed", mode),
   notifyHotkeyChanged: (hotkey) => ipcRenderer.send("hotkey-changed", hotkey),
-
-  // Floating icon auto-hide
-  notifyFloatingIconAutoHideChanged: (enabled) =>
-    ipcRenderer.send("floating-icon-auto-hide-changed", enabled),
-  onFloatingIconAutoHideChanged: registerListener(
-    "floating-icon-auto-hide-changed",
-    (callback) => (_event, enabled) => callback(enabled)
-  ),
-
-  // Panel start position
-  notifyPanelStartPositionChanged: (position) =>
-    ipcRenderer.send("panel-start-position-changed", position),
 
   // Start minimized
   notifyStartMinimizedChanged: (enabled) => ipcRenderer.send("start-minimized-changed", enabled),

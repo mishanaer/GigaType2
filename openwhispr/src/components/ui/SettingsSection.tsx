@@ -12,19 +12,13 @@ interface SettingsSectionProps {
 
 export const SettingsSection: React.FC<SettingsSectionProps> = ({
   title,
-  description,
   children,
   className = "",
 }) => {
   return (
     <div className={`space-y-3 ${className}`}>
       <div>
-        <h3 className="text-xs font-semibold text-foreground tracking-tight">{title}</h3>
-        {description && (
-          <p className="truncate text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">
-            {description}
-          </p>
-        )}
+        <h3 className="text-[13px] font-normal text-muted-foreground leading-none">{title}</h3>
       </div>
       {children}
     </div>
@@ -67,7 +61,6 @@ interface SettingsRowProps {
 
 export const SettingsRow: React.FC<SettingsRowProps> = ({
   label,
-  description,
   children,
   className = "",
 }) => {
@@ -78,12 +71,7 @@ export const SettingsRow: React.FC<SettingsRowProps> = ({
       className={`flex items-center justify-between ${isCompact ? "gap-3" : "gap-4"} ${className}`}
     >
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-foreground">{label}</p>
-        {description && (
-          <p className="truncate text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">
-            {description}
-          </p>
-        )}
+        <p className="text-base font-normal leading-5 text-foreground">{label}</p>
       </div>
       <div className="shrink-0">{children}</div>
     </div>
@@ -120,15 +108,10 @@ export function SettingsPanelRow({
   );
 }
 
-export function SectionHeader({ title, description }: { title: string; description?: string }) {
+export function SectionHeader({ title }: { title: string; description?: string }) {
   return (
     <div className="mb-3">
-      <h3 className="text-xs font-semibold text-foreground tracking-tight">{title}</h3>
-      {description && (
-        <p className="truncate text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">
-          {description}
-        </p>
-      )}
+      <h3 className="text-[13px] font-normal text-muted-foreground leading-none">{title}</h3>
     </div>
   );
 }

@@ -413,6 +413,10 @@ class IPCHandlers {
       this.windowManager.showDictationPanel();
     });
 
+    ipcMain.handle("hide-dictation-panel", () => {
+      this.windowManager.hideDictationPanel();
+    });
+
     ipcMain.handle("force-stop-dictation", () => {
       if (this.windowManager?.forceStopMacCompoundPush) {
         this.windowManager.forceStopMacCompoundPush("manual");
@@ -432,6 +436,10 @@ class IPCHandlers {
 
     ipcMain.handle("resize-main-window", (event, sizeKey) => {
       return this.windowManager.resizeMainWindow(sizeKey);
+    });
+
+    ipcMain.handle("resize-control-panel-to-content", (event, height) => {
+      return this.windowManager.resizeControlPanelToContent(height);
     });
 
     ipcMain.handle("db-save-transcription", async (event, text, rawText, options) => {

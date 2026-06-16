@@ -76,13 +76,10 @@ function SettingsPanelRow({
   );
 }
 
-function SectionHeader({ title, description }: { title: string; description?: string }) {
+function SectionHeader({ title }: { title: string; description?: string }) {
   return (
     <div className="mb-3">
-      <h3 className="text-xs font-semibold text-foreground tracking-tight">{title}</h3>
-      {description && (
-        <p className="text-xs text-muted-foreground/80 mt-0.5 leading-relaxed">{description}</p>
-      )}
+      <h3 className="text-[13px] font-normal text-muted-foreground leading-none">{title}</h3>
     </div>
   );
 }
@@ -104,14 +101,8 @@ export default function SettingsPage({
     selectedMicDeviceId,
     setPreferBuiltInMic,
     setSelectedMicDeviceId,
-    showTranscriptionPreview,
-    setShowTranscriptionPreview,
-    floatingIconAutoHide,
-    setFloatingIconAutoHide,
     startMinimized,
     setStartMinimized,
-    panelStartPosition,
-    setPanelStartPosition,
   } = useSettings();
 
   const { t } = useTranslation();
@@ -244,47 +235,6 @@ export default function SettingsPage({
                     onPreferBuiltInChange={setPreferBuiltInMic}
                     onDeviceSelect={setSelectedMicDeviceId}
                   />
-                </SettingsPanelRow>
-              </SettingsPanel>
-            </div>
-
-            {/* Floating Icon */}
-            <div>
-              <SectionHeader title={t("settingsPage.general.floatingIcon.title")} />
-              <SettingsPanel>
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.general.floatingIcon.autoHide")}
-                    description={t("settingsPage.general.floatingIcon.autoHideDescription")}
-                  >
-                    <Toggle checked={floatingIconAutoHide} onChange={setFloatingIconAutoHide} />
-                  </SettingsRow>
-                </SettingsPanelRow>
-                <SettingsPanelRow>
-                  <SettingsRow
-                    label={t("settingsPage.general.floatingIcon.startPosition")}
-                    description={t("settingsPage.general.floatingIcon.startPositionDescription")}
-                  >
-                    <select
-                      value={panelStartPosition}
-                      onChange={(e) =>
-                        setPanelStartPosition(
-                          e.target.value as "bottom-right" | "center" | "bottom-left"
-                        )
-                      }
-                      className="h-7 rounded border border-border/70 bg-muted/80 px-2.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm hover:border-ring/60 hover:bg-card/70 focus:outline-none focus:ring-2 focus:ring-ring/30 focus:ring-offset-1 transition-colors duration-200"
-                    >
-                      <option value="bottom-right">
-                        {t("settingsPage.general.floatingIcon.bottomRight")}
-                      </option>
-                      <option value="center">
-                        {t("settingsPage.general.floatingIcon.center")}
-                      </option>
-                      <option value="bottom-left">
-                        {t("settingsPage.general.floatingIcon.bottomLeft")}
-                      </option>
-                    </select>
-                  </SettingsRow>
                 </SettingsPanelRow>
               </SettingsPanel>
             </div>

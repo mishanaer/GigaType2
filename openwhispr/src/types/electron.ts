@@ -353,10 +353,16 @@ declare global {
         }
       ) => Promise<void>;
       hideWindow: () => Promise<void>;
+      hideDictationPanel?: () => Promise<void>;
       showDictationPanel: () => Promise<void>;
       resizeMainWindow?: (
         sizeKey: "BASE" | "WITH_MENU" | "WITH_TOAST" | "EXPANDED"
       ) => Promise<{ success: boolean; message?: string }>;
+      resizeControlPanelToContent?: (height: number) => Promise<{
+        success: boolean;
+        message?: string;
+        bounds?: { x: number; y: number; width: number; height: number };
+      }>;
       onToggleDictation: (callback: () => void) => () => void;
       onStartDictation?: (callback: () => void) => () => void;
       onStopDictation?: (callback: () => void) => () => void;
@@ -781,10 +787,7 @@ declare global {
       // Windows Push-to-Talk notifications
       notifyActivationModeChanged?: (mode: "tap" | "push") => void;
       notifyHotkeyChanged?: (hotkey: string) => void;
-      notifyFloatingIconAutoHideChanged?: (enabled: boolean) => void;
-      onFloatingIconAutoHideChanged?: (callback: (enabled: boolean) => void) => () => void;
       notifyStartMinimizedChanged?: (enabled: boolean) => void;
-      notifyPanelStartPositionChanged?: (position: string) => void;
 
       // Auto-start at login
       getAutoStartEnabled?: () => Promise<boolean>;

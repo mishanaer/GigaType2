@@ -29,19 +29,50 @@ export const useAudioRecording = (toast, options = {}) => {
   const audioManagerRef = useRef(null);
   const startLockRef = useRef(false);
   const stopLockRef = useRef(false);
+  const pendingStopRef = useRef(false);
   const audioLevelLogRef = useRef(0);
   const { onToggle } = options;
+  const notify = useCallback((props) => {
+    if (typeof toast === "function") {
+      return toast(props);
+    }
+    return "";
+  }, [toast]);
+
+  const stopActiveRecording = useCallback(async () => {
+    if (!audioManagerRef.current) return false;
+
+    const currentState = audioManagerRef.current.getState();
+    if (!currentState.isRecording && !currentState.isStreamingStartInProgress) return false;
+
+    window.electronAPI?.unregisterCancelHotkey?.();
+
+    if (currentState.isStreaming || currentState.isStreamingStartInProgress) {
+      void playStopCue();
+      return await audioManagerRef.current.stopStreamingRecording();
+    }
+
+    const didStop = audioManagerRef.current.stopRecording();
+
+    if (didStop) {
+      void playStopCue();
+    }
+
+    return didStop;
+  }, []);
 
   const performStartRecording = useCallback(async () => {
     if (startLockRef.current) return false;
+    pendingStopRef.current = false;
     startLockRef.current = true;
+    let didStart = false;
     try {
       if (!audioManagerRef.current) return false;
 
       const currentState = audioManagerRef.current.getState();
       if (currentState.isRecording || currentState.isProcessing) return false;
 
-      const didStart = audioManagerRef.current.shouldUseStreaming()
+      didStart = audioManagerRef.current.shouldUseStreaming()
         ? await audioManagerRef.current.startStreamingRecording()
         : await audioManagerRef.current.startRecording();
 
@@ -56,36 +87,28 @@ export const useAudioRecording = (toast, options = {}) => {
       return didStart;
     } finally {
       startLockRef.current = false;
+      if (pendingStopRef.current) {
+        pendingStopRef.current = false;
+        if (didStart) {
+          await stopActiveRecording();
+        }
+      }
     }
-  }, []);
+  }, [stopActiveRecording]);
 
   const performStopRecording = useCallback(async () => {
+    if (startLockRef.current) {
+      pendingStopRef.current = true;
+      return true;
+    }
     if (stopLockRef.current) return false;
     stopLockRef.current = true;
     try {
-      if (!audioManagerRef.current) return false;
-
-      const currentState = audioManagerRef.current.getState();
-      if (!currentState.isRecording && !currentState.isStreamingStartInProgress) return false;
-
-      window.electronAPI?.unregisterCancelHotkey?.();
-
-      if (currentState.isStreaming || currentState.isStreamingStartInProgress) {
-        void playStopCue();
-        return await audioManagerRef.current.stopStreamingRecording();
-      }
-
-      const didStop = audioManagerRef.current.stopRecording();
-
-      if (didStop) {
-        void playStopCue();
-      }
-
-      return didStop;
+      return await stopActiveRecording();
     } finally {
       stopLockRef.current = false;
     }
-  }, []);
+  }, [stopActiveRecording]);
 
   useEffect(() => {
     audioManagerRef.current = new AudioManager();
@@ -129,7 +152,7 @@ export const useAudioRecording = (toast, options = {}) => {
         }
         const title = getRecordingErrorTitle(error, t);
         const description = getRecordingErrorDescription(error, t);
-        toast({
+        notify({
           title,
           description,
           variant: "destructive",
@@ -152,7 +175,7 @@ export const useAudioRecording = (toast, options = {}) => {
 
           if (!transcribedText) {
             window.electronAPI?.hideDictationPreview?.();
-            toast({
+            notify({
               title: t("hooks.audioRecording.noAudio.title"),
               description: t("hooks.audioRecording.noAudio.description"),
               variant: "default",
@@ -205,7 +228,10 @@ export const useAudioRecording = (toast, options = {}) => {
     };
 
     const handleStart = async () => {
-      await performStartRecording();
+      const didStart = await performStartRecording();
+      if (!didStart) {
+        window.electronAPI?.hideDictationPanel?.();
+      }
     };
 
     const handleStop = async () => {
@@ -231,7 +257,7 @@ export const useAudioRecording = (toast, options = {}) => {
       if (getSettings().pauseMediaOnDictation) {
         window.electronAPI?.resumeMediaPlayback?.();
       }
-      toast({
+      notify({
         title: t("hooks.audioRecording.noAudio.title"),
         description: t("hooks.audioRecording.noAudio.description"),
         variant: "default",
@@ -250,7 +276,7 @@ export const useAudioRecording = (toast, options = {}) => {
         audioManagerRef.current.cleanup();
       }
     };
-  }, [toast, onToggle, performStartRecording, performStopRecording, t]);
+  }, [notify, onToggle, performStartRecording, performStopRecording, t]);
 
   const cancelRecording = useCallback(async () => {
     if (audioManagerRef.current) {

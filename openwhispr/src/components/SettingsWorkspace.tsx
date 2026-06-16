@@ -34,7 +34,7 @@ export default function SettingsWorkspace({
   return (
     <main
       ref={containerRef}
-      className="h-full min-h-0 w-full overflow-y-auto bg-background"
+      className="w-full bg-background"
     >
       <SettingsLayoutProvider value={{ isCompact }}>
         <div className={isCompact ? "p-4" : "p-6"}>

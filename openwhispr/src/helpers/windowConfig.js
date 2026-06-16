@@ -28,11 +28,14 @@ const FLOATING_OVERLAY_TYPE =
         : "toolbar"
       : "normal";
 
+const DICTATION_PILL_WINDOW = { width: 135, height: 60 };
+const MAIN_WINDOW_BOTTOM_OFFSET = 130;
+
 const WINDOW_SIZES = {
-  BASE: { width: 820, height: 260 },
-  WITH_MENU: { width: 240, height: 280 },
-  WITH_TOAST: { width: 400, height: 500 },
-  EXPANDED: { width: 400, height: 500 },
+  BASE: { ...DICTATION_PILL_WINDOW },
+  WITH_MENU: { ...DICTATION_PILL_WINDOW },
+  WITH_TOAST: { ...DICTATION_PILL_WINDOW },
+  EXPANDED: { ...DICTATION_PILL_WINDOW },
 };
 
 // Main dictation window configuration
@@ -50,6 +53,7 @@ const MAIN_WINDOW_CONFIG = {
   alwaysOnTop: true,
   resizable: false,
   transparent: true,
+  backgroundColor: "#00000000",
   show: false,
   skipTaskbar: true,
   focusable: false,
@@ -63,7 +67,8 @@ const MAIN_WINDOW_CONFIG = {
 // Control panel window configuration
 const CONTROL_PANEL_CONFIG = {
   width: 900,
-  height: 760,
+  height: 560,
+  minHeight: 360,
   backgroundColor: "#1c1c2e",
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
@@ -152,7 +157,7 @@ const TRANSCRIPTION_PREVIEW_CONFIG = {
 };
 
 class WindowPositionUtil {
-  static getMainWindowPosition(display, customSize = null, _position = "bottom-right") {
+  static getMainWindowPosition(display, customSize = null) {
     const { width, height } = customSize || WINDOW_SIZES.BASE;
     const bounds = display.bounds || display.workArea;
 
@@ -163,7 +168,7 @@ class WindowPositionUtil {
         bounds.x + bounds.width - width
       )
     );
-    const y = Math.max(bounds.y, bounds.y + bounds.height - height);
+    const y = Math.max(bounds.y, bounds.y + bounds.height - height - MAIN_WINDOW_BOTTOM_OFFSET);
 
     return { x, y, width, height };
   }

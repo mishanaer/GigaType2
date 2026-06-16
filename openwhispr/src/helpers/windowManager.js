@@ -40,8 +40,6 @@ class WindowManager {
     this.macCompoundPushState = null;
     this.winPushState = null;
     this._cachedActivationMode = "push";
-    this._floatingIconAutoHide = false;
-    this._panelStartPosition = "bottom-right";
     this._isDictatingToggle = false;
     this._pendingMeetingNoteNavigation = null;
 
@@ -54,11 +52,7 @@ class WindowManager {
   async createMainWindow() {
     const cursorPos = screen.getCursorScreenPoint();
     const display = screen.getDisplayNearestPoint(cursorPos);
-    const position = WindowPositionUtil.getMainWindowPosition(
-      display,
-      null,
-      this._panelStartPosition
-    );
+    const position = WindowPositionUtil.getMainWindowPosition(display);
 
     this.mainWindow = new BrowserWindow({
       ...MAIN_WINDOW_CONFIG,
@@ -140,16 +134,58 @@ class WindowManager {
 
     const newSize = WINDOW_SIZES[sizeKey] || WINDOW_SIZES.BASE;
     const currentBounds = this.mainWindow.getBounds();
-    const position = this._panelStartPosition;
     const display = screen.getDisplayNearestPoint({
       x: currentBounds.x + currentBounds.width / 2,
       y: currentBounds.y + currentBounds.height / 2,
     });
 
-    const bounds = WindowPositionUtil.getMainWindowPosition(display, newSize, position);
+    const bounds = WindowPositionUtil.getMainWindowPosition(display, newSize);
     this.mainWindow.setBounds(bounds);
 
     return { success: true, bounds };
+  }
+
+  resizeControlPanelToContent(height) {
+    const win = this.controlPanelWindow;
+    if (!win || win.isDestroyed()) {
+      return { success: false, message: "Control panel window not available" };
+    }
+
+    if (win.isMaximized() || win.isFullScreen()) {
+      return { success: true, bounds: win.getBounds() };
+    }
+
+    const requestedHeight = Math.ceil(Number(height));
+    if (!Number.isFinite(requestedHeight) || requestedHeight <= 0) {
+      return { success: false, message: "Invalid content height" };
+    }
+
+    const currentBounds = win.getBounds();
+    const display = screen.getDisplayNearestPoint({
+      x: currentBounds.x + currentBounds.width / 2,
+      y: currentBounds.y + currentBounds.height / 2,
+    });
+    const workArea = display.workArea || display.bounds;
+    const minHeight = CONTROL_PANEL_CONFIG.minHeight || 360;
+    const maxHeight = Math.max(minHeight, workArea.height - 48);
+    const nextHeight = Math.max(minHeight, Math.min(requestedHeight, maxHeight));
+
+    if (Math.abs(currentBounds.height - nextHeight) <= 1) {
+      return { success: true, bounds: currentBounds };
+    }
+
+    const centerY = currentBounds.y + currentBounds.height / 2;
+    const maxY = workArea.y + workArea.height - nextHeight;
+    const nextY = Math.max(workArea.y, Math.min(Math.round(centerY - nextHeight / 2), maxY));
+    const nextBounds = {
+      x: currentBounds.x,
+      y: nextY,
+      width: currentBounds.width,
+      height: nextHeight,
+    };
+
+    win.setBounds(nextBounds);
+    return { success: true, bounds: nextBounds };
   }
 
   async loadWindowContent(window, isControlPanel = false) {
@@ -485,28 +521,6 @@ class WindowManager {
     this._cachedActivationMode = "push";
   }
 
-  setFloatingIconAutoHide(enabled) {
-    this._floatingIconAutoHide = Boolean(enabled);
-  }
-
-  setPanelStartPosition(position) {
-    this._panelStartPosition = position || "bottom-right";
-    // Reposition the window immediately
-    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      const currentBounds = this.mainWindow.getBounds();
-      const display = screen.getDisplayNearestPoint({
-        x: currentBounds.x + currentBounds.width / 2,
-        y: currentBounds.y + currentBounds.height / 2,
-      });
-      const newPos = WindowPositionUtil.getMainWindowPosition(
-        display,
-        { width: currentBounds.width, height: currentBounds.height },
-        this._panelStartPosition
-      );
-      this.mainWindow.setBounds(newPos);
-    }
-  }
-
   setHotkeyListeningMode(enabled) {
     this.hotkeyManager.setListeningMode(enabled);
   }
@@ -810,8 +824,7 @@ class WindowManager {
 
     const newPos = WindowPositionUtil.getMainWindowPosition(
       cursorDisplay,
-      { width: currentBounds.width, height: currentBounds.height },
-      this._panelStartPosition
+      { width: currentBounds.width, height: currentBounds.height }
     );
     this.mainWindow.setBounds(newPos);
   }
@@ -876,28 +889,8 @@ class WindowManager {
       return;
     }
 
-    // Safety timeout: force show the window if ready-to-show doesn't fire within 10 seconds
-    const showTimeout = setTimeout(() => {
-      if (
-        this.mainWindow &&
-        !this.mainWindow.isDestroyed() &&
-        !this.mainWindow.isVisible() &&
-        !this._floatingIconAutoHide
-      ) {
-        this.showDictationPanel();
-      }
-    }, 10000);
-
     this.mainWindow.once("ready-to-show", () => {
-      clearTimeout(showTimeout);
       this.enforceMainWindowOnTop();
-      if (!this.mainWindow.isVisible() && !this._floatingIconAutoHide) {
-        if (typeof this.mainWindow.showInactive === "function") {
-          this.mainWindow.showInactive();
-        } else {
-          this.mainWindow.show();
-        }
-      }
     });
 
     this.mainWindow.on("show", () => {

@@ -1,9 +1,6 @@
-import React, { useEffect, useLayoutEffect, useRef } from "react";
-import { useTranslation } from "react-i18next";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import "./index.css";
-import { useToast } from "./components/ui/useToast";
 import { useAudioRecording } from "./hooks/useAudioRecording";
-import { useSettingsStore } from "./stores/settingsStore";
 import CustomSiriWave from "./utils/customSiriWave";
 
 const WAVE_SPEED = 0.12;
@@ -68,72 +65,12 @@ const SiriWaveIndicator = ({ audioLevel, isProcessing }) => {
 };
 
 export default function App() {
-  const { toast, toastCount } = useToast();
-  const { t } = useTranslation();
-
-  const floatingIconAutoHide = useSettingsStore((s) => s.floatingIconAutoHide);
-  const prevAutoHideRef = useRef(floatingIconAutoHide);
-
-  const setWindowInteractivity = React.useCallback((shouldCapture) => {
-    window.electronAPI?.setMainWindowInteractivity?.(shouldCapture);
-  }, []);
-
-  useEffect(() => {
-    setWindowInteractivity(false);
-    return () => setWindowInteractivity(false);
-  }, [setWindowInteractivity]);
-
-  useEffect(() => {
-    const unsubscribeFallback = window.electronAPI?.onHotkeyFallbackUsed?.((data) => {
-      toast({
-        title: t("app.toasts.hotkeyChanged.title"),
-        description: t("app.toasts.hotkeyChanged.description", {
-          original: data.original,
-          fallback: data.fallback,
-        }),
-        duration: 8000,
-      });
-    });
-
-    const unsubscribeFailed = window.electronAPI?.onHotkeyRegistrationFailed?.(() => {
-      toast({
-        title: t("app.toasts.hotkeyUnavailable.title"),
-        description: t("app.toasts.hotkeyUnavailable.description"),
-        duration: 10000,
-      });
-    });
-
-    return () => {
-      unsubscribeFallback?.();
-      unsubscribeFailed?.();
-    };
-  }, [toast, t]);
-
-  useEffect(() => {
-    window.electronAPI?.resizeMainWindow?.(toastCount > 0 ? "WITH_TOAST" : "BASE");
-  }, [toastCount]);
-
-  const handleDictationToggle = React.useCallback(() => {
-    setWindowInteractivity(false);
-  }, [setWindowInteractivity]);
-
   const {
     isRecording,
     isProcessing,
     audioLevel,
     cancelRecording,
-  } =
-    useAudioRecording(toast, {
-      onToggle: handleDictationToggle,
-    });
-
-  useEffect(() => {
-    const unsubscribe = window.electronAPI?.onFloatingIconAutoHideChanged?.((enabled) => {
-      localStorage.setItem("floatingIconAutoHide", String(enabled));
-      useSettingsStore.setState({ floatingIconAutoHide: enabled });
-    });
-    return () => unsubscribe?.();
-  }, []);
+  } = useAudioRecording();
 
   const isRecordingRef = useRef(isRecording);
 
@@ -149,24 +86,9 @@ export default function App() {
   }, [cancelRecording]);
 
   useEffect(() => {
-    let hideTimeout;
-
-    if (floatingIconAutoHide && !isRecording && !isProcessing && toastCount === 0) {
-      hideTimeout = setTimeout(() => {
-        window.electronAPI?.hideWindow?.();
-      }, 500);
-    } else if (!floatingIconAutoHide && prevAutoHideRef.current) {
-      window.electronAPI?.showDictationPanel?.();
-    }
-
-    prevAutoHideRef.current = floatingIconAutoHide;
-    return () => clearTimeout(hideTimeout);
-  }, [isRecording, isProcessing, floatingIconAutoHide, toastCount]);
-
-  useEffect(() => {
     const handleKeyPress = (event) => {
       if (event.key === "Escape") {
-        window.electronAPI?.hideWindow?.();
+        window.electronAPI?.hideDictationPanel?.();
       }
     };
 
@@ -174,19 +96,19 @@ export default function App() {
     return () => document.removeEventListener("keydown", handleKeyPress);
   }, []);
 
-  const isWaveVisible = isRecording || isProcessing;
+  const isWaveVisible = isRecording;
 
   useEffect(() => {
-    setWindowInteractivity(toastCount > 0);
-  }, [toastCount, setWindowInteractivity]);
+    if (!isWaveVisible) {
+      window.electronAPI?.hideDictationPanel?.();
+    }
+  }, [isWaveVisible]);
 
   return (
-    <div className="dictation-window">
+    <div className="dictation-window flex h-screen w-screen items-center justify-center">
       {isWaveVisible && (
-        <div className="pointer-events-none fixed inset-0 z-50 flex items-end justify-center">
-          <div className="relative flex h-[70px] w-[135px] items-center justify-center overflow-hidden rounded-full border border-white/20 bg-black">
-            <SiriWaveIndicator audioLevel={audioLevel} isProcessing={isProcessing} />
-          </div>
+        <div className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-white/20 bg-black">
+          <SiriWaveIndicator audioLevel={audioLevel} isProcessing={isProcessing} />
         </div>
       )}
     </div>

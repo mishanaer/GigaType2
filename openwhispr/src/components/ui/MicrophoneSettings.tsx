@@ -79,7 +79,7 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
-        <label className="text-sm font-medium text-foreground">
+        <label className="text-base font-normal leading-5 text-foreground">
           {t("microphoneSettings.inputDevice")}
         </label>
       </div>

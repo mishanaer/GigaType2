@@ -163,7 +163,6 @@ const BOOLEAN_SETTINGS = new Set([
   "cloudBackupEnabled",
   "audioCuesEnabled",
   "pauseMediaOnDictation",
-  "floatingIconAutoHide",
   "startMinimized",
   "meetingProcessDetection",
   "meetingAudioDetection",
@@ -453,7 +452,6 @@ export interface SettingsState
   isSignedIn: boolean;
   audioCuesEnabled: boolean;
   pauseMediaOnDictation: boolean;
-  floatingIconAutoHide: boolean;
   startMinimized: boolean;
   gcalAccounts: GoogleCalendarAccount[];
   gcalConnected: boolean;
@@ -475,7 +473,6 @@ export interface SettingsState
   speechVadMaxSpeechDurationS: number;
   speechVadSpeechPadMs: number;
   speechVadSamplesOverlap: number;
-  panelStartPosition: "bottom-right" | "center" | "bottom-left";
   showTranscriptionPreview: boolean;
   noteFilesEnabled: boolean;
   noteFilesPath: string;
@@ -584,7 +581,6 @@ export interface SettingsState
   setDataRetentionEnabled: (value: boolean) => void;
   setAudioCuesEnabled: (value: boolean) => void;
   setPauseMediaOnDictation: (value: boolean) => void;
-  setFloatingIconAutoHide: (enabled: boolean) => void;
   setStartMinimized: (enabled: boolean) => void;
   setGcalAccounts: (accounts: GoogleCalendarAccount[]) => void;
   setNotificationsEnabled: (value: boolean) => void;
@@ -604,7 +600,6 @@ export interface SettingsState
   setSpeechVadMaxSpeechDurationS: (value: number) => void;
   setSpeechVadSpeechPadMs: (value: number) => void;
   setSpeechVadSamplesOverlap: (value: number) => void;
-  setPanelStartPosition: (position: "bottom-right" | "center" | "bottom-left") => void;
   setShowTranscriptionPreview: (value: boolean) => void;
   setNoteFilesEnabled: (value: boolean) => void;
   setNoteFilesPath: (value: string) => void;
@@ -810,7 +805,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   dataRetentionEnabled: false,
   audioCuesEnabled: FIXED_AUDIO_CUES_ENABLED,
   pauseMediaOnDictation: FIXED_PAUSE_MEDIA_ON_DICTATION,
-  floatingIconAutoHide: readBoolean("floatingIconAutoHide", false),
   startMinimized: readBoolean("startMinimized", false),
   notificationsEnabled: FIXED_NOTIFICATIONS_ENABLED,
   notifyMeetingDetection: FIXED_NOTIFICATIONS_ENABLED,
@@ -869,11 +863,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     "samplesOverlap",
     readMigratedString("speechVadSamplesOverlap", "whisperVadSamplesOverlap", "0.5")
   ),
-  panelStartPosition: (() => {
-    const v = readString("panelStartPosition", "bottom-right");
-    if (v === "bottom-right" || v === "center" || v === "bottom-left") return v;
-    return "bottom-right" as const;
-  })(),
   showTranscriptionPreview: readBoolean("showTranscriptionPreview", false),
   noteFilesEnabled: readBoolean("noteFilesEnabled", false),
   noteFilesPath: readString("noteFilesPath", ""),
@@ -1123,15 +1112,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ pauseMediaOnDictation: FIXED_PAUSE_MEDIA_ON_DICTATION });
   },
 
-  setFloatingIconAutoHide: (enabled: boolean) => {
-    if (get().floatingIconAutoHide === enabled) return;
-    if (isBrowser) localStorage.setItem("floatingIconAutoHide", String(enabled));
-    set({ floatingIconAutoHide: enabled });
-    if (isBrowser) {
-      window.electronAPI?.notifyFloatingIconAutoHideChanged?.(enabled);
-    }
-  },
-
   setStartMinimized: (enabled: boolean) => {
     if (get().startMinimized === enabled) return;
     if (isBrowser) localStorage.setItem("startMinimized", String(enabled));
@@ -1253,15 +1233,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       window.electronAPI?.setSpeechVadConfig?.({ samplesOverlap: next });
     }
   },
-  setPanelStartPosition: (position: "bottom-right" | "center" | "bottom-left") => {
-    if (get().panelStartPosition === position) return;
-    if (isBrowser) localStorage.setItem("panelStartPosition", position);
-    set({ panelStartPosition: position });
-    if (isBrowser) {
-      window.electronAPI?.notifyPanelStartPositionChanged?.(position);
-    }
-  },
-
   setShowTranscriptionPreview: createBooleanSetter("showTranscriptionPreview"),
   setNoteFilesEnabled: createBooleanSetter("noteFilesEnabled"),
   setNoteFilesPath: createStringSetter("noteFilesPath"),
