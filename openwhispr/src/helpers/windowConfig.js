@@ -69,7 +69,7 @@ const CONTROL_PANEL_CONFIG = {
   width: 600,
   height: 560,
   minHeight: 360,
-  backgroundColor: "#1c1c2e",
+  backgroundColor: process.platform === "darwin" ? "#00000000" : "#1c1c2e",
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
@@ -86,18 +86,20 @@ const CONTROL_PANEL_CONFIG = {
     backgroundThrottling: false,
   },
   title: "Control Panel",
-  resizable: true,
+  resizable: false,
   show: false,
   frame: false,
   ...(process.platform === "darwin" && {
     titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 20, y: 20 },
+    trafficLightPosition: { x: 8, y: 8 },
+    vibrancy: "under-window",
+    visualEffectState: "active",
   }),
-  transparent: false,
+  transparent: process.platform === "darwin",
   minimizable: true,
-  maximizable: true,
+  maximizable: false,
   closable: true,
-  fullscreenable: true,
+  fullscreenable: false,
   skipTaskbar: false,
   alwaysOnTop: false,
   visibleOnAllWorkspaces: false,
@@ -163,10 +165,7 @@ class WindowPositionUtil {
 
     const x = Math.max(
       bounds.x,
-      Math.min(
-        Math.round(bounds.x + (bounds.width - width) / 2),
-        bounds.x + bounds.width - width
-      )
+      Math.min(Math.round(bounds.x + (bounds.width - width) / 2), bounds.x + bounds.width - width)
     );
     const y = Math.max(bounds.y, bounds.y + bounds.height - height - MAIN_WINDOW_BOTTOM_OFFSET);
 

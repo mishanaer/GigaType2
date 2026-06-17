@@ -14,6 +14,7 @@ interface MicrophoneSettingsProps {
   selectedMicDeviceId: string;
   onPreferBuiltInChange: (value: boolean) => void;
   onDeviceSelect: (deviceId: string) => void;
+  variant?: "default" | "appshots";
 }
 
 export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
@@ -21,6 +22,7 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
   selectedMicDeviceId,
   onPreferBuiltInChange,
   onDeviceSelect,
+  variant = "default",
 }) => {
   const { t } = useTranslation();
   const [devices, setDevices] = useState<AudioDevice[]>([]);
@@ -75,22 +77,55 @@ export const MicrophoneSettings: React.FC<MicrophoneSettingsProps> = ({
     onPreferBuiltInChange(false);
     onDeviceSelect(deviceId === "default" ? "" : deviceId);
   };
+  const isAppshots = variant === "appshots";
+  const appshotsItemClassName = "text-[17px] font-[400] leading-[21px]";
 
   return (
-    <div className="w-full sm:w-[282px]">
+    <div className={isAppshots ? "w-full" : "w-full sm:w-[282px]"}>
       {error ? (
-        <p className="text-sm text-destructive">{error}</p>
+        <p
+          className={
+            isAppshots
+              ? "truncate text-[14px] font-[500] leading-[16px] text-muted-foreground"
+              : "text-sm text-destructive"
+          }
+        >
+          {error}
+        </p>
       ) : (
         <Select value={activeDeviceId} onValueChange={handleDeviceSelect}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger
+            className={
+              isAppshots
+                ? "appshots-settings-select h-[64px] min-h-[64px] w-full rounded-[25px] border-0 bg-card px-[30px] text-[17px] font-[400] leading-[21px] text-foreground shadow-none outline-none transition-colors duration-150 hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/25"
+                : "w-full"
+            }
+          >
             <SelectValue placeholder={t("microphoneSettings.selectPlaceholder")}>
               {activeDeviceLabel}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="default">{t("microphoneSettings.systemDefault")}</SelectItem>
+          <SelectContent
+            position={isAppshots ? "popper" : undefined}
+            align={isAppshots ? "start" : undefined}
+            className={
+              isAppshots
+                ? "appshots-settings-no-drag appshots-settings-select-content w-[var(--radix-select-trigger-width)] rounded-[18px] border-0 bg-popover text-[17px] font-[400] text-popover-foreground shadow-none"
+                : undefined
+            }
+          >
+            <SelectItem
+              className={isAppshots ? `appshots-settings-no-drag ${appshotsItemClassName}` : undefined}
+              value="default"
+            >
+              {t("microphoneSettings.systemDefault")}
+            </SelectItem>
             {selectDevices.map((device) => (
-              <SelectItem key={device.deviceId} value={device.deviceId}>
+              <SelectItem
+                key={device.deviceId}
+                className={isAppshots ? `appshots-settings-no-drag ${appshotsItemClassName}` : undefined}
+                value={device.deviceId}
+              >
                 {device.label}
               </SelectItem>
             ))}

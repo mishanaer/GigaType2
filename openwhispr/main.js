@@ -90,6 +90,15 @@ function configureChannelUserDataPath() {
 
 configureChannelUserDataPath();
 
+function setMacDockIcon() {
+  if (process.platform !== "darwin" || !app.dock) {
+    return;
+  }
+
+  const iconPath = path.join(__dirname, "src", "assets", "icon.png");
+  app.dock.setIcon(iconPath);
+}
+
 // Load userData .env (contains hotkeys and runtime config) early — before
 // hotkey registration, which needs DICTATION_KEY before the renderer loads.
 require("dotenv").config({
@@ -1109,6 +1118,8 @@ if (gotSingleInstanceLock) {
           });
         });
       }
+
+      setMacDockIcon();
 
       startApp().catch((error) => {
         console.error("Failed to start app:", error);

@@ -4,7 +4,20 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: var(--font-family-sans);
+  --font-sans: "SB Sans UI", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "SB Sans Text Mono", ui-monospace, monospace;
+  --color-giga-accent: var(--giga-accent);
+  --color-red: var(--status-red);
+  --color-orange: var(--status-orange);
+  --color-yellow: var(--status-yellow);
+  --color-green: var(--status-green);
+  --color-teal: var(--status-teal);
+  --color-cyan: var(--status-cyan);
+  --color-blue: var(--status-blue);
+  --color-indigo: var(--status-indigo);
+  --color-purple: var(--status-purple);
+  --color-pink: var(--status-pink);
+  --color-brown: var(--status-brown);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -46,9 +59,20 @@
 }
 
 :root {
-  --font-family-sans:
-    "Noto Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    sans-serif;
+  --font-family-sans: "SB Sans UI", ui-sans-serif, system-ui, sans-serif;
+  --font-family-mono: "SB Sans Text Mono", ui-monospace, monospace;
+  --giga-accent: #17be93;
+  --status-red: #ff383c;
+  --status-orange: #ff8d28;
+  --status-yellow: #ffcc00;
+  --status-green: #34c759;
+  --status-teal: #00c3d0;
+  --status-cyan: #00c0e8;
+  --status-blue: #0088ff;
+  --status-indigo: #6155f5;
+  --status-purple: #cb30e0;
+  --status-pink: #ff2d55;
+  --status-brown: #ac7f5e;
 
   --opacity-subtle: 0.1;
   --opacity-medium: 0.5;
@@ -61,7 +85,7 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: var(--giga-accent);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -69,16 +93,16 @@
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+  --destructive: var(--status-red);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --success: oklch(0.627 0.194 149.214);
+  --ring: var(--status-blue);
+  --success: var(--status-green);
   --success-foreground: oklch(0.985 0 0);
-  --warning: oklch(0.705 0.213 47.604);
+  --warning: var(--status-orange);
   --warning-foreground: oklch(0.145 0 0);
-  --info: oklch(0.623 0.214 259.815);
+  --info: var(--status-blue);
   --info-foreground: oklch(0.985 0 0);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
@@ -91,13 +115,25 @@
 }
 
 .dark {
+  --giga-accent: #24f2bf;
+  --status-red: #ff4245;
+  --status-orange: #ff9230;
+  --status-yellow: #ffd600;
+  --status-green: #30d158;
+  --status-teal: #00d2e0;
+  --status-cyan: #3cd3fe;
+  --status-blue: #0091ff;
+  --status-indigo: #6d7cff;
+  --status-purple: #db34f2;
+  --status-pink: #ff375f;
+  --status-brown: #b78a66;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
+  --primary: var(--giga-accent);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -105,16 +141,16 @@
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+  --destructive: var(--status-red);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --success: oklch(0.696 0.17 162.48);
+  --ring: var(--status-blue);
+  --success: var(--status-green);
   --success-foreground: oklch(0.145 0 0);
-  --warning: oklch(0.769 0.188 70.08);
+  --warning: var(--status-orange);
   --warning-foreground: oklch(0.145 0 0);
-  --info: oklch(0.707 0.165 254.624);
+  --info: var(--status-blue);
   --info-foreground: oklch(0.145 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
@@ -160,13 +196,72 @@
 
   /* Make dictation window (App) transparent, but keep control panel solid */
   body:has(.dictation-window),
-  body:has(.meeting-notification-window) {
+  body:has(.meeting-notification-window),
+  body:has(.appshots-permissions-window),
+  body:has(.appshots-settings-window) {
     background: transparent;
   }
 
+  body:has(.appshots-permissions-window),
+  body:has(.appshots-settings-window) {
+    overflow: hidden;
+  }
+
   body:has(.dictation-window) #root,
-  body:has(.meeting-notification-window) #root {
+  body:has(.meeting-notification-window) #root,
+  body:has(.appshots-permissions-window) #root,
+  body:has(.appshots-settings-window) #root {
     background: transparent;
+  }
+
+  .appshots-permissions-window,
+  .appshots-settings-window {
+    background: transparent;
+    color: var(--foreground);
+    font-family: var(--font-family-sans);
+    font-feature-settings:
+      "kern" 1,
+      "liga" 1;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: 0;
+    text-rendering: geometricPrecision;
+    -webkit-app-region: drag;
+    user-select: none;
+  }
+
+  .appshots-permissions-window button,
+  .appshots-permissions-window a,
+  .appshots-permissions-window input,
+  .appshots-permissions-window textarea,
+  .appshots-permissions-window select,
+  .appshots-settings-window button,
+  .appshots-settings-window a,
+  .appshots-settings-window input,
+  .appshots-settings-window textarea,
+  .appshots-settings-window select,
+  .appshots-permissions-no-drag,
+  .appshots-settings-no-drag {
+    -webkit-app-region: no-drag;
+  }
+
+  .appshots-permissions-window h1 {
+    font-family: inherit;
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 38px;
+  }
+
+  .appshots-permissions-window h2 {
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: 0;
+    line-height: 21px;
+  }
+
+  .appshots-settings-select {
+    font-family: inherit;
   }
 }
 
@@ -631,7 +726,7 @@ a:hover {
   border-radius: 2px;
   padding: 1px 3px;
   font-size: 0.8125rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+  font-family: var(--font-family-mono);
 }
 
 .rich-text-editor-content hr {

@@ -270,7 +270,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const renderStep = () => {
     switch (currentStep) {
       case 0:
-        return <PermissionsSection permissions={permissionsHook} />;
+        return <PermissionsSection permissions={permissionsHook} variant="appshots" />;
 
       case 1:
         return renderModelStep();
@@ -289,9 +289,17 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         showReadyAction
         readyActionLabel="Начать"
         onReadyAction={finishOnboarding}
+        variant="appshots"
       />
     );
   };
+
+  const usesAppshotsWindow = currentStep === 0 || currentStep === 1;
+
+  useEffect(() => {
+    if (!usesAppshotsWindow) return;
+    window.electronAPI?.resizeControlPanelToContent?.(442)?.catch(() => undefined);
+  }, [usesAppshotsWindow, currentStep]);
 
   // Load Google Font only in the browser
   React.useEffect(() => {
@@ -307,8 +315,12 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   return (
     <div
-      className="h-screen flex flex-col bg-background"
-      style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+      className={
+        usesAppshotsWindow
+          ? "appshots-permissions-window flex h-[442px] w-[600px] flex-col overflow-hidden"
+          : "h-screen flex flex-col bg-background"
+      }
+      style={usesAppshotsWindow ? undefined : { paddingTop: "env(safe-area-inset-top, 0px)" }}
     >
       <ConfirmDialog
         open={confirmDialog.open}
@@ -328,18 +340,32 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         onOk={() => {}}
       />
 
-      <div className="shrink-0 z-10">
-        <TitleBar
-          showTitle={true}
-          showQuitButton={false}
-          className="bg-background backdrop-blur-xl"
-        ></TitleBar>
-      </div>
+      {!usesAppshotsWindow && (
+        <div className="shrink-0 z-10">
+          <TitleBar
+            showTitle={true}
+            showQuitButton={false}
+            className="bg-background backdrop-blur-xl"
+          ></TitleBar>
+        </div>
+      )}
 
       {/* Content */}
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-10 md:px-12">
-        <div className="mx-auto flex min-h-full w-full max-w-3xl items-center justify-center">
-          <div className="w-full">{renderStep()}</div>
+      <div
+        className={
+          usesAppshotsWindow
+            ? "min-h-0 flex-1 overflow-hidden p-0"
+            : "min-h-0 flex-1 overflow-y-auto px-6 py-10 md:px-12"
+        }
+      >
+        <div
+          className={
+            usesAppshotsWindow
+              ? "mx-auto flex h-full w-full items-center justify-center"
+              : "mx-auto flex min-h-full w-full max-w-3xl items-center justify-center"
+          }
+        >
+          <div className={usesAppshotsWindow ? "h-full w-full" : "w-full"}>{renderStep()}</div>
         </div>
       </div>
     </div>

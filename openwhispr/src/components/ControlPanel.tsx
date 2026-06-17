@@ -132,6 +132,12 @@ export default function ControlPanel() {
   }, []);
 
   const showGigaamPreparation = shouldShowGigaamModelPreparation(gigaamStatus);
+  const useAppshotsModelWindow = showGigaamPreparation;
+  const useAppshotsSettingsWindow = !showGigaamPreparation;
+  const useAppshotsWindow = useAppshotsModelWindow || useAppshotsSettingsWindow;
+  const showGigaamStatusPanel =
+    !showGigaamPreparation &&
+    Boolean(gigaamStatus?.available && gigaamStatus.healthStatus !== "ok");
 
   const resizeWindowToContent = useCallback(() => {
     if (resizeFrameRef.current !== null) {
@@ -166,10 +172,19 @@ export default function ControlPanel() {
         resizeFrameRef.current = null;
       }
     };
-  }, [resizeWindowToContent, showGigaamPreparation, showPostMigration]);
+  }, [resizeWindowToContent, showGigaamPreparation, showPostMigration, useAppshotsWindow]);
 
   return (
-    <div ref={contentRef} className="flex flex-col bg-background">
+    <div
+      ref={contentRef}
+      className={
+        useAppshotsModelWindow
+          ? "appshots-permissions-window flex h-[442px] w-[600px] flex-col overflow-hidden"
+          : useAppshotsSettingsWindow
+            ? "appshots-settings-window flex min-h-[360px] w-[600px] flex-col overflow-hidden"
+            : "flex flex-col bg-background"
+      }
+    >
       <PostMigrationOnboarding
         open={showPostMigration}
         onOpenChange={setShowPostMigration}
@@ -177,38 +192,64 @@ export default function ControlPanel() {
       />
 
       <main className="flex flex-col">
-        <div
-          className="flex h-10 w-full shrink-0 items-center justify-between"
-          style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
-        >
-          <div className="flex-1" />
-          {platform !== "darwin" && (
-            <div className="pr-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
-              <WindowControls />
-            </div>
-          )}
-        </div>
+        {!useAppshotsWindow && (
+          <div
+            className="flex h-10 w-full shrink-0 items-center justify-between"
+            style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+          >
+            <div className="flex-1" />
+            {platform !== "darwin" && (
+              <div className="pr-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
+                <WindowControls />
+              </div>
+            )}
+          </div>
+        )}
 
         {showGigaamPreparation ? (
-          <div className="px-6 py-10 md:px-12">
-            <div className="mx-auto flex w-full max-w-3xl items-center justify-center">
+          <div
+            className={
+              useAppshotsModelWindow ? "min-h-0 flex-1 overflow-hidden p-0" : "px-6 py-10 md:px-12"
+            }
+          >
+            <div
+              className={
+                useAppshotsModelWindow
+                  ? "mx-auto flex h-full w-full items-center justify-center"
+                  : "mx-auto flex w-full max-w-3xl items-center justify-center"
+              }
+            >
               <GigaamModelPreparationStep
                 status={gigaamStatus}
                 restart={restartGigaam}
                 isRestarting={isRestartingGigaam}
+                variant={useAppshotsModelWindow ? "appshots" : "compact"}
               />
             </div>
           </div>
         ) : (
-          <div className="flex flex-col">
-            <div className="shrink-0 space-y-3 px-6 pb-3 pt-1">
-              <GigaamAsrStatusPanel className="mx-auto w-full max-w-3xl" />
-            </div>
+          <div className="flex flex-col overflow-hidden">
+            {showGigaamStatusPanel && (
+              <div
+                className={
+                  useAppshotsSettingsWindow
+                    ? "appshots-settings-no-drag shrink-0 space-y-3 px-[41px] pb-[16px] pt-[24px]"
+                    : "shrink-0 space-y-3 px-6 pb-3 pt-1"
+                }
+              >
+                <GigaamAsrStatusPanel className="mx-auto w-full max-w-3xl" />
+              </div>
+            )}
 
-            <div className="border-t border-border/50">
+            <div
+              className={
+                useAppshotsSettingsWindow ? "overflow-hidden" : "border-t border-border/50"
+              }
+            >
               <SettingsWorkspace
                 requestedSection={settingsNavigation.section}
                 requestId={settingsNavigation.requestId}
+                appearance={useAppshotsSettingsWindow ? "appshots" : "default"}
               />
             </div>
           </div>

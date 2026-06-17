@@ -38,21 +38,35 @@ import { getCachedPlatform } from "../utils/platform";
 import { useSettingsLayout } from "./ui/useSettingsLayout";
 
 export type SettingsSectionType = "general" | "privacyData";
+type SettingsPageVariant = "default" | "appshots";
 
 interface SettingsPageProps {
   activeSection?: SettingsSectionType;
+  variant?: SettingsPageVariant;
 }
 
 function SettingsPanel({
   children,
   className = "",
+  variant = "default",
 }: {
   children: React.ReactNode;
   className?: string;
+  variant?: SettingsPageVariant;
 }) {
+  if (variant === "appshots") {
+    return (
+      <div
+        className={`overflow-hidden rounded-[25px] bg-card divide-y divide-border ${className}`}
+      >
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`rounded-lg border border-border/50 bg-neutral-50 dark:border-border/70 dark:bg-card/50 backdrop-blur-sm divide-y divide-border/30 dark:divide-border/50 ${className}`}
+      className={`rounded-lg border border-border/50 bg-card backdrop-blur-sm divide-y divide-border/30 dark:divide-border/50 ${className}`}
     >
       {children}
     </div>
@@ -62,34 +76,63 @@ function SettingsPanel({
 function SettingsPanelRow({
   children,
   className = "",
+  variant = "default",
 }: {
   children: React.ReactNode;
   className?: string;
+  variant?: SettingsPageVariant;
 }) {
   const { isCompact } = useSettingsLayout();
+
+  if (variant === "appshots") {
+    return <div className={`px-[30px] py-[14px] ${className}`}>{children}</div>;
+  }
 
   return (
     <div className={`${isCompact ? "px-3 py-2.5" : "px-4 py-3"} ${className}`}>{children}</div>
   );
 }
 
-function SectionHeader({ title }: { title: string; description?: string }) {
+function SectionHeader({
+  title,
+  description,
+  variant = "default",
+}: {
+  title: string;
+  description?: string;
+  variant?: SettingsPageVariant;
+}) {
+  if (variant === "appshots") {
+    return (
+      <div className="mb-[12px]">
+        <h3 className="text-[14px] font-[500] leading-[17px] tracking-[0] text-foreground">
+          {title}
+        </h3>
+        {description && (
+          <p className="mt-[3px] text-[14px] font-[500] leading-[16px] tracking-[0] text-muted-foreground">
+            {description}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="mb-3">
       <h3 className="text-[13px] font-normal text-muted-foreground leading-none">{title}</h3>
+      {description && (
+        <p className="mt-1 text-xs leading-relaxed text-muted-foreground/80">{description}</p>
+      )}
     </div>
   );
 }
 
 export default function SettingsPage({
   activeSection = "general",
+  variant = "default",
 }: SettingsPageProps) {
   const { isCompact } = useSettingsLayout();
-  const {
-    alertDialog,
-    showAlertDialog,
-    hideAlertDialog,
-  } = useDialogs();
+  const { alertDialog, showAlertDialog, hideAlertDialog } = useDialogs();
 
   const {
     dictationKey,
@@ -159,18 +202,22 @@ export default function SettingsPage({
   );
   const shouldShowPermissionsSection =
     shouldShowMicrophonePermission || shouldShowAccessibilityPermission || shouldShowPasteToolsInfo;
+  const isAppshots = variant === "appshots";
 
   const renderDictationHotkeySettings = () => (
     <div>
-      <SectionHeader title={t("settingsPage.general.hotkey.title")} />
-      <HotkeyInput
-        value={dictationKey}
-        onChange={async (newHotkey) => {
-          await registerHotkey(newHotkey);
-        }}
-        disabled={isHotkeyRegistering}
-        validate={validateDictationHotkey}
-      />
+      <SectionHeader title={t("settingsPage.general.hotkey.title")} variant={variant} />
+      <div className={isAppshots ? "appshots-settings-hotkey appshots-settings-no-drag" : ""}>
+        <HotkeyInput
+          value={dictationKey}
+          onChange={async (newHotkey) => {
+            await registerHotkey(newHotkey);
+          }}
+          disabled={isHotkeyRegistering}
+          validate={validateDictationHotkey}
+          variant={isAppshots ? "appshotsSettings" : "default"}
+        />
+      </div>
     </div>
   );
 
@@ -178,18 +225,28 @@ export default function SettingsPage({
     switch (activeSection) {
       case "general":
         return (
-          <div className="space-y-6">
+          <div className={isAppshots ? "space-y-[24px]" : "space-y-6"}>
             {renderDictationHotkeySettings()}
 
             {/* Microphone */}
             <div>
-              <SectionHeader title={t("settingsPage.general.microphone.title")} />
-              <MicrophoneSettings
-                preferBuiltInMic={preferBuiltInMic}
-                selectedMicDeviceId={selectedMicDeviceId}
-                onPreferBuiltInChange={setPreferBuiltInMic}
-                onDeviceSelect={setSelectedMicDeviceId}
-              />
+              <SectionHeader title={t("settingsPage.general.microphone.title")} variant={variant} />
+              {isAppshots ? (
+                <MicrophoneSettings
+                  preferBuiltInMic={preferBuiltInMic}
+                  selectedMicDeviceId={selectedMicDeviceId}
+                  onPreferBuiltInChange={setPreferBuiltInMic}
+                  onDeviceSelect={setSelectedMicDeviceId}
+                  variant="appshots"
+                />
+              ) : (
+                <MicrophoneSettings
+                  preferBuiltInMic={preferBuiltInMic}
+                  selectedMicDeviceId={selectedMicDeviceId}
+                  onPreferBuiltInChange={setPreferBuiltInMic}
+                  onDeviceSelect={setSelectedMicDeviceId}
+                />
+              )}
             </div>
 
             {/* Wayland Paste Diagnostics — only on Linux + Wayland */}
@@ -526,7 +583,7 @@ EOF`,
                           <SettingsPanelRow>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <CircleCheck className="h-4 w-4 text-emerald-500" />
+                                <CircleCheck className="h-4 w-4 text-green" />
                                 <span className="text-sm">
                                   {t("settingsPage.general.waylandPaste.allGoodDesc", {
                                     defaultValue: "Auto-paste is ready to go.",
@@ -550,9 +607,9 @@ EOF`,
                                 <div key={item.key} className="px-4 py-3">
                                   <div className="flex items-center gap-2.5">
                                     {item.ok ? (
-                                      <CircleCheck className="h-4 w-4 shrink-0 text-emerald-500" />
+                                      <CircleCheck className="h-4 w-4 shrink-0 text-green" />
                                     ) : (
-                                      <CircleX className="h-4 w-4 shrink-0 text-red-500" />
+                                      <CircleX className="h-4 w-4 shrink-0 text-red" />
                                     )}
                                     <div className="flex-1 min-w-0">
                                       <span className="text-sm font-medium">{item.label}</span>
@@ -560,7 +617,7 @@ EOF`,
                                         {item.desc}
                                       </span>
                                       {item.note && (
-                                        <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+                                        <p className="text-[11px] text-orange mt-0.5">
                                           {item.note}
                                         </p>
                                       )}

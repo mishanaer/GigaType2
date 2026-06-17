@@ -177,7 +177,7 @@ function mapKeyboardEventToHotkey(e: KeyboardEvent): string | null {
 }
 
 export interface HotkeyInputVariant {
-  variant?: "default" | "hero";
+  variant?: "default" | "hero" | "appshotsSettings";
 }
 
 export function HotkeyInput({
@@ -215,6 +215,7 @@ export function HotkeyInput({
   const platform = getPlatform();
   const isMac = platform === "darwin";
   const isWindows = platform === "win32";
+  const isAppshotsSettings = variant === "appshotsSettings";
 
   const MODIFIER_HOLD_THRESHOLD_MS = 200;
 
@@ -471,6 +472,7 @@ export function HotkeyInput({
   const displayValue = formatHotkeyLabel(value);
   const isGlobe = isGlobeLikeHotkey(value);
   const hotkeyParts = value?.includes("+") ? displayValue.split("+") : [];
+  const singleKeyLabel = isGlobe ? "Fn" : displayValue;
 
   // Hero variant: large centered key display for onboarding
   if (variant === "hero") {
@@ -494,7 +496,7 @@ export function HotkeyInput({
             disabled
               ? "bg-muted/30 border-border cursor-not-allowed opacity-50"
               : isCapturing
-                ? "bg-primary/5 border-primary/30 shadow-[0_0_0_2px_rgba(37,99,212,0.1)]"
+                ? "bg-primary/5 border-primary/30 ring-2 ring-ring/20"
                 : "bg-muted border-border hover:border-ring/60 hover:bg-card"
           }
         `}
@@ -554,13 +556,9 @@ export function HotkeyInput({
                     </kbd>
                   </React.Fragment>
                 ))
-              ) : isGlobe ? (
-                <kbd className="px-3 py-1.5 bg-popover border border-border rounded-sm text-lg shadow-sm">
-                  🌐
-                </kbd>
               ) : (
                 <kbd className="px-3 py-1.5 bg-popover border border-border rounded-sm text-sm font-semibold text-foreground shadow-sm">
-                  {displayValue}
+                  {singleKeyLabel}
                 </kbd>
               )}
             </div>
@@ -589,14 +587,22 @@ export function HotkeyInput({
       onFocus={handleFocus}
       onBlur={handleBlur}
       className={`
-        relative overflow-hidden rounded-md border
-        transition-colors duration-150 cursor-pointer select-none focus:outline-none
+        relative overflow-hidden
+        transition-colors duration-150 select-none focus:outline-none
         ${
-          disabled
-            ? "bg-muted/30 border-border cursor-not-allowed opacity-50"
-            : isCapturing
-              ? "bg-primary/5 border-primary/30 shadow-[0_0_0_2px_rgba(37,99,212,0.1)]"
-              : "bg-muted border-border hover:border-ring/60 hover:bg-card"
+          isAppshotsSettings
+            ? `min-h-[64px] rounded-[25px] border-0 bg-card ${
+                disabled
+                  ? "cursor-not-allowed opacity-50"
+                  : "cursor-pointer hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/25"
+              }`
+            : `rounded-md border cursor-pointer ${
+                disabled
+                  ? "bg-muted/30 border-border cursor-not-allowed opacity-50"
+                : isCapturing
+                    ? "bg-primary/5 border-primary/30 ring-2 ring-ring/20"
+                    : "bg-muted border-border hover:border-ring/60 hover:bg-card"
+              }`
         }
       `}
     >
@@ -604,7 +610,7 @@ export function HotkeyInput({
         <div className="absolute top-0 left-0 right-0 h-0.5 bg-primary animate-pulse" />
       )}
 
-      <div className="px-4 py-3">
+      <div className={isAppshotsSettings ? "px-[30px] py-[19px]" : "px-4 py-3"}>
         {isCapturing ? (
           <>
             <div className="flex items-center justify-center gap-3">
@@ -644,36 +650,59 @@ export function HotkeyInput({
             )}
           </>
         ) : value ? (
-          <div className="flex items-center justify-center">
+          <div
+            className={
+              isAppshotsSettings
+                ? "flex items-center justify-center"
+                : "flex items-center justify-center"
+            }
+          >
             <div className="flex items-center gap-2">
               {hotkeyParts.length > 0 ? (
                 <div className="flex items-center gap-1">
                   {hotkeyParts.map((part, i) => (
                     <React.Fragment key={part}>
-                      {i > 0 && <span className="text-muted-foreground/30 text-xs">+</span>}
-                      <kbd className="px-2 py-0.5 bg-popover border border-border rounded-sm text-xs font-semibold text-foreground">
+                      {i > 0 && (
+                        <span
+                          className={
+                            isAppshotsSettings
+                              ? "text-[17px] font-[500] leading-[21px] text-muted-foreground/60"
+                              : "text-muted-foreground/30 text-xs"
+                          }
+                        >
+                          +
+                        </span>
+                      )}
+                      <kbd
+                        className={
+                          isAppshotsSettings
+                            ? "min-w-[40px] rounded-[8px] border border-input bg-popover px-[12px] py-[4px] text-center text-[17px] font-[800] leading-[21px] text-popover-foreground"
+                            : "px-2 py-0.5 bg-popover border border-border rounded-sm text-xs font-semibold text-foreground"
+                        }
+                      >
                         {part}
                       </kbd>
                     </React.Fragment>
                   ))}
                 </div>
-              ) : isGlobe ? (
-                <div className="flex items-center gap-1.5">
-                  <kbd className="px-2 py-0.5 bg-popover border border-border rounded-sm text-base">
-                    🌐
-                  </kbd>
-                  <span className="text-xs text-muted-foreground">{t("hotkeyInput.globe")}</span>
-                </div>
               ) : (
-                <kbd className="px-2.5 py-1 bg-popover border border-border rounded-sm text-xs font-semibold text-foreground">
-                  {displayValue}
+                <kbd
+                  className={
+                    isAppshotsSettings
+                      ? "min-w-[40px] rounded-[8px] border border-input bg-popover px-[12px] py-[4px] text-center text-[17px] font-[800] leading-[21px] text-popover-foreground"
+                      : "px-2.5 py-1 bg-popover border border-border rounded-sm text-xs font-semibold text-foreground"
+                  }
+                >
+                  {singleKeyLabel}
                 </kbd>
               )}
             </div>
           </div>
         ) : (
           <div className="flex items-center justify-center gap-2 text-muted-foreground">
-            <span className="text-sm font-medium">{t("hotkeyInput.clickToSet")}</span>
+            <span className={isAppshotsSettings ? "text-[17px] font-[500] leading-[21px]" : "text-sm font-medium"}>
+              {t("hotkeyInput.clickToSet")}
+            </span>
           </div>
         )}
       </div>
