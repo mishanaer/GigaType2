@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 
+import AppLoadingFallback from "./AppLoadingFallback";
 import GigaamModelPreparationStep from "./GigaamModelPreparationStep";
 import WalletSettingsCells from "./settings/WalletSettingsCells";
 import AppshotsLogoHeader from "./ui/AppshotsLogoHeader";
 import PermissionsSection from "./ui/PermissionsSection";
+import { useAppshotsAppleSkin } from "../hooks/useAppshotsAppleSkin";
 import type { UsePermissionsReturn } from "../hooks/usePermissions";
 import type { GigaamSidecarStatus } from "../types/electron";
 
@@ -170,24 +172,8 @@ function AnimatedDownloadPreview() {
     <GigaamModelPreparationStep
       status={createDownloadStatus(progress)}
       restart={noop}
-      variant="appshots"
     />
   );
-}
-
-function useAppleWalletMode() {
-  useEffect(() => {
-    const hadApple = document.body.classList.contains("apple");
-    const hadMaterial = document.body.classList.contains("material");
-
-    document.body.classList.remove("material");
-    document.body.classList.add("apple");
-
-    return () => {
-      if (!hadApple) document.body.classList.remove("apple");
-      if (hadMaterial) document.body.classList.add("material");
-    };
-  }, []);
 }
 
 function WindowFrame({
@@ -254,7 +240,7 @@ function SettingsPreview() {
 }
 
 export default function AppShowcase() {
-  useAppleWalletMode();
+  useAppshotsAppleSkin();
 
   return (
     <div className="min-h-screen bg-[#e9ebf2] px-6 py-10 text-slate-950">
@@ -288,6 +274,14 @@ export default function AppShowcase() {
           <PermissionsSection permissions={permissionSets.granted} variant="appshots" />
         </WindowFrame>
 
+        <WindowFrame eyebrow="Boot" title="Loading: permissions check">
+          <AppLoadingFallback className="h-[360px]" />
+        </WindowFrame>
+
+        <WindowFrame eyebrow="Boot" title="Loading: lazy route">
+          <AppLoadingFallback className="h-[360px]" message="Loading storybook..." />
+        </WindowFrame>
+
         <WindowFrame eyebrow="Settings" title="General settings">
           <SettingsPreview />
         </WindowFrame>
@@ -304,7 +298,6 @@ export default function AppShowcase() {
               showReadyAction={item.status?.modelStage === "ready"}
               readyActionLabel="Начать"
               onReadyAction={noop}
-              variant="appshots"
             />
           </WindowFrame>
         ))}

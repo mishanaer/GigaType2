@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
+import { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import TitleBar from "./TitleBar";
 import PermissionsSection from "./ui/PermissionsSection";
 import { AlertDialog, ConfirmDialog } from "./ui/dialog";
 import { useLocalStorage } from "../hooks/useLocalStorage";
@@ -12,6 +11,7 @@ import { useGigaamSidecarStatus } from "../hooks/useGigaamSidecarStatus";
 import { setAgentName as saveAgentName } from "../utils/agentName";
 import { getDefaultHotkey, isGlobeLikeHotkey } from "../utils/hotkeys";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
+import { useAppshotsAppleSkin } from "../hooks/useAppshotsAppleSkin";
 import { getPlatform } from "../utils/platform";
 import logger from "../utils/logger";
 import GigaamModelPreparationStep from "./GigaamModelPreparationStep";
@@ -27,6 +27,7 @@ interface OnboardingFlowProps {
 
 export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   const { t } = useTranslation();
+  useAppshotsAppleSkin();
 
   const getMaxStep = () => 1;
 
@@ -291,12 +292,9 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         showReadyAction
         readyActionLabel="Начать"
         onReadyAction={finishOnboarding}
-        variant="appshots"
       />
     );
   };
-
-  const usesAppshotsWindow = currentStep === 0 || currentStep === 1;
 
   const resizeAppshotsWindowToContent = useCallback(() => {
     if (resizeFrameRef.current !== null) {
@@ -314,7 +312,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   }, []);
 
   useLayoutEffect(() => {
-    if (!usesAppshotsWindow) return;
     resizeAppshotsWindowToContent();
 
     const content = appshotsContentRef.current;
@@ -330,31 +327,14 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         resizeFrameRef.current = null;
       }
     };
-  }, [usesAppshotsWindow, currentStep, resizeAppshotsWindowToContent]);
-
-  // Load Google Font only in the browser
-  React.useEffect(() => {
-    const link = document.createElement("link");
-    link.href =
-      "https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;600;700&display=swap";
-    link.rel = "stylesheet";
-    document.head.appendChild(link);
-    return () => {
-      document.head.removeChild(link);
-    };
-  }, []);
+  }, [currentStep, resizeAppshotsWindowToContent]);
 
   return (
     <div
       ref={appshotsContentRef}
-      className={
-        usesAppshotsWindow
-          ? "appshots-permissions-window flex w-[500px] flex-col overflow-hidden"
-          : "h-screen flex flex-col bg-background"
-      }
-      style={usesAppshotsWindow ? undefined : { paddingTop: "env(safe-area-inset-top, 0px)" }}
+      className="appshots-permissions-window flex w-[500px] flex-col overflow-hidden"
     >
-      {usesAppshotsWindow && <div className="appshots-window-drag-layer" aria-hidden="true" />}
+      <div className="appshots-window-drag-layer" aria-hidden="true" />
 
       <ConfirmDialog
         open={confirmDialog.open}
@@ -374,31 +354,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         onOk={() => {}}
       />
 
-      {!usesAppshotsWindow && (
-        <div className="shrink-0 z-10">
-          <TitleBar
-            showTitle={true}
-            showQuitButton={false}
-            className="bg-background backdrop-blur-xl"
-          ></TitleBar>
-        </div>
-      )}
-
-      {/* Content */}
-      <div
-        className={
-          usesAppshotsWindow
-            ? "appshots-window-content overflow-hidden p-0"
-            : "min-h-0 flex-1 overflow-y-auto px-6 py-10 md:px-12"
-        }
-      >
-        <div
-          className={
-            usesAppshotsWindow
-              ? "mx-auto w-full"
-              : "mx-auto flex min-h-full w-full max-w-3xl items-center justify-center"
-          }
-        >
+      <div className="appshots-window-content overflow-hidden p-0">
+        <div className="mx-auto w-full">
           <div className="w-full">{renderStep()}</div>
         </div>
       </div>

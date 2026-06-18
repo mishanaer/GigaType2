@@ -1,14 +1,14 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import PostMigrationOnboarding from "./PostMigrationOnboarding";
-import WindowControls from "./WindowControls";
 import GigaamAsrStatusPanel from "./GigaamAsrStatusPanel";
 import GigaamModelPreparationStep from "./GigaamModelPreparationStep";
 import SettingsWorkspace from "./SettingsWorkspace";
 import { useToast } from "./ui/useToast";
 import { useUpdater } from "../hooks/useUpdater";
 import { useGigaamSidecarStatus } from "../hooks/useGigaamSidecarStatus";
+import { useAppshotsAppleSkin } from "../hooks/useAppshotsAppleSkin";
 import { shouldShowGigaamModelPreparation } from "../utils/gigaamModelStatus";
 import { getCachedPlatform } from "../utils/platform";
 import { isAccessibilitySkipped } from "../utils/permissions";
@@ -17,14 +17,10 @@ import { syncService } from "../services/SyncService.js";
 
 const platform = getCachedPlatform();
 
-interface SettingsNavigation {
-  section: string;
-  requestId: number;
-}
-
 export default function ControlPanel() {
   const { t } = useTranslation();
   const { toast } = useToast();
+  useAppshotsAppleSkin();
   const {
     status: gigaamStatus,
     restart: restartGigaam,
@@ -32,21 +28,10 @@ export default function ControlPanel() {
   } = useGigaamSidecarStatus();
   const { status: updateStatus, isDownloading, error: updateError } = useUpdater();
   const [showPostMigration, setShowPostMigration] = useState(false);
-  const [settingsNavigation, setSettingsNavigation] = useState<SettingsNavigation>({
-    section: "general",
-    requestId: 0,
-  });
   const updateReadyToastShown = useRef(false);
   const updateErrorToastShown = useRef<Error | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const resizeFrameRef = useRef<number | null>(null);
-
-  const navigateToSettings = useCallback((section = "general") => {
-    setSettingsNavigation((current) => ({
-      section,
-      requestId: current.requestId + 1,
-    }));
-  }, []);
 
   useEffect(() => {
     if (platform !== "darwin") return;
@@ -59,18 +44,6 @@ export default function ControlPanel() {
     await window.electronAPI?.markBundleMigrated?.();
     setShowPostMigration(false);
   }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const mod = platform === "darwin" ? e.metaKey : e.ctrlKey;
-      if (mod && e.key === ",") {
-        e.preventDefault();
-        navigateToSettings("general");
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [navigateToSettings]);
 
   useEffect(() => {
     if (updateStatus.updateDownloaded && !isDownloading) {
@@ -102,18 +75,10 @@ export default function ControlPanel() {
   }, [updateError, toast, t]);
 
   useEffect(() => {
-    const cleanup = window.electronAPI?.onShowSettings?.(() => {
-      navigateToSettings("general");
-    });
-    return () => cleanup?.();
-  }, [navigateToSettings]);
-
-  useEffect(() => {
     const cleanup = window.electronAPI?.onAccessibilityMissing?.(async () => {
       if (isAccessibilitySkipped()) return;
       const migration = await window.electronAPI?.getPostMigrationState?.();
       if (migration?.justMigrated) return;
-      navigateToSettings("general");
       toast({
         title: t("controlPanel.accessibilityMissing.title"),
         description: t("controlPanel.accessibilityMissing.description"),
@@ -121,7 +86,7 @@ export default function ControlPanel() {
       });
     });
     return () => cleanup?.();
-  }, [navigateToSettings, toast, t]);
+  }, [toast, t]);
 
   useEffect(() => {
     syncService.syncAll().catch(console.error);
@@ -132,12 +97,12 @@ export default function ControlPanel() {
   }, []);
 
   const showGigaamPreparation = shouldShowGigaamModelPreparation(gigaamStatus);
-  const useAppshotsModelWindow = showGigaamPreparation;
-  const useAppshotsSettingsWindow = !showGigaamPreparation;
-  const useAppshotsWindow = useAppshotsModelWindow || useAppshotsSettingsWindow;
   const showGigaamStatusPanel =
     !showGigaamPreparation &&
     Boolean(gigaamStatus?.available && gigaamStatus.healthStatus !== "ok");
+  const windowClassName = showGigaamPreparation
+    ? "appshots-permissions-window flex w-[500px] flex-col overflow-hidden"
+    : "appshots-settings-window flex w-[500px] flex-col overflow-hidden";
 
   const resizeWindowToContent = useCallback(() => {
     if (resizeFrameRef.current !== null) {
@@ -150,10 +115,9 @@ export default function ControlPanel() {
       if (!content) return;
 
       const height = Math.ceil(content.getBoundingClientRect().height);
-      const width = useAppshotsWindow ? 500 : undefined;
-      window.electronAPI?.resizeControlPanelToContent?.(height, width)?.catch(() => undefined);
+      window.electronAPI?.resizeControlPanelToContent?.(height, 500)?.catch(() => undefined);
     });
-  }, [useAppshotsWindow]);
+  }, []);
 
   useLayoutEffect(() => {
     resizeWindowToContent();
@@ -173,20 +137,11 @@ export default function ControlPanel() {
         resizeFrameRef.current = null;
       }
     };
-  }, [resizeWindowToContent, showGigaamPreparation, showPostMigration, useAppshotsWindow]);
+  }, [resizeWindowToContent, showGigaamPreparation, showPostMigration]);
 
   return (
-    <div
-      ref={contentRef}
-      className={
-        useAppshotsModelWindow
-          ? "appshots-permissions-window flex w-[500px] flex-col overflow-hidden"
-          : useAppshotsSettingsWindow
-            ? "appshots-settings-window flex w-[500px] flex-col overflow-hidden"
-            : "flex flex-col bg-background"
-      }
-    >
-      {useAppshotsWindow && <div className="appshots-window-drag-layer" aria-hidden="true" />}
+    <div ref={contentRef} className={windowClassName}>
+      <div className="appshots-window-drag-layer" aria-hidden="true" />
 
       <PostMigrationOnboarding
         open={showPostMigration}
@@ -194,66 +149,27 @@ export default function ControlPanel() {
         onDone={dismissPostMigrationPermanently}
       />
 
-      <main className={useAppshotsWindow ? "appshots-window-content flex flex-col" : "flex flex-col"}>
-        {!useAppshotsWindow && (
-          <div
-            className="flex h-10 w-full shrink-0 items-center justify-between"
-            style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
-          >
-            <div className="flex-1" />
-            {platform !== "darwin" && (
-              <div className="pr-1" style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}>
-                <WindowControls />
-              </div>
-            )}
-          </div>
-        )}
-
+      <main className="appshots-window-content flex flex-col">
         {showGigaamPreparation ? (
-          <div
-            className={
-              useAppshotsModelWindow ? "overflow-hidden p-0" : "px-6 py-10 md:px-12"
-            }
-          >
-            <div
-              className={
-                useAppshotsModelWindow
-                  ? "mx-auto w-full"
-                  : "mx-auto flex w-full max-w-3xl items-center justify-center"
-              }
-            >
+          <div className="overflow-hidden p-0">
+            <div className="mx-auto w-full">
               <GigaamModelPreparationStep
                 status={gigaamStatus}
                 restart={restartGigaam}
                 isRestarting={isRestartingGigaam}
-                variant={useAppshotsModelWindow ? "appshots" : "compact"}
               />
             </div>
           </div>
         ) : (
           <div className="flex flex-col overflow-hidden">
             {showGigaamStatusPanel && (
-              <div
-                className={
-                  useAppshotsSettingsWindow
-                    ? "appshots-settings-no-drag shrink-0 space-y-3 px-[41px] pb-[16px] pt-[24px]"
-                    : "shrink-0 space-y-3 px-6 pb-3 pt-1"
-                }
-              >
+              <div className="appshots-settings-no-drag shrink-0 space-y-3 px-[41px] pb-[16px] pt-[24px]">
                 <GigaamAsrStatusPanel className="mx-auto w-full max-w-3xl" />
               </div>
             )}
 
-            <div
-              className={
-                useAppshotsSettingsWindow ? "overflow-hidden" : "border-t border-border/50"
-              }
-            >
-              <SettingsWorkspace
-                requestedSection={settingsNavigation.section}
-                requestId={settingsNavigation.requestId}
-                appearance={useAppshotsSettingsWindow ? "appshots" : "default"}
-              />
+            <div className="overflow-hidden">
+              <SettingsWorkspace />
             </div>
           </div>
         )}

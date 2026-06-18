@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Mic, Shield } from "lucide-react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, KeyboardEvent, MouseEvent } from "react";
 import PermissionCard from "./PermissionCard";
 import MicPermissionWarning from "./MicPermissionWarning";
 import PasteToolsInfo from "./PasteToolsInfo";
@@ -67,7 +67,7 @@ export default function PermissionsSection({
       {variant === "appshots" ? (
         <AppshotsPermissionsPanel
           title="Разрешите доступы"
-          description="Тайпу нужен доступ к вставке текста и микрофону, чтобы диктовка работала в любых приложениях"
+          description="Гигатайпу нужен доступ к вставке текста и микрофону, чтобы диктовка работала в любых приложениях"
           permissions={appshotPermissionItems}
         />
       ) : (
@@ -149,12 +149,32 @@ interface AppshotsPermissionRowProps {
 }
 
 function AppshotsPermissionRow({ permission }: AppshotsPermissionRowProps) {
+  const requestPermission = () => {
+    if (!permission.granted) {
+      permission.onRequest();
+    }
+  };
+  const handlePermissionKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (permission.granted || (event.key !== "Enter" && event.key !== " ")) {
+      return;
+    }
+
+    event.preventDefault();
+    requestPermission();
+  };
+  const handlePermissionButtonClick = (event: MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    requestPermission();
+  };
+  const handlePermissionButtonKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    handlePermissionKeyDown(event);
+  };
+
   return (
     <Cell
       start={<AppshotsPermissionAvatar kind={permission.kind} userId={permission.avatarUserId} />}
-      onClick={() => {
-        if (!permission.granted) permission.onRequest();
-      }}
+      onClick={permission.granted ? undefined : requestPermission}
       end={
         permission.granted ? (
           <Cell.Part type="Picker">✓</Cell.Part>
@@ -162,6 +182,10 @@ function AppshotsPermissionRow({ permission }: AppshotsPermissionRowProps) {
           <RegularButton
             variant="filled"
             label={permission.buttonText}
+            onClick={handlePermissionButtonClick}
+            onKeyDown={handlePermissionButtonKeyDown}
+            role="button"
+            tabIndex={0}
             style={{ padding: "7px 10px", borderRadius: 18 }}
           />
         )

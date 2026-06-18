@@ -53,23 +53,6 @@ export default function WalletSettingsCells({
   const [logPath, setLogPath] = useState("");
   const copyLogButtonRef = React.useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    const hadApple = document.body.classList.contains("apple");
-    const hadMaterial = document.body.classList.contains("material");
-
-    document.body.classList.remove("material");
-    document.body.classList.add("apple");
-
-    return () => {
-      if (!hadApple) {
-        document.body.classList.remove("apple");
-      }
-      if (hadMaterial) {
-        document.body.classList.add("material");
-      }
-    };
-  }, []);
-
   const loadDevices = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -147,9 +130,17 @@ export default function WalletSettingsCells({
     setCaptureKey((value) => value + 1);
   }, [hotkeyDisabled, isHotkeyArmed]);
 
-  const endHotkeyCapture = useCallback(() => {
-    setIsHotkeyArmed(false);
-  }, []);
+  const handleHotkeyKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+
+      event.preventDefault();
+      beginHotkeyCapture();
+    },
+    [beginHotkeyCapture]
+  );
 
   const handleHotkeyChange = useCallback(
     async (newHotkey: string) => {
@@ -178,9 +169,11 @@ export default function WalletSettingsCells({
         <SectionList>
           <SectionList.Item>
             <Cell
-              onPointerEnter={beginHotkeyCapture}
-              onPointerLeave={endHotkeyCapture}
               onClick={beginHotkeyCapture}
+              onKeyDown={handleHotkeyKeyDown}
+              role={hotkeyDisabled ? undefined : "button"}
+              tabIndex={hotkeyDisabled ? undefined : 0}
+              aria-disabled={hotkeyDisabled}
               end={
                 <Cell.Part type="Picker">
                   {isHotkeyArmed ? "Нажмите клавиши" : getHotkeyLabel(dictationKey)}
