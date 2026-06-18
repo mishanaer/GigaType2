@@ -221,8 +221,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setNotificationInteractivity: (interactive) =>
     ipcRenderer.invoke("set-notification-interactivity", interactive),
   resizeMainWindow: (sizeKey) => ipcRenderer.invoke("resize-main-window", sizeKey),
-  resizeControlPanelToContent: (height) =>
-    ipcRenderer.invoke("resize-control-panel-to-content", height),
+  resizeControlPanelToContent: (height, width) =>
+    ipcRenderer.invoke("resize-control-panel-to-content", height, width),
 
   // Update functions
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),

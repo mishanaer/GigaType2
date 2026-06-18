@@ -5,12 +5,17 @@ import MicPermissionWarning from "./MicPermissionWarning";
 import PasteToolsInfo from "./PasteToolsInfo";
 import type { UsePermissionsReturn } from "../../hooks/usePermissions";
 import { getCachedPlatform } from "../../utils/platform";
+import Cell from "../../vendor/wallet_animations/components/Cells";
+import MotionProvider from "../../vendor/wallet_animations/components/MotionProvider";
+import SectionList from "../../vendor/wallet_animations/components/SectionList";
+import StartView from "../../vendor/wallet_animations/components/StartView";
+import AppshotsLogoHeader from "./AppshotsLogoHeader";
 
 type PermissionsSectionVariant = "compact" | "appshots";
 
 interface PermissionItem {
   title: string;
-  description: string;
+  description?: string;
   granted: boolean;
   onRequest: () => void;
   buttonText: string;
@@ -36,20 +41,18 @@ export default function PermissionsSection({
       ? [
           {
             title: t("onboarding.permissions.accessibilityTitle"),
-            description: "Вставляет текст в приложения",
             granted: permissions.accessibilityPermissionGranted,
             onRequest: permissions.requestAccessibilityPermission,
-            buttonText: "Allow",
+            buttonText: "Разрешить",
             kind: "accessibility" as const,
           },
         ]
       : []),
     {
       title: t("onboarding.permissions.microphoneTitle"),
-      description: "Записывает голос для транскрипции",
       granted: permissions.micPermissionGranted,
       onRequest: permissions.requestMicPermission,
-      buttonText: "Allow",
+      buttonText: "Разрешить",
       kind: "microphone",
     },
   ];
@@ -58,10 +61,9 @@ export default function PermissionsSection({
     <>
       {variant === "appshots" ? (
         <AppshotsPermissionsPanel
-          title="Enable GigaType"
-          description={t("permissionsGate.description")}
+          title="Разрешите доступы"
+          description="Тайпу нужен доступ к вставке текста и микрофону, чтобы диктовка работала в любых приложениях"
           permissions={appshotPermissionItems}
-          doneText="Done"
         />
       ) : (
         <div className="mx-auto w-full max-w-[500px] space-y-4">
@@ -112,101 +114,49 @@ interface AppshotsPermissionsPanelProps {
   title: string;
   description: string;
   permissions: PermissionItem[];
-  doneText: string;
 }
 
 function AppshotsPermissionsPanel({
   title,
   description,
   permissions,
-  doneText,
 }: AppshotsPermissionsPanelProps) {
   return (
-    <section className="relative mx-auto h-[442px] w-[600px] shrink-0 overflow-hidden text-[#050505]">
-      <AppshotsHeaderIcon />
+    <MotionProvider>
+      <section className="appshots-permissions-no-drag mx-auto w-[460px] py-[20px]">
+        <AppshotsLogoHeader showBuildLabel={false} />
+        <StartView title={title} description={description} />
 
-      <div
-        role="heading"
-        aria-level={1}
-        className="absolute left-0 top-[116px] h-[38px] w-full text-center text-[32px] font-[800] leading-[38px] text-black"
-      >
-        {title}
-      </div>
-      <p className="absolute left-[46px] top-[164px] h-[42px] w-[508px] text-center text-[17px] font-[500] leading-[21px] text-[#515358]">
-        {description}
-      </p>
-
-      {permissions.map((permission, index) => (
-        <AppshotsPermissionRow
-          key={permission.kind}
-          permission={permission}
-          doneText={doneText}
-          rowIndex={index}
-        />
-      ))}
-    </section>
-  );
-}
-
-function AppshotsHeaderIcon() {
-  return (
-    <div
-      className="absolute left-[268px] top-[36px] h-[64px] w-[64px] rounded-[15px] border border-[#d8dbe3] bg-white"
-      aria-hidden="true"
-    />
+        <SectionList>
+          <SectionList.Item>
+            {permissions.map((permission) => (
+              <AppshotsPermissionRow key={permission.kind} permission={permission} />
+            ))}
+          </SectionList.Item>
+        </SectionList>
+      </section>
+    </MotionProvider>
   );
 }
 
 interface AppshotsPermissionRowProps {
   permission: PermissionItem;
-  doneText: string;
-  rowIndex: number;
 }
 
-function AppshotsPermissionRow({ permission, doneText, rowIndex }: AppshotsPermissionRowProps) {
-  const rowTop = rowIndex === 0 ? 220 : 318;
-
+function AppshotsPermissionRow({ permission }: AppshotsPermissionRowProps) {
   return (
-    <div
-      className="absolute left-[41px] h-[80px] w-[518px] rounded-[25px] bg-white"
-      style={{ top: rowTop }}
+    <Cell
+      start={<Cell.Start type="Icon" />}
+      onClick={() => {
+        if (!permission.granted) permission.onRequest();
+      }}
+      end={
+        <Cell.Part type="Picker">
+          {permission.granted ? "✓" : permission.buttonText}
+        </Cell.Part>
+      }
     >
-      <AppshotsPermissionIcon />
-
-      <div
-        role="heading"
-        aria-level={2}
-        className="absolute left-[84px] top-[20px] h-[21px] max-w-[340px] truncate text-[17px] font-[800] leading-[21px] text-[#202333]"
-      >
-        {permission.title}
-      </div>
-      <p className="absolute left-[84px] top-[43px] max-w-[340px] truncate text-[17px] font-[500] leading-[20px] text-[#5b5d69]">
-        {permission.description}
-      </p>
-
-      {permission.granted ? (
-        <span className="absolute right-[19px] top-[28px] inline-flex h-[24px] min-w-[56px] items-center justify-center gap-[5px] text-[14px] font-[700] leading-[24px] text-[#42444b]">
-          {doneText}
-          <span className="text-[15px] leading-none">✓</span>
-        </span>
-      ) : (
-        <button
-          type="button"
-          onClick={permission.onRequest}
-          className="appshots-permissions-no-drag absolute right-[19px] top-[28px] h-[24px] min-w-[56px] rounded-[12px] bg-[#0a84ff] px-[12px] text-[14px] font-[700] leading-[24px] text-white shadow-none transition-colors duration-150 hover:bg-[#007aff] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[#0a84ff]/30"
-        >
-          {permission.buttonText}
-        </button>
-      )}
-    </div>
-  );
-}
-
-function AppshotsPermissionIcon() {
-  return (
-    <div
-      className="absolute left-[18px] top-[18px] h-[44px] w-[44px] rounded-[10px] border border-[#d8dbe3] bg-white"
-      aria-hidden="true"
-    />
+      <Cell.Text title={permission.title} description={permission.description} bold />
+    </Cell>
   );
 }

@@ -145,7 +145,7 @@ class WindowManager {
     return { success: true, bounds };
   }
 
-  resizeControlPanelToContent(height) {
+  resizeControlPanelToContent(height, width) {
     const win = this.controlPanelWindow;
     if (!win || win.isDestroyed()) {
       return { success: false, message: "Control panel window not available" };
@@ -166,21 +166,37 @@ class WindowManager {
       y: currentBounds.y + currentBounds.height / 2,
     });
     const workArea = display.workArea || display.bounds;
-    const minHeight = CONTROL_PANEL_CONFIG.minHeight || 360;
+    const usesExplicitWidth = width !== undefined;
+    const minHeight = usesExplicitWidth ? 1 : CONTROL_PANEL_CONFIG.minHeight || 360;
     const maxHeight = Math.max(minHeight, workArea.height - 48);
     const nextHeight = Math.max(minHeight, Math.min(requestedHeight, maxHeight));
+    const requestedWidth = width === undefined ? currentBounds.width : Math.ceil(Number(width));
+    const minWidth = 320;
+    const maxWidth = Math.max(minWidth, workArea.width - 48);
+    const nextWidth =
+      Number.isFinite(requestedWidth) && requestedWidth > 0
+        ? Math.max(minWidth, Math.min(requestedWidth, maxWidth))
+        : currentBounds.width;
 
-    if (Math.abs(currentBounds.height - nextHeight) <= 1) {
+    win.setMinimumSize(minWidth, minHeight);
+
+    if (
+      Math.abs(currentBounds.height - nextHeight) <= 1 &&
+      Math.abs(currentBounds.width - nextWidth) <= 1
+    ) {
       return { success: true, bounds: currentBounds };
     }
 
+    const centerX = currentBounds.x + currentBounds.width / 2;
     const centerY = currentBounds.y + currentBounds.height / 2;
+    const maxX = workArea.x + workArea.width - nextWidth;
     const maxY = workArea.y + workArea.height - nextHeight;
+    const nextX = Math.max(workArea.x, Math.min(Math.round(centerX - nextWidth / 2), maxX));
     const nextY = Math.max(workArea.y, Math.min(Math.round(centerY - nextHeight / 2), maxY));
     const nextBounds = {
-      x: currentBounds.x,
+      x: nextX,
       y: nextY,
-      width: currentBounds.width,
+      width: nextWidth,
       height: nextHeight,
     };
 

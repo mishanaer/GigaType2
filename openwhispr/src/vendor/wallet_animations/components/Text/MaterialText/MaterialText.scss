@@ -1,0 +1,46 @@
+body.material {
+    [variant] {
+        color: inherit;
+    }
+
+    [variant="title1"] {
+        font-size: 24px;
+        line-height: 28px;
+        font-weight: 500 !important;
+    }
+
+    [variant="title2"] {
+        font-size: 20px;
+        line-height: 24px;
+        font-weight: 500 !important;
+    }
+
+    [variant="body"] {
+        font-size: 16px;
+        line-height: 20px;
+    }
+
+    [variant="subheadline1"] {
+        font-size: 15px;
+        line-height: 18px;
+    }
+
+    [variant="subheadline2"] {
+        font-size: 14px;
+        line-height: 16px;
+    }
+
+    [variant="caption2"] {
+        font-size: 12px;
+        line-height: 14px;
+    }
+
+    [weight="medium"],
+    [weight="bold"] {
+        font-weight: 500;
+    }
+}
+
+[data-caps] {
+    text-transform: uppercase;
+}

@@ -35,6 +35,8 @@ const { resolveGigaamTranscriptionUrl } = require("../utils/gigaamTranscription.
 
 const ALLOWED_MEETING_PROVIDERS = new Set(["gigaam"]);
 const GIGAAM_TRANSCRIPTION_MODEL = "gigaam-v3-e2e-rnnt";
+const MACOS_PASTE_SNAPSHOT_AX_TIMEOUT_MS = 120;
+const MACOS_PASTE_SNAPSHOT_QUERY_TIMEOUT_MS = 80;
 
 function parseAttendees(raw) {
   if (!raw) return [];
@@ -438,8 +440,8 @@ class IPCHandlers {
       return this.windowManager.resizeMainWindow(sizeKey);
     });
 
-    ipcMain.handle("resize-control-panel-to-content", (event, height) => {
-      return this.windowManager.resizeControlPanelToContent(height);
+    ipcMain.handle("resize-control-panel-to-content", (event, height, width) => {
+      return this.windowManager.resizeControlPanelToContent(height, width);
     });
 
     ipcMain.handle("db-save-transcription", async (event, text, rawText, options) => {
@@ -1100,6 +1102,8 @@ class IPCHandlers {
     });
 
     ipcMain.handle("paste-text", async (event, text, options) => {
+      const pasteRequestStartedAt = Date.now();
+      const pasteTimings = {};
       const mainWindow = this.windowManager?.mainWindow;
       const targetPid = this.textEditMonitor?.lastTargetPid || null;
 
@@ -1107,10 +1111,13 @@ class IPCHandlers {
       // focus hand-off for Chromium apps like Claude desktop and Brave (#668).
       let activated = false;
       if (process.platform === "darwin" && this.textEditMonitor) {
+        const activationStartedAt = Date.now();
         activated = await this.textEditMonitor.activateTargetPid();
+        pasteTimings.activateTargetMs = Date.now() - activationStartedAt;
       }
 
       if (!activated && mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) {
+        const focusFallbackStartedAt = Date.now();
         if (process.platform === "darwin") {
           mainWindow.hide();
           await new Promise((resolve) => setTimeout(resolve, 120));
@@ -1119,26 +1126,54 @@ class IPCHandlers {
           mainWindow.blur();
           await new Promise((resolve) => setTimeout(resolve, 80));
         }
+        pasteTimings.focusFallbackMs = Date.now() - focusFallbackStartedAt;
       }
 
+      const snapshotStartedAt = Date.now();
       const pasteTargetSnapshot =
         process.platform === "darwin" && targetPid && this.textEditMonitor
-          ? await this.textEditMonitor.capturePasteTargetSnapshot(targetPid)
+          ? await this.textEditMonitor.capturePasteTargetSnapshot(targetPid, {
+              enableTimeoutMs: MACOS_PASTE_SNAPSHOT_AX_TIMEOUT_MS,
+              queryTimeoutMs: MACOS_PASTE_SNAPSHOT_QUERY_TIMEOUT_MS,
+            })
           : null;
+      pasteTimings.captureSnapshotMs = Date.now() - snapshotStartedAt;
 
       const result = await this.clipboardManager.pasteText(text, {
         ...options,
         webContents: event.sender,
+        targetPid,
         verifyPaste:
           process.platform === "darwin" && targetPid && this.textEditMonitor
-            ? ({ text: pastedText }) =>
+            ? ({ text: pastedText, ...verificationOptions }) =>
                 this.textEditMonitor.verifyPasteCompleted(
                   targetPid,
                   pastedText,
-                  pasteTargetSnapshot
+                  pasteTargetSnapshot,
+                  verificationOptions
                 )
             : undefined,
       });
+      debugLogger.info(
+        "Paste request completed",
+        {
+          targetPid,
+          activated,
+          elapsedMs: Date.now() - pasteRequestStartedAt,
+          timings: pasteTimings,
+          snapshotReadable: pasteTargetSnapshot?.readable === true,
+          snapshotReason: pasteTargetSnapshot?.reason,
+          result: result
+            ? {
+                inserted: result.inserted === true,
+                verified: result.verified === true,
+                fallback: result.fallback === true,
+                reason: result.reason,
+              }
+            : null,
+        },
+        "clipboard"
+      );
       return result;
     });
 

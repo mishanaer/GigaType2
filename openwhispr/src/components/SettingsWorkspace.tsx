@@ -1,6 +1,7 @@
 import React from "react";
 
 import SettingsPage, { SettingsSectionType } from "./SettingsPage";
+import AppshotsLogoHeader from "./ui/AppshotsLogoHeader";
 import { SettingsLayoutProvider } from "./ui/useSettingsLayout";
 
 export type { SettingsSectionType };
@@ -42,7 +43,8 @@ export default function SettingsWorkspace({
       className={isAppshots ? "w-full overflow-hidden bg-transparent" : "w-full bg-background"}
     >
       <SettingsLayoutProvider value={{ isCompact }}>
-        <div className={isAppshots ? "mx-auto w-[518px] py-[58px]" : isCompact ? "p-4" : "p-6"}>
+        <div className={isAppshots ? "mx-auto w-[460px] py-[20px]" : isCompact ? "p-4" : "p-6"}>
+          {isAppshots && <AppshotsLogoHeader />}
           <SettingsPage
             activeSection={"general" satisfies SettingsSectionType}
             variant={isAppshots ? "appshots" : "default"}

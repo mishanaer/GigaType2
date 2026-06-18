@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import TitleBar from "./TitleBar";
 import PermissionsSection from "./ui/PermissionsSection";
@@ -58,6 +58,8 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     useDialogs();
   const autoRegisterInFlightRef = useRef(false);
   const hotkeyStepInitializedRef = useRef(false);
+  const appshotsContentRef = useRef<HTMLDivElement | null>(null);
+  const resizeFrameRef = useRef<number | null>(null);
 
   const { registerHotkey } = useHotkeyRegistration({
     onSuccess: (registeredHotkey) => {
@@ -296,10 +298,39 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const usesAppshotsWindow = currentStep === 0 || currentStep === 1;
 
-  useEffect(() => {
+  const resizeAppshotsWindowToContent = useCallback(() => {
+    if (resizeFrameRef.current !== null) {
+      cancelAnimationFrame(resizeFrameRef.current);
+    }
+
+    resizeFrameRef.current = requestAnimationFrame(() => {
+      resizeFrameRef.current = null;
+      const content = appshotsContentRef.current;
+      if (!content) return;
+
+      const height = Math.ceil(content.getBoundingClientRect().height);
+      window.electronAPI?.resizeControlPanelToContent?.(height, 500)?.catch(() => undefined);
+    });
+  }, []);
+
+  useLayoutEffect(() => {
     if (!usesAppshotsWindow) return;
-    window.electronAPI?.resizeControlPanelToContent?.(442)?.catch(() => undefined);
-  }, [usesAppshotsWindow, currentStep]);
+    resizeAppshotsWindowToContent();
+
+    const content = appshotsContentRef.current;
+    if (!content) return undefined;
+
+    const observer = new ResizeObserver(resizeAppshotsWindowToContent);
+    observer.observe(content);
+
+    return () => {
+      observer.disconnect();
+      if (resizeFrameRef.current !== null) {
+        cancelAnimationFrame(resizeFrameRef.current);
+        resizeFrameRef.current = null;
+      }
+    };
+  }, [usesAppshotsWindow, currentStep, resizeAppshotsWindowToContent]);
 
   // Load Google Font only in the browser
   React.useEffect(() => {
@@ -315,13 +346,16 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   return (
     <div
+      ref={appshotsContentRef}
       className={
         usesAppshotsWindow
-          ? "appshots-permissions-window flex h-[442px] w-[600px] flex-col overflow-hidden"
+          ? "appshots-permissions-window flex w-[500px] flex-col overflow-hidden"
           : "h-screen flex flex-col bg-background"
       }
       style={usesAppshotsWindow ? undefined : { paddingTop: "env(safe-area-inset-top, 0px)" }}
     >
+      {usesAppshotsWindow && <div className="appshots-window-drag-layer" aria-hidden="true" />}
+
       <ConfirmDialog
         open={confirmDialog.open}
         onOpenChange={(open) => !open && hideConfirmDialog()}
@@ -354,18 +388,18 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       <div
         className={
           usesAppshotsWindow
-            ? "min-h-0 flex-1 overflow-hidden p-0"
+            ? "appshots-window-content overflow-hidden p-0"
             : "min-h-0 flex-1 overflow-y-auto px-6 py-10 md:px-12"
         }
       >
         <div
           className={
             usesAppshotsWindow
-              ? "mx-auto flex h-full w-full items-center justify-center"
+              ? "mx-auto w-full"
               : "mx-auto flex min-h-full w-full max-w-3xl items-center justify-center"
           }
         >
-          <div className={usesAppshotsWindow ? "h-full w-full" : "w-full"}>{renderStep()}</div>
+          <div className="w-full">{renderStep()}</div>
         </div>
       </div>
     </div>

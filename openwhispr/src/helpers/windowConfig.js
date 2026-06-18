@@ -66,7 +66,7 @@ const MAIN_WINDOW_CONFIG = {
 
 // Control panel window configuration
 const CONTROL_PANEL_CONFIG = {
-  width: 600,
+  width: 500,
   height: 560,
   minHeight: 360,
   backgroundColor: process.platform === "darwin" ? "#00000000" : "#1c1c2e",

@@ -36,6 +36,7 @@ import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { validateHotkeyForSlot } from "../utils/hotkeyValidation";
 import { getCachedPlatform } from "../utils/platform";
 import { useSettingsLayout } from "./ui/useSettingsLayout";
+import WalletSettingsCells from "./settings/WalletSettingsCells";
 
 export type SettingsSectionType = "general" | "privacyData";
 type SettingsPageVariant = "default" | "appshots";
@@ -224,29 +225,36 @@ export default function SettingsPage({
   const renderSectionContent = () => {
     switch (activeSection) {
       case "general":
+        if (isAppshots) {
+          return (
+            <WalletSettingsCells
+              dictationKey={dictationKey}
+              onHotkeyChange={async (newHotkey) => {
+                await registerHotkey(newHotkey);
+              }}
+              hotkeyDisabled={isHotkeyRegistering}
+              validateHotkey={validateDictationHotkey}
+              preferBuiltInMic={preferBuiltInMic}
+              selectedMicDeviceId={selectedMicDeviceId}
+              onPreferBuiltInChange={setPreferBuiltInMic}
+              onDeviceSelect={setSelectedMicDeviceId}
+            />
+          );
+        }
+
         return (
-          <div className={isAppshots ? "space-y-[24px]" : "space-y-6"}>
+          <div className="space-y-6">
             {renderDictationHotkeySettings()}
 
             {/* Microphone */}
             <div>
               <SectionHeader title={t("settingsPage.general.microphone.title")} variant={variant} />
-              {isAppshots ? (
-                <MicrophoneSettings
-                  preferBuiltInMic={preferBuiltInMic}
-                  selectedMicDeviceId={selectedMicDeviceId}
-                  onPreferBuiltInChange={setPreferBuiltInMic}
-                  onDeviceSelect={setSelectedMicDeviceId}
-                  variant="appshots"
-                />
-              ) : (
-                <MicrophoneSettings
-                  preferBuiltInMic={preferBuiltInMic}
-                  selectedMicDeviceId={selectedMicDeviceId}
-                  onPreferBuiltInChange={setPreferBuiltInMic}
-                  onDeviceSelect={setSelectedMicDeviceId}
-                />
-              )}
+              <MicrophoneSettings
+                preferBuiltInMic={preferBuiltInMic}
+                selectedMicDeviceId={selectedMicDeviceId}
+                onPreferBuiltInChange={setPreferBuiltInMic}
+                onDeviceSelect={setSelectedMicDeviceId}
+              />
             </div>
 
             {/* Wayland Paste Diagnostics — only on Linux + Wayland */}

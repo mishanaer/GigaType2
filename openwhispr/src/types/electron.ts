@@ -358,7 +358,7 @@ declare global {
       resizeMainWindow?: (
         sizeKey: "BASE" | "WITH_MENU" | "WITH_TOAST" | "EXPANDED"
       ) => Promise<{ success: boolean; message?: string }>;
-      resizeControlPanelToContent?: (height: number) => Promise<{
+      resizeControlPanelToContent?: (height: number, width?: number) => Promise<{
         success: boolean;
         message?: string;
         bounds?: { x: number; y: number; width: number; height: number };

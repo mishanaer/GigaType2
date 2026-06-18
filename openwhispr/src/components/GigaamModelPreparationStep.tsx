@@ -1,10 +1,19 @@
 import { AlertTriangle, Loader2, RotateCw } from "lucide-react";
+import type { KeyboardEvent } from "react";
+import { AnimatePresence } from "motion/react";
+import * as m from "motion/react-m";
 
 import type { GigaamSidecarStatus } from "../types/electron";
 import { isGigaamModelReady } from "../utils/gigaamModelStatus";
 import { Button } from "./ui/button";
 import { Progress } from "./ui/progress";
+import { RegularButton } from "../vendor/wallet_animations/components/Button";
 import { cn } from "./lib/utils";
+import Cell from "../vendor/wallet_animations/components/Cells";
+import MotionProvider from "../vendor/wallet_animations/components/MotionProvider";
+import SectionList from "../vendor/wallet_animations/components/SectionList";
+import Spinner from "../vendor/wallet_animations/components/Spinner";
+import StartView from "../vendor/wallet_animations/components/StartView";
 
 type GigaamModelPreparationVariant = "compact" | "appshots";
 
@@ -44,27 +53,30 @@ export default function GigaamModelPreparationStep({
   const downloadedBytes = isReady ? status?.modelTotalBytes : status?.modelDownloadedBytes;
   const totalBytes = status?.modelTotalBytes;
 
-  let title = "Проверяем модель";
-  let description = "GigaType готовит локальную GigaAM для распознавания речи.";
+  const downloadingTitle = "Скачиваем модель";
+  const downloadingDescription = "Это нужно только при первом запуске";
+
+  let title = downloadingTitle;
+  let description = downloadingDescription;
 
   if (!status) {
-    title = "Проверяем модель";
-    description = "Получаем статус локальной GigaAM.";
+    title = downloadingTitle;
+    description = downloadingDescription;
   } else if (!status.available) {
     title = "GigaAM недоступна";
-    description = "Локальная модель доступна только в macOS сборке для Apple Silicon.";
+    description = "Локальная модель доступна только в macOS сборке для Apple Silicon";
   } else if (isError) {
     title = "Не удалось подготовить модель";
-    description = status.healthDetail || "Проверьте подключение к интернету и попробуйте ещё раз.";
+    description = status.healthDetail || "Проверьте подключение к интернету и попробуйте ещё раз";
   } else if (isReady) {
     title = "Модель готова";
-    description = "GigaAM загружена и готова к диктовке.";
+    description = "GigaAM загружена и готова к диктовке";
   } else if (status.modelStage === "loading" || status.modelCacheComplete) {
     title = "Загружаем модель в память";
-    description = "Файлы уже на компьютере. Осталось дождаться запуска GigaAM.";
+    description = "Файлы уже на компьютере. Осталось дождаться запуска GigaAM";
   } else if (status.modelStage === "downloading") {
-    title = "Загружаем модель";
-    description = "Первый запуск может занять несколько минут.";
+    title = downloadingTitle;
+    description = downloadingDescription;
   }
 
   if (variant === "appshots") {
@@ -102,7 +114,7 @@ export default function GigaamModelPreparationStep({
             ) : !isReady ? (
               <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
             ) : null}
-            <span className="truncate text-sm font-medium text-foreground">GigaAM e2e RNNT</span>
+            <span className="truncate text-sm font-medium text-foreground">GigaAM</span>
           </div>
           <span className="shrink-0 text-sm font-medium tabular-nums text-muted-foreground">
             {progress}%
@@ -165,8 +177,6 @@ function AppshotsGigaamModelPanel({
   title,
   description,
   progress,
-  downloadedBytes,
-  totalBytes,
   isReady,
   isError,
   isRestarting,
@@ -178,92 +188,77 @@ function AppshotsGigaamModelPanel({
 }: AppshotsGigaamModelPanelProps) {
   const actionLabel = isReady ? readyActionLabel : "Повторить";
   const showAction = (isReady && showReadyAction && onReadyAction) || isError;
-  const statusText = isReady ? "Готово" : isError ? "Ошибка" : "Подготовка";
+  const showReadyButton = isReady && showReadyAction && Boolean(onReadyAction);
+  const detailsText = isError
+    ? "Ошибка"
+    : "Модель для распознавания речи";
+  const handleAction = () => {
+    if (!showAction) return;
+    if (isReady) {
+      void onReadyAction?.();
+    } else {
+      void onRetry();
+    }
+  };
+  const handleReadyButtonKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    handleAction();
+  };
 
   return (
-    <section
-      className={cn(
-        "relative mx-auto h-[442px] w-[600px] shrink-0 overflow-hidden text-[#050505]",
-        className
-      )}
-    >
-      <div
-        className="absolute left-[268px] top-[36px] h-[64px] w-[64px] rounded-[15px] border border-[#d8dbe3] bg-white"
-        aria-hidden="true"
-      />
+    <MotionProvider>
+      <section className={cn("appshots-permissions-no-drag mx-auto w-[460px] py-[20px]", className)}>
+        <StartView title={title} description={description} />
 
-      <div
-        role="heading"
-        aria-level={1}
-        className="absolute left-0 top-[116px] h-[38px] w-full text-center text-[32px] font-[800] leading-[38px] text-black"
-      >
-        {title}
-      </div>
-      <p className="absolute left-[46px] top-[164px] h-[42px] w-[508px] text-center text-[17px] font-[500] leading-[21px] text-[#515358]">
-        {description}
-      </p>
-
-      <div className="absolute left-[41px] top-[220px] h-[112px] w-[518px] rounded-[25px] bg-white">
-        <div
-          className="absolute left-[18px] top-[18px] flex h-[44px] w-[44px] items-center justify-center rounded-[10px] border border-[#d8dbe3] bg-white"
-          aria-hidden="true"
-        >
-          {isError ? (
-            <AlertTriangle className="h-[20px] w-[20px] text-[#5b5d69]" strokeWidth={2.4} />
-          ) : !isReady ? (
-            <Loader2 className="h-[20px] w-[20px] animate-spin text-[#5b5d69]" strokeWidth={2.4} />
-          ) : null}
-        </div>
-
-        <div
-          role="heading"
-          aria-level={2}
-          className="absolute left-[84px] top-[20px] h-[21px] max-w-[320px] truncate text-[17px] font-[800] leading-[21px] text-[#202333]"
-        >
-          GigaAM e2e RNNT
-        </div>
-        <span className="absolute right-[19px] top-[20px] h-[21px] text-[17px] font-[800] leading-[21px] tabular-nums text-[#5b5d69]">
-          {progress}%
-        </span>
-
-        <div className="absolute left-[84px] right-[19px] top-[55px] h-[8px] overflow-hidden rounded-full bg-[#b4b7c1]">
-          <div
-            className="h-full rounded-full bg-[#202333] transition-[width] duration-300"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-
-        <div className="absolute left-[84px] top-[75px] h-[21px] text-[17px] font-[500] leading-[21px] text-[#5b5d69]">
-          {statusText}
-        </div>
-        {totalBytes ? (
-          <div className="absolute right-[19px] top-[75px] h-[21px] text-[17px] font-[500] leading-[21px] tabular-nums text-[#5b5d69]">
-            {formatBytes(downloadedBytes)} / {formatBytes(totalBytes)}
-          </div>
-        ) : null}
-      </div>
-
-      {showAction ? (
-        <button
-          type="button"
-          onClick={() => {
-            if (isReady) {
-              void onReadyAction?.();
-            } else {
-              void onRetry();
-            }
-          }}
-          disabled={isRestarting}
-          className="appshots-permissions-no-drag absolute left-1/2 top-[356px] inline-flex h-[40px] min-w-[118px] -translate-x-1/2 items-center justify-center gap-[8px] rounded-[20px] bg-[#0a84ff] px-[18px] text-[16px] font-[800] leading-[20px] text-white transition-colors duration-150 hover:bg-[#007aff] disabled:opacity-60 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[#0a84ff]/30"
-        >
-          {isRestarting ? (
-            <Loader2 className="h-[18px] w-[18px] animate-spin" strokeWidth={2.5} />
-          ) : !isReady ? (
-            <RotateCw className="h-[18px] w-[18px]" strokeWidth={2.5} />
-          ) : null}
-          {actionLabel}
-        </button>
-      ) : null}
-    </section>
+        <AnimatePresence mode="wait" initial={false}>
+          {showReadyButton ? (
+            <m.div
+              key="ready-button"
+              className="flex justify-center"
+              initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -12, filter: "blur(4px)" }}
+              transition={{ duration: 0.3, ease: [0.2, 0, 0, 1] }}
+            >
+              <RegularButton
+                variant="filled"
+                label={readyActionLabel}
+                isShine
+                onClick={isRestarting ? undefined : handleAction}
+                onKeyDown={isRestarting ? undefined : handleReadyButtonKeyDown}
+                role="button"
+                tabIndex={isRestarting ? -1 : 0}
+                aria-disabled={isRestarting}
+              />
+            </m.div>
+          ) : (
+            <m.div
+              key="model-card"
+              initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: -12, filter: "blur(4px)" }}
+              transition={{ duration: 0.18, ease: [0.4, 0, 1, 1] }}
+            >
+              <SectionList>
+                <SectionList.Item>
+                  <Cell
+                    start={!isReady && !isError ? <Spinner size={24} /> : <Cell.Start type="Icon" />}
+                    onClick={showAction && !isRestarting ? handleAction : undefined}
+                    end={
+                      <Cell.Part type="Picker">
+                        {showAction ? actionLabel : `${progress}%`}
+                      </Cell.Part>
+                    }
+                  >
+                    <Cell.Text title="GigaAM" description={detailsText} bold />
+                  </Cell>
+                </SectionList.Item>
+              </SectionList>
+            </m.div>
+          )}
+        </AnimatePresence>
+      </section>
+    </MotionProvider>
   );
 }

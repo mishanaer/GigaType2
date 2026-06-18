@@ -18,6 +18,7 @@ import { areRequiredPermissionsMet } from "./utils/permissions";
 
 const ControlPanel = React.lazy(() => import("./components/ControlPanel.tsx"));
 const OnboardingFlow = React.lazy(() => import("./components/OnboardingFlow.tsx"));
+const AppShowcase = React.lazy(() => import("./components/AppShowcase.tsx"));
 const ONBOARDING_ACTIVATION_STEP_INDEX = 1;
 
 const getPlatform = () => window.electronAPI?.getPlatform?.() || "browser";
@@ -125,6 +126,14 @@ export default function AppRouter() {
 
   if (params.includes("transcription-preview=true")) {
     return <TranscriptionPreviewOverlay />;
+  }
+
+  if (params.includes("storybook=true") || params.includes("showcase=true")) {
+    return (
+      <Suspense fallback={<LoadingFallback message="Loading storybook..." />}>
+        <AppShowcase />
+      </Suspense>
+    );
   }
 
   return <MainApp />;

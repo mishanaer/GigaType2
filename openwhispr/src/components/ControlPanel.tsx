@@ -150,9 +150,10 @@ export default function ControlPanel() {
       if (!content) return;
 
       const height = Math.ceil(content.getBoundingClientRect().height);
-      window.electronAPI?.resizeControlPanelToContent?.(height)?.catch(() => undefined);
+      const width = useAppshotsWindow ? 500 : undefined;
+      window.electronAPI?.resizeControlPanelToContent?.(height, width)?.catch(() => undefined);
     });
-  }, []);
+  }, [useAppshotsWindow]);
 
   useLayoutEffect(() => {
     resizeWindowToContent();
@@ -179,19 +180,21 @@ export default function ControlPanel() {
       ref={contentRef}
       className={
         useAppshotsModelWindow
-          ? "appshots-permissions-window flex h-[442px] w-[600px] flex-col overflow-hidden"
+          ? "appshots-permissions-window flex w-[500px] flex-col overflow-hidden"
           : useAppshotsSettingsWindow
-            ? "appshots-settings-window flex min-h-[360px] w-[600px] flex-col overflow-hidden"
+            ? "appshots-settings-window flex w-[500px] flex-col overflow-hidden"
             : "flex flex-col bg-background"
       }
     >
+      {useAppshotsWindow && <div className="appshots-window-drag-layer" aria-hidden="true" />}
+
       <PostMigrationOnboarding
         open={showPostMigration}
         onOpenChange={setShowPostMigration}
         onDone={dismissPostMigrationPermanently}
       />
 
-      <main className="flex flex-col">
+      <main className={useAppshotsWindow ? "appshots-window-content flex flex-col" : "flex flex-col"}>
         {!useAppshotsWindow && (
           <div
             className="flex h-10 w-full shrink-0 items-center justify-between"
@@ -209,13 +212,13 @@ export default function ControlPanel() {
         {showGigaamPreparation ? (
           <div
             className={
-              useAppshotsModelWindow ? "min-h-0 flex-1 overflow-hidden p-0" : "px-6 py-10 md:px-12"
+              useAppshotsModelWindow ? "overflow-hidden p-0" : "px-6 py-10 md:px-12"
             }
           >
             <div
               className={
                 useAppshotsModelWindow
-                  ? "mx-auto flex h-full w-full items-center justify-center"
+                  ? "mx-auto w-full"
                   : "mx-auto flex w-full max-w-3xl items-center justify-center"
               }
             >

@@ -104,13 +104,13 @@ class TextEditMonitor extends EventEmitter {
     });
   }
 
-  async capturePasteTargetSnapshot(targetPid) {
+  async capturePasteTargetSnapshot(targetPid, options = {}) {
     if (process.platform !== "darwin" || !targetPid) {
       return { readable: false, reason: "no-target-pid" };
     }
 
-    await this._enableAccessibility(targetPid);
-    const value = await this._queryMacOSValue(targetPid);
+    await this._enableAccessibility(targetPid, { timeoutMs: options.enableTimeoutMs });
+    const value = await this._queryMacOSValue(targetPid, { timeoutMs: options.queryTimeoutMs });
     if (value === null) {
       return { readable: false, reason: "no-focused-value" };
     }
@@ -129,22 +129,34 @@ class TextEditMonitor extends EventEmitter {
 
     const attempts = Math.max(1, options.attempts ?? 3);
     const delayMs = Math.max(0, options.delayMs ?? 250);
+    const queryTimeoutMs = options.queryTimeoutMs;
     const beforeReadable = beforeSnapshot?.readable === true;
     const beforeValue = beforeReadable ? beforeSnapshot.value : null;
     let lastValue = null;
+    let lastQueryMs = 0;
 
     for (let attempt = 1; attempt <= attempts; attempt++) {
       if (attempt > 1 && delayMs > 0) {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
 
-      const value = await this._queryMacOSValue(targetPid);
+      const queryStartedAt = Date.now();
+      const value = await this._queryMacOSValue(targetPid, { timeoutMs: queryTimeoutMs });
+      lastQueryMs = Date.now() - queryStartedAt;
       if (value === null) {
         debugLogger.debug("[TextEditMonitor] Paste verification unreadable", {
           targetPid,
           attempt,
+          queryMs: lastQueryMs,
+          queryTimeoutMs,
         });
-        return { inserted: false, retryable: false, reason: "unreadable-after-paste" };
+        return {
+          inserted: false,
+          retryable: false,
+          reason: "unreadable-after-paste",
+          queryMs: lastQueryMs,
+          queryTimeoutMs,
+        };
       }
 
       lastValue = value;
@@ -157,6 +169,8 @@ class TextEditMonitor extends EventEmitter {
           reason: "verified",
           attempts: attempt,
           length: value.length,
+          queryMs: lastQueryMs,
+          queryTimeoutMs,
         };
       }
     }
@@ -171,6 +185,8 @@ class TextEditMonitor extends EventEmitter {
           ? "unchanged"
           : "expected-text-not-found",
       length: lastValue?.length ?? 0,
+      queryMs: lastQueryMs,
+      queryTimeoutMs,
     };
   }
 
@@ -337,13 +353,15 @@ class TextEditMonitor extends EventEmitter {
    * macOS: tell the target app that an assistive technology is present.
    * This causes Chromium/Electron apps to build their accessibility tree.
    */
-  _enableAccessibility(pid) {
+  _enableAccessibility(pid, options = {}) {
     return new Promise((resolve) => {
       const script = MACOS_AX_ENABLE_SCRIPT(pid);
-      execFile("osascript", ["-e", script], { timeout: 3000 }, (err) => {
+      const timeoutMs = Math.max(1, options.timeoutMs ?? 3000);
+      execFile("osascript", ["-e", script], { timeout: timeoutMs }, (err) => {
         if (err) {
           debugLogger.debug("[TextEditMonitor] macOS: AXEnhancedUserInterface failed", {
             error: err.message,
+            timeoutMs,
           });
         } else {
           debugLogger.debug("[TextEditMonitor] macOS: AXEnhancedUserInterface enabled", { pid });
@@ -428,10 +446,11 @@ class TextEditMonitor extends EventEmitter {
    * macOS: query the focused text field value via osascript for a specific app PID.
    * Returns the field value string, or null on error.
    */
-  _queryMacOSValue(pid) {
+  _queryMacOSValue(pid, options = {}) {
     return new Promise((resolve) => {
       const script = MACOS_AX_SCRIPT_BY_PID(pid);
-      execFile("osascript", ["-e", script], { timeout: 3000 }, (err, stdout) => {
+      const timeoutMs = Math.max(1, options.timeoutMs ?? 3000);
+      execFile("osascript", ["-e", script], { timeout: timeoutMs }, (err, stdout) => {
         if (err) {
           resolve(null);
         } else {
