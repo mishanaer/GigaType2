@@ -12,7 +12,6 @@ import { cn } from "./lib/utils";
 import Cell from "../vendor/wallet_animations/components/Cells";
 import MotionProvider from "../vendor/wallet_animations/components/MotionProvider";
 import SectionList from "../vendor/wallet_animations/components/SectionList";
-import Spinner from "../vendor/wallet_animations/components/Spinner";
 import StartView from "../vendor/wallet_animations/components/StartView";
 
 type GigaamModelPreparationVariant = "compact" | "appshots";
@@ -208,7 +207,13 @@ function AppshotsGigaamModelPanel({
 
   return (
     <MotionProvider>
-      <section className={cn("appshots-permissions-no-drag mx-auto w-[460px] py-[20px]", className)}>
+      <section
+        className={cn(
+          "appshots-permissions-no-drag mx-auto w-[460px] py-[20px]",
+          isReady && "appshots-gigaam-model-ready",
+          className
+        )}
+      >
         <StartView title={title} description={description} />
 
         <AnimatePresence mode="wait" initial={false}>
@@ -243,7 +248,7 @@ function AppshotsGigaamModelPanel({
               <SectionList>
                 <SectionList.Item>
                   <Cell
-                    start={!isReady && !isError ? <Spinner size={24} /> : <Cell.Start type="Icon" />}
+                    start={<AppshotsGigaamAvatar />}
                     onClick={showAction && !isRestarting ? handleAction : undefined}
                     end={
                       <Cell.Part type="Picker">
@@ -260,5 +265,20 @@ function AppshotsGigaamModelPanel({
         </AnimatePresence>
       </section>
     </MotionProvider>
+  );
+}
+
+function AppshotsGigaamAvatar() {
+  return (
+    <div className="appshots-gigaam-avatar" aria-hidden="true">
+      <svg width="40" height="40" viewBox="0 0 100 100" fill="none">
+        <path
+          fillRule="evenodd"
+          clipRule="evenodd"
+          d="M50 0C77.6122 0 100 22.384 100 50C100 77.6159 77.6122 100 50 100C22.3877 100 0 77.6122 0 50C3.13643e-06 22.3877 22.3877 3.13621e-06 50 0ZM91.1702 37.8824C89.9067 46.6456 85.4519 53.8772 81.7355 58.5829C75.9998 65.6485 68.3154 71.7654 59.4971 76.2858C50.7747 80.7582 41.3392 83.4749 32.213 84.1417C30.6684 84.2306 29.2337 84.2746 27.8889 84.2746C26.2887 84.2746 24.8134 84.2106 23.4131 84.0847C30.7311 89.8169 39.952 93.2346 49.9673 93.2346L49.962 93.2293C73.7688 93.2293 93.0719 73.929 93.0719 50.1222C93.0719 45.9908 92.4892 41.9965 91.4035 38.2136C91.3257 38.1022 91.248 37.99 91.1702 37.8824ZM56.1333 4.56C41.405 4.56 28.0167 10.6339 20.3206 20.8009L20.2719 20.8605C16.9447 24.9138 14.7331 29.3603 13.8807 33.7213C13.3953 36.3742 13.4851 38.8111 14.152 40.9341V40.9288C15.7342 45.679 19.5827 49.4886 23.9476 50.6076C25.763 51.0597 27.5085 51.2487 29.1314 51.1746L29.56 51.1366C40.5945 50.2473 50.4343 43.2929 58.6046 36.6048C63.7178 32.3253 68.6087 26.6633 68.9237 23.0061C61.7945 26.4633 54.4352 30.9611 45.95 37.0415C45.0089 37.7122 43.726 37.5245 43.0257 36.6129C38.8127 31.1587 35.1444 26.7296 31.4723 22.6834C31.0727 22.2389 30.8735 21.6428 30.9327 21.0502C30.9883 20.4574 31.2957 19.9088 31.7735 19.553C43.0228 11.1161 54.2125 6.33568 65.0688 5.32769C62.1572 4.8165 59.1712 4.56007 56.1333 4.56Z"
+          fill="currentColor"
+        />
+      </svg>
+    </div>
   );
 }

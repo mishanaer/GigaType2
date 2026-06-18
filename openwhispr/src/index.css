@@ -357,6 +357,35 @@
     font-weight: 700;
   }
 
+  .appshots-permissions-no-drag .appshots-permission-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: #ffffff;
+  }
+
+  .appshots-permissions-no-drag .appshots-permission-avatar svg {
+    display: block;
+    width: 24px;
+    height: 25px;
+  }
+
+  .appshots-permissions-no-drag .appshots-gigaam-avatar {
+    display: flex;
+    width: 40px;
+    height: 40px;
+    align-items: center;
+    justify-content: center;
+    color: var(--giga-accent);
+  }
+
+  .appshots-permissions-no-drag .appshots-gigaam-avatar svg {
+    display: block;
+    width: 40px;
+    height: 40px;
+  }
+
   .wallet-settings-hidden-hotkey {
     position: absolute;
     top: 0;
@@ -959,7 +988,30 @@ a:hover {
 }
 
 /* Appshots overrides must stay outside Tailwind layers so CSS modules cannot win by layer priority. */
+.appshots-permissions-no-drag.appshots-gigaam-model-ready > div:first-child {
+  padding-bottom: 28px;
+}
+
+.appshots-permissions-no-drag.appshots-gigaam-model-ready {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.appshots-permissions-no-drag.appshots-gigaam-model-ready > .flex.justify-center {
+  padding-bottom: 16px;
+}
+
+.appshots-permissions-no-drag.appshots-gigaam-model-ready [class*="_button_"] {
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
 body.apple .appshots-settings-window [class*="picker"] {
   padding-left: 14px;
   padding-right: 14px;
+}
+
+body.apple .appshots-settings-no-drag > section[class*="_root_"] {
+  gap: 0;
+  padding: 0;
 }
