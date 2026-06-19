@@ -239,11 +239,13 @@
   /* Make dictation window (App) transparent, but keep control panel solid */
   body:has(.dictation-window),
   body:has(.meeting-notification-window),
+  body:has(.appshots-loading-window),
   body:has(.appshots-permissions-window),
   body:has(.appshots-settings-window) {
     background: transparent;
   }
 
+  body:has(.appshots-loading-window),
   body:has(.appshots-permissions-window),
   body:has(.appshots-settings-window) {
     overflow: hidden;
@@ -251,11 +253,14 @@
 
   body:has(.dictation-window) #root,
   body:has(.meeting-notification-window) #root,
+  body:has(.appshots-loading-window) #root,
   body:has(.appshots-permissions-window) #root,
   body:has(.appshots-settings-window) #root {
     background: transparent;
   }
 
+  .appshots-loading-window,
+  .appshots-loading-surface,
   .appshots-permissions-window,
   .appshots-settings-window {
     --side-padding: 16px;

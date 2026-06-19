@@ -130,7 +130,7 @@ export default function AppRouter() {
 
   if (params.includes("storybook=true") || params.includes("showcase=true")) {
     return (
-      <Suspense fallback={<AppLoadingFallback message="Loading storybook..." />}>
+      <Suspense fallback={<AppLoadingFallback />}>
         <AppShowcase />
       </Suspense>
     );

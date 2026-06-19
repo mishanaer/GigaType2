@@ -275,11 +275,11 @@ export default function AppShowcase() {
         </WindowFrame>
 
         <WindowFrame eyebrow="Boot" title="Loading: permissions check">
-          <AppLoadingFallback className="h-[360px]" />
+          <AppLoadingFallback embedded className="h-[360px]" />
         </WindowFrame>
 
         <WindowFrame eyebrow="Boot" title="Loading: lazy route">
-          <AppLoadingFallback className="h-[360px]" message="Loading storybook..." />
+          <AppLoadingFallback embedded className="h-[360px]" />
         </WindowFrame>
 
         <WindowFrame eyebrow="Settings" title="General settings">
