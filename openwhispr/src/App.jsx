@@ -1,73 +1,20 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import "./index.css";
 import { useAudioRecording } from "./hooks/useAudioRecording";
-import CustomSiriWave from "./utils/customSiriWave";
+import Strands from "./components/effects/Strands";
 
-const WAVE_SPEED = 0.12;
-const WAVE_MIN_AMPLITUDE = 0;
-const WAVE_MAX_AMPLITUDE = 2.4;
-const WAVE_WIDTH = 95;
-const WAVE_HEIGHT = 90;
-
-const SiriWaveIndicator = ({ audioLevel, isProcessing }) => {
-  const containerRef = useRef(null);
-  const waveRef = useRef(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return undefined;
-
-    const wave = new CustomSiriWave({
-      container: containerRef.current,
-      style: "ios9",
-      width: WAVE_WIDTH,
-      height: WAVE_HEIGHT,
-      speed: WAVE_SPEED,
-      amplitude: WAVE_MIN_AMPLITUDE,
-      autostart: true,
-      cover: true,
-      lerpSpeed: 0.15,
-      edgeFadeStart: 0.82,
-      globalCompositeOperation: "lighter",
-      ranges: {
-        noOfCurves: [3, 5],
-        amplitude: [0.3, 1],
-        width: [2.5, 5],
-        speed: [0.5, 1],
-      },
-    });
-
-    waveRef.current = wave;
-
-    return () => {
-      wave.dispose();
-      waveRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!waveRef.current) return;
-
-    const targetAmplitude = isProcessing
-      ? WAVE_MIN_AMPLITUDE
-      : WAVE_MIN_AMPLITUDE + audioLevel * (WAVE_MAX_AMPLITUDE - WAVE_MIN_AMPLITUDE);
-
-    waveRef.current.setAmplitude(targetAmplitude);
-    waveRef.current.setSpeed(WAVE_SPEED);
-  }, [audioLevel, isProcessing]);
-
-  return (
-    <div
-      ref={containerRef}
-      aria-hidden="true"
-      className="pointer-events-none relative z-[1] flex h-[90px] w-[95px] items-center justify-center"
-    />
-  );
-};
+const BASE_STRAND_AMPLITUDE = 0.2;
+const STRAND_AMPLITUDE_RANGE = 2.8;
+const MIN_STRAND_GLOW = 1;
+const MAX_STRAND_GLOW = 3;
+const MIN_STRAND_ORB_SIZE = 75;
+const MAX_STRAND_ORB_SIZE = 85;
+const DICTATION_WINDOW_SIZE = 90;
+const STRAND_GLASS_DIAMETER_RATIO = 0.92;
 
 export default function App() {
   const {
     isRecording,
-    isProcessing,
     audioLevel,
     cancelRecording,
   } = useAudioRecording();
@@ -97,6 +44,10 @@ export default function App() {
   }, []);
 
   const isWaveVisible = isRecording;
+  const strandAmplitude = BASE_STRAND_AMPLITUDE + audioLevel * STRAND_AMPLITUDE_RANGE;
+  const strandGlow = MIN_STRAND_GLOW + audioLevel * (MAX_STRAND_GLOW - MIN_STRAND_GLOW);
+  const strandOrbSize = MIN_STRAND_ORB_SIZE + audioLevel * (MAX_STRAND_ORB_SIZE - MIN_STRAND_ORB_SIZE);
+  const strandGlassSize = strandOrbSize / (DICTATION_WINDOW_SIZE * STRAND_GLASS_DIAMETER_RATIO);
 
   useEffect(() => {
     if (!isWaveVisible) {
@@ -105,10 +56,29 @@ export default function App() {
   }, [isWaveVisible]);
 
   return (
-    <div className="dictation-window flex h-screen w-screen items-center justify-center">
+    <div className="dictation-window flex h-screen w-screen items-center justify-center bg-transparent">
       {isWaveVisible && (
-        <div className="pointer-events-none relative flex h-full w-full items-center justify-center overflow-hidden rounded-full border border-white/20 bg-black">
-          <SiriWaveIndicator audioLevel={audioLevel} isProcessing={isProcessing} />
+        <div className="pointer-events-none relative h-full w-full overflow-hidden">
+          <Strands
+            colors={["#17BE93", "#8dc317", "#11bedb"]}
+            count={3}
+            speed={0.2}
+            amplitude={strandAmplitude}
+            waviness={1}
+            thickness={0.7}
+            glow={strandGlow}
+            taper={3}
+            spread={1}
+            intensity={0.7}
+            saturation={1.55}
+            opacity={1}
+            scale={1.5}
+            glass
+            refraction={1}
+            dispersion={1}
+            glassSize={strandGlassSize}
+            hueShift={0.14}
+          />
         </div>
       )}
     </div>

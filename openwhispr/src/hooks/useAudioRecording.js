@@ -11,6 +11,8 @@ const RMS_NOISE_FLOOR = 0.009;
 const RMS_ACTIVE_RANGE = 0.018;
 const PEAK_NOISE_FLOOR = 0.024;
 const PEAK_ACTIVE_RANGE = 0.07;
+const AUDIO_LEVEL_ATTACK_SMOOTHING = 0.2;
+const AUDIO_LEVEL_RELEASE_SMOOTHING = 0.2;
 
 const normalizeAudioLevel = ({ rms = 0, peak = 0 } = {}) => {
   const rmsLevel = clamp01((rms - RMS_NOISE_FLOOR) / RMS_ACTIVE_RANGE);
@@ -144,7 +146,10 @@ export const useAudioRecording = (toast, options = {}) => {
           );
         }
         setAudioLevel((currentLevel) => {
-          const smoothing = targetLevel > currentLevel ? 0.7 : 0.39;
+          const smoothing =
+            targetLevel > currentLevel
+              ? AUDIO_LEVEL_ATTACK_SMOOTHING
+              : AUDIO_LEVEL_RELEASE_SMOOTHING;
           return currentLevel + (targetLevel - currentLevel) * smoothing;
         });
       },

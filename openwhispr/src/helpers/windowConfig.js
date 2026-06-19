@@ -28,7 +28,7 @@ const FLOATING_OVERLAY_TYPE =
         : "toolbar"
       : "normal";
 
-const DICTATION_PILL_WINDOW = { width: 135, height: 60 };
+const DICTATION_PILL_WINDOW = { width: 90, height: 90 };
 const MAIN_WINDOW_BOTTOM_OFFSET = 130;
 
 const WINDOW_SIZES = {
