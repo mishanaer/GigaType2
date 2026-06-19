@@ -37,6 +37,122 @@ const ALLOWED_MEETING_PROVIDERS = new Set(["gigaam"]);
 const GIGAAM_TRANSCRIPTION_MODEL = "gigaam-v3-e2e-rnnt";
 const MACOS_PASTE_SNAPSHOT_AX_TIMEOUT_MS = 120;
 const MACOS_PASTE_SNAPSHOT_QUERY_TIMEOUT_MS = 80;
+const MAX_LOG_COPY_BYTES_PER_FILE = 100 * 1024;
+const DEBUG_TRANSCRIPTION_LIMIT = 10;
+const DEBUG_TRANSCRIPTION_PREVIEW_CHARS = 300;
+
+async function readLogFileTail(filePath) {
+  try {
+    const stats = await fs.promises.stat(filePath);
+    if (!stats.isFile()) {
+      return { path: filePath, error: "not a file" };
+    }
+
+    const start = Math.max(0, stats.size - MAX_LOG_COPY_BYTES_PER_FILE);
+    const length = stats.size - start;
+    const file = await fs.promises.open(filePath, "r");
+
+    try {
+      const buffer = Buffer.alloc(length);
+      const { bytesRead } = await file.read(buffer, 0, length, start);
+      return {
+        path: filePath,
+        size: stats.size,
+        truncated: start > 0,
+        content: buffer.subarray(0, bytesRead).toString("utf8"),
+      };
+    } finally {
+      await file.close();
+    }
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return null;
+    }
+    return { path: filePath, error: error.message };
+  }
+}
+
+async function findLatestDebugLog(logsDir) {
+  try {
+    const entries = await fs.promises.readdir(logsDir, { withFileTypes: true });
+    const debugLogs = await Promise.all(
+      entries
+        .filter((entry) => entry.isFile() && /^debug-.*\.log$/.test(entry.name))
+        .map(async (entry) => {
+          const filePath = path.join(logsDir, entry.name);
+          const stats = await fs.promises.stat(filePath);
+          return { filePath, mtimeMs: stats.mtimeMs };
+        })
+    );
+
+    return debugLogs.sort((a, b) => b.mtimeMs - a.mtimeMs)[0]?.filePath ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function formatLogClipboardSection(section) {
+  const header = [`===== ${section.path} =====`];
+
+  if (section.error) {
+    return [...header, `Unable to read log file: ${section.error}`].join("\n");
+  }
+
+  if (section.truncated) {
+    header.push(`Showing last ${MAX_LOG_COPY_BYTES_PER_FILE} bytes of ${section.size} bytes.`);
+  }
+
+  return [...header, section.content || "(empty log file)"].join("\n");
+}
+
+function previewDebugText(value) {
+  if (!value) return "";
+  const normalized = String(value).replace(/\s+/g, " ").trim();
+  if (normalized.length <= DEBUG_TRANSCRIPTION_PREVIEW_CHARS) {
+    return normalized;
+  }
+  return `${normalized.slice(0, DEBUG_TRANSCRIPTION_PREVIEW_CHARS)}...`;
+}
+
+function formatDebugTranscription(transcription) {
+  const lines = [
+    `#${transcription.id} ${transcription.timestamp || transcription.created_at || "(no timestamp)"}`,
+    `status=${transcription.status || "unknown"} provider=${transcription.provider || "unknown"} model=${transcription.model || "unknown"}`,
+    `client_transcription_id=${transcription.client_transcription_id || "unknown"}`,
+  ];
+
+  if (transcription.error_code || transcription.error_message) {
+    lines.push(
+      `error=${transcription.error_code || "unknown"} ${transcription.error_message || ""}`.trim()
+    );
+  }
+
+  if (transcription.audio_duration_ms != null) {
+    lines.push(`audio_duration_ms=${transcription.audio_duration_ms}`);
+  }
+
+  const textPreview = previewDebugText(transcription.text);
+  if (textPreview) {
+    lines.push(`text_preview=${JSON.stringify(textPreview)}`);
+  }
+
+  const rawTextPreview = previewDebugText(transcription.raw_text);
+  if (rawTextPreview && rawTextPreview !== textPreview) {
+    lines.push(`raw_text_preview=${JSON.stringify(rawTextPreview)}`);
+  }
+
+  return lines.join("\n");
+}
+
+function formatDebugTranscriptionsSection(transcriptions) {
+  const header = [`===== Last ${DEBUG_TRANSCRIPTION_LIMIT} dictations =====`];
+
+  if (!transcriptions.length) {
+    return [...header, "(no dictations found)"].join("\n");
+  }
+
+  return [...header, transcriptions.map(formatDebugTranscription).join("\n\n")].join("\n");
+}
 
 function parseAttendees(raw) {
   if (!raw) return [];
@@ -1193,6 +1309,45 @@ class IPCHandlers {
 
     ipcMain.handle("write-clipboard", async (event, text) => {
       return this.clipboardManager.writeClipboard(text, event.sender);
+    });
+
+    ipcMain.handle("copy-debug-logs", async (event) => {
+      try {
+        debugLogger.ensureFileLogging();
+
+        const logsDir = path.join(app.getPath("userData"), "logs");
+        fs.mkdirSync(logsDir, { recursive: true });
+
+        const currentDebugLog = debugLogger.getLogPath();
+        const latestDebugLog = currentDebugLog || (await findLatestDebugLog(logsDir));
+        const logPaths = [
+          latestDebugLog,
+          path.join(logsDir, "gigaam-sidecar.log"),
+        ].filter(Boolean);
+        const uniqueLogPaths = [...new Set(logPaths)];
+        const sections = (await Promise.all(uniqueLogPaths.map(readLogFileTail))).filter(Boolean);
+        const transcriptions = this.databaseManager.getTranscriptions(DEBUG_TRANSCRIPTION_LIMIT);
+
+        if (sections.length === 0 && transcriptions.length === 0) {
+          return { success: false, error: "No logs or dictations found" };
+        }
+
+        const text = [
+          formatDebugTranscriptionsSection(transcriptions),
+          ...sections.map(formatLogClipboardSection),
+        ].join("\n\n");
+        await this.clipboardManager.writeClipboard(text, event.sender);
+
+        return {
+          success: true,
+          bytes: Buffer.byteLength(text, "utf8"),
+          files: sections.map((section) => section.path),
+          transcriptionCount: transcriptions.length,
+        };
+      } catch (error) {
+        debugLogger.warn("Failed to copy debug logs", { error: error.message }, "debug");
+        return { success: false, error: error.message };
+      }
     });
 
     ipcMain.handle("check-paste-tools", async () => {

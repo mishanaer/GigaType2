@@ -159,7 +159,34 @@ export default function WalletSettingsCells({
     [onDeviceSelect, onPreferBuiltInChange]
   );
 
+  const copyLogs = useCallback(async () => {
+    if (window.electronAPI?.copyDebugLogs) {
+      const result = await window.electronAPI?.copyDebugLogs?.();
+
+      if (result?.success) {
+        return;
+      }
+
+      throw new Error(result?.error || "Failed to copy logs");
+    }
+
+    if (logPath) {
+      await navigator.clipboard.writeText(logPath);
+      return;
+    }
+
+    throw new Error("No logs available");
+  }, [logPath]);
+
   const handleCopyLogsCellClick = useCallback(() => {
+    copyLogButtonRef.current?.click();
+  }, []);
+  const handleCopyLogsCellKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
     copyLogButtonRef.current?.click();
   }, []);
 
@@ -185,7 +212,7 @@ export default function WalletSettingsCells({
 
             <Cell
               end={
-                <div className="wallet-settings-native-select-wrap appshots-settings-no-drag">
+                <div className="wallet-settings-native-select-wrap appshots-window-no-drag appshots-settings-no-drag">
                   <Cell.Part type="Dropdown">
                     {microphoneOptions.find((device) => device.deviceId === activeDeviceId)?.label ??
                       "Системный"}
@@ -210,12 +237,15 @@ export default function WalletSettingsCells({
 
             <Cell
               onClick={handleCopyLogsCellClick}
+              onKeyDown={handleCopyLogsCellKeyDown}
+              role="button"
+              tabIndex={0}
               end={
                 <CopyButton
                   ref={copyLogButtonRef}
-                  value={logPath}
+                  onCopy={copyLogs}
                   onClick={(event) => event.stopPropagation()}
-                  className="appshots-settings-no-drag"
+                  className="appshots-window-no-drag appshots-settings-no-drag"
                 />
               }
             >

@@ -175,6 +175,9 @@ function AppshotsPermissionRow({ permission }: AppshotsPermissionRowProps) {
     <Cell
       start={<AppshotsPermissionAvatar kind={permission.kind} userId={permission.avatarUserId} />}
       onClick={permission.granted ? undefined : requestPermission}
+      onKeyDown={permission.granted ? undefined : handlePermissionKeyDown}
+      role={permission.granted ? undefined : "button"}
+      tabIndex={permission.granted ? undefined : 0}
       end={
         permission.granted ? (
           <Cell.Part type="Picker">✓</Cell.Part>

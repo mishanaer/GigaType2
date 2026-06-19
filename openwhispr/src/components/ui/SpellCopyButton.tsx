@@ -2,12 +2,15 @@
 
 import * as React from "react";
 import { CheckIcon, CopyIcon } from "lucide-react";
+import { AnimatePresence } from "motion/react";
+import * as m from "motion/react-m";
 import { cn } from "@/components/lib/utils";
 
 type SizeVariant = "sm" | "default" | "lg";
 
 interface CopyButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   value?: string;
+  onCopy?: () => Promise<void> | void;
   size?: SizeVariant;
 }
 
@@ -18,16 +21,53 @@ const sizeMap: Record<SizeVariant, { button: string; icon: number }> = {
 };
 
 const CopyButton = React.forwardRef<HTMLButtonElement, CopyButtonProps>(
-  ({ value, size = "default", className, onClick, ...props }, ref) => {
+  ({ value, onCopy, size = "default", className, onClick, ...props }, ref) => {
     const [copied, setCopied] = React.useState<boolean>(false);
+    const resetTimerRef = React.useRef<number | null>(null);
 
-    const handleCopy = (event: React.MouseEvent<HTMLButtonElement>) => {
-      if (value) {
-        navigator.clipboard.writeText(value).catch(() => {});
+    React.useEffect(() => {
+      return () => {
+        if (resetTimerRef.current !== null) {
+          window.clearTimeout(resetTimerRef.current);
+        }
+      };
+    }, []);
+
+    const showCopiedState = React.useCallback(() => {
+      if (resetTimerRef.current !== null) {
+        window.clearTimeout(resetTimerRef.current);
       }
+
       setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+
+      resetTimerRef.current = window.setTimeout(() => {
+        setCopied(false);
+        resetTimerRef.current = null;
+      }, 1500);
+    }, []);
+
+    const handleCopy = async (event: React.MouseEvent<HTMLButtonElement>) => {
       onClick?.(event);
+
+      if (event.defaultPrevented || copied) {
+        return;
+      }
+
+      if (!onCopy && !value) {
+        return;
+      }
+
+      showCopiedState();
+
+      try {
+        if (onCopy) {
+          await onCopy();
+        } else if (value) {
+          await navigator.clipboard.writeText(value);
+        }
+      } catch (error) {
+        console.warn("Failed to copy", error);
+      }
     };
 
     const { button: buttonSize, icon: iconSize } = sizeMap[size];
@@ -40,28 +80,33 @@ const CopyButton = React.forwardRef<HTMLButtonElement, CopyButtonProps>(
         aria-label={copied ? "Copied" : "Copy to clipboard"}
         disabled={copied}
         className={cn(
-          "relative cursor-pointer active:scale-[0.97] transition-all ease-out duration-200 inline-flex items-center justify-center rounded-md text-neutral-900 disabled:pointer-events-none disabled:opacity-100 dark:text-neutral-50",
+          "relative cursor-pointer active:scale-[0.96] transition-transform ease-out duration-150 inline-flex items-center justify-center rounded-md text-neutral-900 disabled:pointer-events-none disabled:opacity-100 dark:text-neutral-50",
           buttonSize,
           className
         )}
         {...props}
       >
-        <div
-          className={cn(
-            "transition-all duration-200",
-            copied ? "scale-100 opacity-100 blur-none" : "scale-70 opacity-0 blur-[2px]"
-          )}
+        <span
+          className="relative inline-flex items-center justify-center"
+          style={{ width: iconSize, height: iconSize }}
         >
-          <CheckIcon size={iconSize} strokeWidth={2} aria-hidden="true" />
-        </div>
-        <div
-          className={cn(
-            "absolute transition-all duration-200",
-            copied ? "scale-0 opacity-0 blur-[2px]" : "scale-100 opacity-100 blur-none"
-          )}
-        >
-          <CopyIcon size={iconSize} strokeWidth={2} aria-hidden="true" />
-        </div>
+          <AnimatePresence mode="popLayout" initial={false}>
+            <m.span
+              key={copied ? "copied" : "copy"}
+              className="absolute inset-0 inline-flex items-center justify-center"
+              initial={{ opacity: 0, scale: 0.25, filter: "blur(4px)" }}
+              animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+              exit={{ opacity: 0, scale: 0.25, filter: "blur(4px)" }}
+              transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+            >
+              {copied ? (
+                <CheckIcon size={iconSize} strokeWidth={2} aria-hidden="true" />
+              ) : (
+                <CopyIcon size={iconSize} strokeWidth={2} aria-hidden="true" />
+              )}
+            </m.span>
+          </AnimatePresence>
+        </span>
       </button>
     );
   }

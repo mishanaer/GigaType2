@@ -298,7 +298,7 @@
     -webkit-font-smoothing: antialiased;
     letter-spacing: 0;
     text-rendering: geometricPrecision;
-    -webkit-app-region: no-drag;
+    -webkit-app-region: drag;
     user-select: none;
   }
 
@@ -326,10 +326,12 @@
   .appshots-settings-window input,
   .appshots-settings-window textarea,
   .appshots-settings-window select,
-  .appshots-permissions-no-drag,
-  .appshots-permissions-no-drag *,
-  .appshots-settings-no-drag,
-  .appshots-settings-no-drag *,
+  .appshots-permissions-window [role="button"],
+  .appshots-permissions-window [role="button"] *,
+  .appshots-settings-window [role="button"],
+  .appshots-settings-window [role="button"] *,
+  .appshots-window-no-drag,
+  .appshots-window-no-drag *,
   body:has(.appshots-settings-window) [aria-haspopup="menu"],
   body:has(.appshots-settings-window) [role="menu"],
   body:has(.appshots-settings-window) [role="menu"] * {

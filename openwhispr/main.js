@@ -95,8 +95,24 @@ function setMacDockIcon() {
     return;
   }
 
-  const iconPath = path.join(__dirname, "src", "assets", "icon.png");
-  app.dock.setIcon(iconPath);
+  const fs = require("fs");
+  const candidates = [
+    path.join(process.resourcesPath || "", "src", "assets", "icon.png"),
+    path.join(process.resourcesPath || "", "assets", "icon.png"),
+    path.join(__dirname, "src", "assets", "icon.png"),
+  ];
+  const iconPath = candidates.find((candidate) => candidate && fs.existsSync(candidate));
+
+  if (!iconPath) {
+    console.warn("Dock icon not found; continuing startup without custom dock icon");
+    return;
+  }
+
+  try {
+    app.dock.setIcon(iconPath);
+  } catch (error) {
+    console.warn("Failed to set Dock icon; continuing startup", error);
+  }
 }
 
 // Load userData .env (contains hotkeys and runtime config) early — before

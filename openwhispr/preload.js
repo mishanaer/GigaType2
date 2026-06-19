@@ -172,6 +172,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   promptAccessibilityPermission: () => ipcRenderer.invoke("prompt-accessibility-permission"),
   readClipboard: () => ipcRenderer.invoke("read-clipboard"),
   writeClipboard: (text) => ipcRenderer.invoke("write-clipboard", text),
+  copyDebugLogs: () => ipcRenderer.invoke("copy-debug-logs"),
   checkPasteTools: () => ipcRenderer.invoke("check-paste-tools"),
 
   // Diarization (speaker identification) functions

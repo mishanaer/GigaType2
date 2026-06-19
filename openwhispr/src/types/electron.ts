@@ -550,6 +550,13 @@ declare global {
       promptAccessibilityPermission: () => Promise<boolean>;
       readClipboard: () => Promise<string>;
       writeClipboard: (text: string) => Promise<{ success: boolean }>;
+      copyDebugLogs?: () => Promise<{
+        success: boolean;
+        bytes?: number;
+        files?: string[];
+        transcriptionCount?: number;
+        error?: string;
+      }>;
       checkPasteTools: () => Promise<PasteToolsResult>;
 
       // Audio
