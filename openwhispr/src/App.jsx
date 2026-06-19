@@ -11,6 +11,7 @@ const MIN_STRAND_ORB_SIZE = 75;
 const MAX_STRAND_ORB_SIZE = 85;
 const DICTATION_WINDOW_SIZE = 90;
 const STRAND_GLASS_DIAMETER_RATIO = 0.92;
+const VOICE_RESPONSE_CURVE = 2;
 
 export default function App() {
   const {
@@ -44,9 +45,10 @@ export default function App() {
   }, []);
 
   const isWaveVisible = isRecording;
-  const strandAmplitude = BASE_STRAND_AMPLITUDE + audioLevel * STRAND_AMPLITUDE_RANGE;
-  const strandGlow = MIN_STRAND_GLOW + audioLevel * (MAX_STRAND_GLOW - MIN_STRAND_GLOW);
-  const strandOrbSize = MIN_STRAND_ORB_SIZE + audioLevel * (MAX_STRAND_ORB_SIZE - MIN_STRAND_ORB_SIZE);
+  const visualVoiceLevel = 1 - Math.pow(1 - audioLevel, VOICE_RESPONSE_CURVE);
+  const strandAmplitude = BASE_STRAND_AMPLITUDE + visualVoiceLevel * STRAND_AMPLITUDE_RANGE;
+  const strandGlow = MIN_STRAND_GLOW + visualVoiceLevel * (MAX_STRAND_GLOW - MIN_STRAND_GLOW);
+  const strandOrbSize = MIN_STRAND_ORB_SIZE + visualVoiceLevel * (MAX_STRAND_ORB_SIZE - MIN_STRAND_ORB_SIZE);
   const strandGlassSize = strandOrbSize / (DICTATION_WINDOW_SIZE * STRAND_GLASS_DIAMETER_RATIO);
 
   useEffect(() => {
