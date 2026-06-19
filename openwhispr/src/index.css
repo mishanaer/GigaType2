@@ -259,6 +259,24 @@
     background: transparent;
   }
 
+  .dictation-orb-shadow {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    z-index: 0;
+    width: 56px;
+    height: 28px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.3);
+    filter: blur(20px);
+    transform: translate(-50%, -50%) translateY(4px);
+  }
+
+  .dictation-orb-shadow + .strands-container {
+    position: relative;
+    z-index: 1;
+  }
+
   .appshots-loading-window,
   .appshots-loading-surface,
   .appshots-permissions-window,

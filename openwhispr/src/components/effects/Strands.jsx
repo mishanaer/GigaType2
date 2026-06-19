@@ -157,12 +157,13 @@ void main() {
   vec3 emissive = light + rim + vec3(spec) * 0.4;
   float emissiveA = clamp(max(max(emissive.r, emissive.g), emissive.b), 0.0, 1.0);
 
-  // almost clear glass body: only a faint neutral darkening, mostly near the rim
+  // smoked green body tint: roughly #21A038 at the original glass-body opacity
   float bodyA = 0.05 + fres * 0.05;
+  vec3 body = vec3(0.129, 0.627, 0.220) * bodyA;
 
   // composite emissive light over the clear body (premultiplied)
   float outA = emissiveA + bodyA * (1.0 - emissiveA);
-  vec3 outRGB = emissive;
+  vec3 outRGB = emissive + body * (1.0 - emissiveA);
 
   outRGB *= mask;
   outA *= mask;

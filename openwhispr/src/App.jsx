@@ -9,7 +9,7 @@ const MIN_STRAND_GLOW = 1;
 const MAX_STRAND_GLOW = 3;
 const MIN_STRAND_ORB_SIZE = 75;
 const MAX_STRAND_ORB_SIZE = 85;
-const DICTATION_WINDOW_SIZE = 90;
+const DICTATION_WINDOW_SIZE = 120;
 const STRAND_GLASS_DIAMETER_RATIO = 0.92;
 const VOICE_RESPONSE_CURVE = 2;
 
@@ -61,13 +61,14 @@ export default function App() {
     <div className="dictation-window flex h-screen w-screen items-center justify-center bg-transparent">
       {isWaveVisible && (
         <div className="pointer-events-none relative h-full w-full overflow-hidden">
+          <div className="dictation-orb-shadow" />
           <Strands
             colors={["#17BE93", "#8dc317", "#11bedb"]}
             count={3}
             speed={0.2}
             amplitude={strandAmplitude}
             waviness={1}
-            thickness={0.7}
+            thickness={1}
             glow={strandGlow}
             taper={3}
             spread={1}
