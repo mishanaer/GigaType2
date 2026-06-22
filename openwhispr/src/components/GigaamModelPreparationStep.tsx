@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { AnimatePresence } from "motion/react";
 import * as m from "motion/react-m";
 
@@ -10,6 +10,10 @@ import Cell from "../vendor/wallet_animations/components/Cells";
 import MotionProvider from "../vendor/wallet_animations/components/MotionProvider";
 import SectionList from "../vendor/wallet_animations/components/SectionList";
 import StartView from "../vendor/wallet_animations/components/StartView";
+
+const DOWNLOAD_PROGRESS_SHARE = 75;
+const INSTALL_PROGRESS_LIMIT = 99;
+const INSTALL_PROGRESS_TICK_MS = 600;
 
 interface GigaamModelPreparationStepProps {
   status: GigaamSidecarStatus | null;
@@ -32,18 +36,50 @@ export default function GigaamModelPreparationStep({
 }: GigaamModelPreparationStepProps) {
   const isReady = isGigaamModelReady(status);
   const isError = status?.healthStatus === "error" || status?.modelStage === "error";
-  const progress = isReady
-    ? 100
-    : Math.max(0, Math.min(99, Math.floor(status?.modelProgress ?? 0)));
+  const isInstalling =
+    !isReady &&
+    !isError &&
+    Boolean(status?.available) &&
+    (status?.modelStage === "loading" || status?.modelCacheComplete === true);
+  const rawProgress = Math.max(0, Math.min(100, status?.modelProgress ?? 0));
+  const downloadProgress = Math.floor((rawProgress / 100) * DOWNLOAD_PROGRESS_SHARE);
+  const [installProgress, setInstallProgress] = useState(DOWNLOAD_PROGRESS_SHARE);
 
-  const downloadingTitle = "Скачиваем модель";
-  const downloadingDescription = "Это нужно только при первом запуске";
+  useEffect(() => {
+    if (!isInstalling) {
+      setInstallProgress(DOWNLOAD_PROGRESS_SHARE);
+      return undefined;
+    }
 
-  let title = downloadingTitle;
+    setInstallProgress((current) => Math.max(current, DOWNLOAD_PROGRESS_SHARE));
+
+    const interval = window.setInterval(() => {
+      setInstallProgress((current) => {
+        if (current >= INSTALL_PROGRESS_LIMIT) return current;
+        const remaining = INSTALL_PROGRESS_LIMIT - current;
+        const step = Math.max(1, Math.ceil(remaining * 0.08));
+        return Math.min(INSTALL_PROGRESS_LIMIT, current + step);
+      });
+    }, INSTALL_PROGRESS_TICK_MS);
+
+    return () => window.clearInterval(interval);
+  }, [isInstalling]);
+
+  const progress = useMemo(() => {
+    if (isReady) return 100;
+    if (isInstalling) return installProgress;
+    return Math.min(DOWNLOAD_PROGRESS_SHARE, downloadProgress);
+  }, [downloadProgress, installProgress, isInstalling, isReady]);
+
+  const preparationTitle = "Подготавливаем модель";
+  const downloadingDescription = "Скачиваем файлы модели. Это нужно только при первом запуске";
+  const installingDescription = "Запускаем GigaAM. Обычно это занимает несколько секунд";
+
+  let title = preparationTitle;
   let description = downloadingDescription;
 
   if (!status) {
-    title = downloadingTitle;
+    title = preparationTitle;
     description = downloadingDescription;
   } else if (!status.available) {
     title = "GigaAM недоступна";
@@ -54,11 +90,11 @@ export default function GigaamModelPreparationStep({
   } else if (isReady) {
     title = "Модель готова";
     description = "GigaAM загружена и готова к диктовке";
-  } else if (status.modelStage === "loading" || status.modelCacheComplete) {
-    title = "Загружаем модель в память";
-    description = "Файлы уже на компьютере. Осталось дождаться запуска GigaAM";
+  } else if (isInstalling) {
+    title = preparationTitle;
+    description = installingDescription;
   } else if (status.modelStage === "downloading") {
-    title = downloadingTitle;
+    title = preparationTitle;
     description = downloadingDescription;
   }
 
