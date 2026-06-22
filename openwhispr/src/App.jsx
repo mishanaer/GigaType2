@@ -4,7 +4,7 @@ import { useAudioRecording } from "./hooks/useAudioRecording";
 import Strands from "./components/effects/Strands";
 
 const BASE_STRAND_AMPLITUDE = 0.2;
-const STRAND_AMPLITUDE_RANGE = 2.8;
+const STRAND_AMPLITUDE_RANGE = 2.3;
 const MIN_STRAND_GLOW = 1;
 const MAX_STRAND_GLOW = 3;
 const MIN_STRAND_ORB_SIZE = 75;
@@ -68,10 +68,10 @@ export default function App() {
             speed={0.2}
             amplitude={strandAmplitude}
             waviness={1}
-            thickness={1}
+            thickness={0.7}
             glow={strandGlow}
-            taper={3}
-            spread={1}
+            taper={6}
+            spread={1.25}
             intensity={0.7}
             saturation={1.55}
             opacity={1}
