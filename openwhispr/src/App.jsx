@@ -4,13 +4,15 @@ import { useAudioRecording } from "./hooks/useAudioRecording";
 import Strands from "./components/effects/Strands";
 
 const BASE_STRAND_AMPLITUDE = 0.2;
-const STRAND_AMPLITUDE_RANGE = 2.3;
+const STRAND_AMPLITUDE_RANGE = 1.6;
 const MIN_STRAND_GLOW = 1;
 const MAX_STRAND_GLOW = 3;
 const MIN_STRAND_ORB_SIZE = 75;
 const MAX_STRAND_ORB_SIZE = 85;
 const DICTATION_WINDOW_SIZE = 120;
-const STRAND_GLASS_DIAMETER_RATIO = 0.92;
+const STRAND_GLASS_WIDTH_RATIO = 0.92;
+const STRAND_ORB_ASPECT_RATIO = 75 / 45;
+const STRAND_GLASS_EXPONENT = 3;
 const VOICE_RESPONSE_CURVE = 2;
 
 export default function App() {
@@ -49,7 +51,7 @@ export default function App() {
   const strandAmplitude = BASE_STRAND_AMPLITUDE + visualVoiceLevel * STRAND_AMPLITUDE_RANGE;
   const strandGlow = MIN_STRAND_GLOW + visualVoiceLevel * (MAX_STRAND_GLOW - MIN_STRAND_GLOW);
   const strandOrbSize = MIN_STRAND_ORB_SIZE + visualVoiceLevel * (MAX_STRAND_ORB_SIZE - MIN_STRAND_ORB_SIZE);
-  const strandGlassSize = strandOrbSize / (DICTATION_WINDOW_SIZE * STRAND_GLASS_DIAMETER_RATIO);
+  const strandGlassSize = strandOrbSize / (DICTATION_WINDOW_SIZE * STRAND_GLASS_WIDTH_RATIO);
 
   useEffect(() => {
     if (!isWaveVisible) {
@@ -77,9 +79,11 @@ export default function App() {
             opacity={1}
             scale={1.5}
             glass
-            refraction={1}
+            refraction={0.25}
             dispersion={1}
             glassSize={strandGlassSize}
+            glassAspectRatio={STRAND_ORB_ASPECT_RATIO}
+            glassExponent={STRAND_GLASS_EXPONENT}
             hueShift={0.14}
           />
         </div>

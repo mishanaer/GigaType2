@@ -109,6 +109,8 @@ precision highp float;
 uniform sampler2D uScene;
 uniform vec2 uResolution;
 uniform float uRadius;
+uniform float uAspectRatio;
+uniform float uExponent;
 uniform float uRefraction;
 uniform float uDispersion;
 
@@ -118,23 +120,32 @@ vec2 toUv(vec2 p) {
   return p * (uResolution.y / uResolution) + 0.5;
 }
 
+float superellipseValue(vec2 p, vec2 halfSize, float exponent) {
+  vec2 normalized = abs(p) / max(halfSize, vec2(0.0001));
+  return pow(pow(normalized.x, exponent) + pow(normalized.y, exponent), 1.0 / exponent);
+}
+
 void main() {
   vec2 p = (gl_FragCoord.xy - 0.5 * uResolution) / uResolution.y;
-  float d = length(p);
-  float r = uRadius;
+  float halfWidth = uRadius;
+  float halfHeight = uRadius / max(uAspectRatio, 1.0);
+  vec2 halfSize = vec2(halfWidth, halfHeight);
 
-  float edge = fwidth(d) * 1.5;
-  float mask = 1.0 - smoothstep(r - edge, r + edge, d);
+  float shape = superellipseValue(p, halfSize, max(uExponent, 1.0));
+  float shapeDistance = (shape - 1.0) * min(halfWidth, halfHeight);
+  float edge = fwidth(shapeDistance) * 1.5;
+  float mask = 1.0 - smoothstep(0.0, edge, shapeDistance);
   if (mask <= 0.0) {
     fragColor = vec4(0.0);
     return;
   }
 
-  // sphere height: 0 at the rim, 1 at the center
-  float z = sqrt(max(r * r - d * d, 0.0)) / r;
-  float nd = d / r; // 0 at the center, 1 at the rim
+  float inside = clamp(1.0 - shape, 0.0, 1.0);
+  float z = sqrt(inside);
+  float nd = 1.0 - inside; // 0 deep inside, 1 at the rim
 
   // refraction is confined to a narrow band near the rim; the rest stays undistorted
+  float d = length(p);
   vec2 dir = d > 0.0 ? p / d : vec2(0.0);
   float lens = smoothstep(0.85, 1.0, nd) * pow(nd, 6.0);
   vec2 offset = -dir * lens * uRefraction * 0.15;
@@ -151,8 +162,8 @@ void main() {
 
   // specular highlight from the upper-left
   vec2 lightDir = normalize(vec2(-0.55, 0.6));
-  float spec = pow(max(dot(p / max(r, 1e-4), lightDir), 0.0), 6.0);
-  spec *= smoothstep(r, r * 0.55, d);
+  float spec = pow(max(dot(p / max(halfWidth, 1e-4), lightDir), 0.0), 6.0);
+  spec *= smoothstep(0.0, halfHeight * 0.45, -shapeDistance);
 
   vec3 emissive = light + rim + vec3(spec) * 0.4;
   float emissiveA = clamp(max(max(emissive.r, emissive.g), emissive.b), 0.0, 1.0);
@@ -202,6 +213,8 @@ export default function Strands({
   refraction = 1,
   dispersion = 1,
   glassSize = 1,
+  glassAspectRatio = 1,
+  glassExponent = 2,
   className = "",
   style,
 }) {
@@ -225,6 +238,8 @@ export default function Strands({
     refraction,
     dispersion,
     glassSize,
+    glassAspectRatio,
+    glassExponent,
   };
 
   const ctnDom = useRef(null);
@@ -287,6 +302,8 @@ export default function Strands({
         uScene: { value: renderTarget.texture },
         uResolution: { value: [ctn.offsetWidth, ctn.offsetHeight] },
         uRadius: { value: 0.46 * glassSize },
+        uAspectRatio: { value: glassAspectRatio },
+        uExponent: { value: glassExponent },
         uRefraction: { value: refraction },
         uDispersion: { value: dispersion },
       },
@@ -334,6 +351,8 @@ export default function Strands({
         glassProgram.uniforms.uRefraction.value = current.refraction;
         glassProgram.uniforms.uDispersion.value = current.dispersion;
         glassProgram.uniforms.uRadius.value = 0.46 * current.glassSize;
+        glassProgram.uniforms.uAspectRatio.value = current.glassAspectRatio;
+        glassProgram.uniforms.uExponent.value = current.glassExponent;
         renderer.render({ scene: glassMesh });
       } else {
         renderer.render({ scene: mesh });
