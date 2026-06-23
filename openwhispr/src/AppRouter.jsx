@@ -10,8 +10,8 @@ import {
   GIGATYPE_ONBOARDING_COMPLETED_KEY,
   LEGACY_ONBOARDING_COMPLETED_KEY,
   ONBOARDING_CURRENT_STEP_KEY,
-  isGigaTypeOnboardingCompleted,
-  markGigaTypeOnboardingCompleted,
+  isTypeOnboardingCompleted,
+  markTypeOnboardingCompleted,
   resetOnboardingToPermissionsStep,
 } from "./utils/onboardingState";
 import { areRequiredPermissionsMet } from "./utils/permissions";
@@ -79,7 +79,7 @@ async function checkOnboardingPermissions(platform, state) {
 
 async function resolveOnboardingRequirement() {
   const platform = getPlatform();
-  const completed = isGigaTypeOnboardingCompleted();
+  const completed = isTypeOnboardingCompleted();
   const legacyCompleted = localStorage.getItem(LEGACY_ONBOARDING_COMPLETED_KEY) === "true";
   const state = {
     key: GIGATYPE_ONBOARDING_COMPLETED_KEY,
@@ -151,7 +151,7 @@ function MainApp() {
     if (isControlPanel) {
       import("./components/ControlPanel.tsx").catch(() => {});
 
-      if (!isGigaTypeOnboardingCompleted()) {
+      if (!isTypeOnboardingCompleted()) {
         import("./components/OnboardingFlow.tsx").catch(() => {});
       }
     }
@@ -190,7 +190,7 @@ function MainApp() {
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
-    markGigaTypeOnboardingCompleted();
+    markTypeOnboardingCompleted();
   };
 
   if (isLoading) {

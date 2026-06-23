@@ -41,6 +41,14 @@
   src: url("./assets/fonts/gigakit/Condensed/SBSansTextCond-Bold.otf") format("opentype");
 }
 
+@font-face {
+  font-display: swap;
+  font-family: "SB Serif Condensed";
+  font-style: normal;
+  font-weight: 400;
+  src: url("./assets/fonts/gigakit/Serif/SBSerifCondensed.otf") format("opentype");
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -102,7 +110,10 @@
   --font-family-sans: "SB Sans UI", ui-sans-serif, system-ui, sans-serif;
   --font-family-mono: "SB Sans Text Mono", ui-monospace, monospace;
   --font-family-extended: "SB Sans Display Extended", var(--font-family-sans);
-  --font-family-heading-condensed: "SB Sans Cond", "SB Sans Text Condensed", var(--font-family-sans);
+  --font-family-heading-condensed:
+    "SB Sans Cond", "SB Sans Text Condensed", var(--font-family-sans);
+  --font-family-heading-serif-condensed:
+    "SB Serif Condensed", "SBSerifCondensed", var(--font-family-heading-condensed);
   --giga-accent: #17be93;
   --status-red: #ff383c;
   --status-orange: #ff8d28;
@@ -280,7 +291,8 @@
   .appshots-loading-window,
   .appshots-loading-surface,
   .appshots-permissions-window,
-  .appshots-settings-window {
+  .appshots-settings-window,
+  .appshots-showcase-surface {
     --side-padding: 16px;
     --cell-separator-height: 0.33px;
     --image-cell-offset: 0;
@@ -302,7 +314,17 @@
     --tertiary-fill-background: rgba(from #747480 r g b / 0.12);
     --quaternary-fill-background: rgba(from #747480 r g b / 0.08);
     --separator-non-opaque: rgb(60 60 67 / 0.36);
+    --segmented_control_active_background: #ffffff;
+    --button-disabled-color: #e9e8e8;
+    --text-disabled-color: #bababa;
     --border-color: oklch(from var(--tg-theme-hint-color) l c h / 0.5);
+    --background-material-regular-color-1: rgb(255 255 255 / 0.25);
+    --background-material-regular-color-2: rgb(255 255 255 / 0.6);
+    --background-material-regular-blend-mode-1: plus-lighter;
+    --background-material-regular-blend-mode-2: normal;
+    --toast-background: rgb(45 45 45 / 0.8);
+    --toast-text: #ffffff;
+    --toast-link: #5ac8fa;
     position: relative;
     isolation: isolate;
     background: transparent;
@@ -318,6 +340,40 @@
     text-rendering: geometricPrecision;
     -webkit-app-region: drag;
     user-select: none;
+  }
+
+  .dark .appshots-loading-window,
+  .dark .appshots-loading-surface,
+  .dark .appshots-permissions-window,
+  .dark .appshots-settings-window,
+  .dark .appshots-showcase-surface {
+    --tg-theme-bg-color: #000000;
+    --tg-theme-text-color: #ffffff;
+    --tg-theme-secondary-bg-color: transparent;
+    --tg-theme-button-color: #3e88f7;
+    --tg-theme-button-text-color: #ffffff;
+    --tg-theme-subtitle-text-color: #98989e;
+    --tg-theme-destructive-text-color: #eb5545;
+    --tg-theme-section-bg-color: rgb(255 255 255 / 0.1);
+    --tg-theme-accent-text-color: #3e88f7;
+    --tg-theme-section-header-text-color: #8d8e93;
+    --tg-theme-section-separator-color: #545458;
+    --tg-theme-bottom-bar-bg-color: #1d1d1d;
+    --tg-theme-hint-color: #98989e;
+    --secondary-button-color: rgb(from var(--tg-theme-button-color) r g b / 0.1);
+    --text-confirm-color: #30d158;
+    --tertiary-fill-background: rgba(from #787880 r g b / 0.24);
+    --quaternary-fill-background: rgba(from #787880 r g b / 0.18);
+    --separator-non-opaque: rgba(84, 84, 88, 0.65);
+    --segmented_control_active_background: #636366;
+    --button-disabled-color: #3c3c3e;
+    --text-disabled-color: #606060;
+    --border-color: oklch(from var(--tg-theme-hint-color) l c h / 0.4);
+    --background-material-regular-color-1: rgb(0 0 0 / 0.41);
+    --background-material-regular-color-2: rgb(0 0 0 / 0);
+    --background-material-regular-blend-mode-1: normal;
+    --background-material-regular-blend-mode-2: normal;
+    color-scheme: dark;
   }
 
   .appshots-window-drag-layer {
@@ -361,7 +417,7 @@
     font-family: inherit;
     font-size: 32px;
     font-weight: 800;
-    letter-spacing: 0;
+    letter-spacing: 0.02em;
     line-height: 38px;
   }
 
@@ -369,13 +425,14 @@
     font-family: inherit;
     font-size: 17px;
     font-weight: 800;
-    letter-spacing: 0;
+    letter-spacing: 0.02em;
     line-height: 21px;
   }
 
   .appshots-permissions-no-drag [variant="title1"][weight="bold"] {
-    font-family: var(--font-family-heading-condensed);
-    font-weight: 700;
+    font-family: var(--font-family-heading-serif-condensed);
+    font-weight: 400;
+    letter-spacing: 0.02em;
   }
 
   .appshots-permissions-no-drag .appshots-permission-avatar {
@@ -431,7 +488,6 @@
     cursor: pointer;
     opacity: 0;
   }
-
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -450,9 +506,9 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-family-sans);
+  font-family: var(--font-family-heading-serif-condensed);
   font-weight: 600;
-  letter-spacing: 0;
+  letter-spacing: 0.02em;
   line-height: 1.15;
 }
 
@@ -987,6 +1043,11 @@ a:hover {
 /* Appshots overrides must stay outside Tailwind layers so CSS modules cannot win by layer priority. */
 .appshots-permissions-no-drag.appshots-gigaam-model-ready > div:first-child {
   padding-bottom: 28px;
+}
+
+body.apple .appshots-permissions-no-drag .appshots-permissions-start-view,
+body.material .appshots-permissions-no-drag .appshots-permissions-start-view {
+  padding-top: 24px;
 }
 
 .appshots-permissions-no-drag.appshots-gigaam-model-ready {

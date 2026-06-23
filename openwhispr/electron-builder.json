@@ -1,9 +1,9 @@
 {
   "appId": "ai.gigatype.app",
   "afterPack": "scripts/afterPack.js",
-  "productName": "GigaType",
+  "productName": "Type",
   "protocols": {
-    "name": "GigaType Protocol",
+    "name": "Type Protocol",
     "schemes": ["gigatype"]
   },
   "directories": {
@@ -135,9 +135,9 @@
     "entitlementsInherit": "resources/mac/entitlements.mac.plist",
     "extendInfo": {
       "LSUIElement": false,
-      "NSMicrophoneUsageDescription": "GigaType uses the microphone to capture your voice for transcription.",
-      "NSAudioCaptureUsageDescription": "GigaType uses system audio to capture other participants' audio from calls and meetings.",
-      "NSAccessibilityUsageDescription": "GigaType needs accessibility permissions to paste transcribed text into other applications."
+      "NSMicrophoneUsageDescription": "Type uses the microphone to capture your voice for transcription.",
+      "NSAudioCaptureUsageDescription": "Type uses system audio to capture other participants' audio from calls and meetings.",
+      "NSAccessibilityUsageDescription": "Type needs accessibility permissions to paste transcribed text into other applications."
     }
   },
   "win": {
@@ -222,7 +222,7 @@
     "include": "resources/nsis/cleanup-models.nsh"
   },
   "dmg": {
-    "title": "GigaType",
+    "title": "Type",
     "icon": "src/assets/icon.icns",
     "window": {
       "width": 540,

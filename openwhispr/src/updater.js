@@ -45,7 +45,7 @@ class UpdateManager {
 
     autoUpdater.setFeedURL({
       provider: "github",
-      owner: "GigaType",
+      owner: "Type",
       repo: "openwhispr",
       private: false,
     });

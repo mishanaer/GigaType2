@@ -1,5 +1,5 @@
 /**
- * Windows Fast Paste for GigaType
+ * Windows Fast Paste for Type
  *
  * Detects the foreground window, checks if it's a terminal emulator,
  * and simulates the appropriate paste keystroke using Win32 SendInput:

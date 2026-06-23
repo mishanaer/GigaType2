@@ -18,9 +18,9 @@ interface StreamingProvidersState {
 
 const STATIC_PROVIDERS: NoteRecordingProvider[] = [
   {
-    id: "openai",
-    name: "OpenAI",
-    models: [{ id: "gpt-4o-mini-transcribe", name: "gpt-4o-mini-transcribe", default: true }],
+    id: "gigaam",
+    name: "GigaAM",
+    models: [{ id: "gigaam-v3-e2e-rnnt", name: "GigaAM v3", default: true }],
   },
 ];
 

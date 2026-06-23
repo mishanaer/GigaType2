@@ -67,7 +67,7 @@ export default function PermissionsSection({
       {variant === "appshots" ? (
         <AppshotsPermissionsPanel
           title="Разрешите доступы"
-          description="Гигатайпу нужен доступ к вставке текста и микрофону, чтобы диктовка работала в любых приложениях"
+          description="Тайпу нужен доступ к вставке текста и микрофону, чтобы диктовка работала в любых приложениях"
           permissions={appshotPermissionItems}
         />
       ) : (
@@ -130,7 +130,11 @@ function AppshotsPermissionsPanel({
     <MotionProvider>
       <section className="appshots-permissions-no-drag mx-auto w-[460px] py-[20px]">
         <AppshotsLogoHeader showBuildLabel={false} />
-        <StartView title={title} description={description} />
+        <StartView
+          title={title}
+          description={description}
+          className="appshots-permissions-start-view"
+        />
 
         <SectionList style={{ gap: 0, padding: 0, paddingBottom: 0 }}>
           <SectionList.Item>
@@ -226,11 +230,7 @@ function AppshotsPermissionAvatar({ kind, userId, size = 40 }: AppshotsPermissio
   const Icon = kind === "microphone" ? MicAvatarIcon : TextEnterAvatarIcon;
 
   return (
-    <div
-      className="appshots-permission-avatar"
-      style={style}
-      aria-hidden="true"
-    >
+    <div className="appshots-permission-avatar" style={style} aria-hidden="true">
       <Icon />
     </div>
   );

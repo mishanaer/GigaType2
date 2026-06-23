@@ -7,7 +7,7 @@ type AppshotsLogoHeaderProps = Pick<ImgHTMLAttributes<HTMLImageElement>, "alt"> 
 };
 
 export default function AppshotsLogoHeader({
-  alt = "GigaType",
+  alt = "Type",
   showBuildLabel = true,
 }: AppshotsLogoHeaderProps) {
   return (

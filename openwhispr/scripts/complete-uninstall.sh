@@ -4,7 +4,7 @@ set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-echo "This script will stop GigaType, remove the installed app, and delete caches, databases, and preferences."
+echo "This script will stop Type, remove the installed app, and delete caches, databases, and preferences."
 read -r -p "Continue with the full uninstall? [y/N]: " confirm
 if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
   echo "Aborted."
@@ -19,35 +19,35 @@ remove_target() {
   fi
 }
 
-echo "Stopping running GigaType/Electron processes..."
-pkill -f "GigaType" 2>/dev/null || true
+echo "Stopping running Type/Electron processes..."
+pkill -f "Type" 2>/dev/null || true
 pkill -f "open-whispr" 2>/dev/null || true
-pkill -f "Electron Helper.*GigaType" 2>/dev/null || true
+pkill -f "Electron Helper.*Type" 2>/dev/null || true
 
-echo "Removing /Applications/GigaType.app (requires admin)..."
-remove_target "/Applications/GigaType.app"
+echo "Removing /Applications/Type.app (requires admin)..."
+remove_target "/Applications/Type.app"
 
 echo "Purging Application Support data..."
-remove_target "$HOME/Library/Application Support/GigaType"
+remove_target "$HOME/Library/Application Support/Type"
 remove_target "$HOME/Library/Application Support/open-whispr"
-remove_target "$HOME/Library/Application Support/GigaType-dev"
+remove_target "$HOME/Library/Application Support/Type-dev"
 remove_target "$HOME/Library/Application Support/com.openwhispr"
-remove_target "$HOME/Library/Application Support/com.openwhispr.GigaType"
+remove_target "$HOME/Library/Application Support/com.openwhispr.Type"
 
 echo "Removing caches, logs, and saved state..."
 remove_target "$HOME/Library/Caches/open-whispr"
-remove_target "$HOME/Library/Caches/com.openwhispr.GigaType"
-remove_target "$HOME/Library/Preferences/com.openwhispr.GigaType.plist"
+remove_target "$HOME/Library/Caches/com.openwhispr.Type"
+remove_target "$HOME/Library/Preferences/com.openwhispr.Type.plist"
 remove_target "$HOME/Library/Preferences/com.openwhispr.helper.plist"
-remove_target "$HOME/Library/Logs/GigaType"
-remove_target "$HOME/Library/Saved Application State/com.openwhispr.GigaType.savedState"
+remove_target "$HOME/Library/Logs/Type"
+remove_target "$HOME/Library/Saved Application State/com.openwhispr.Type.savedState"
 
 echo "Cleaning temporary files..."
 shopt -s nullglob
 for tmp in /tmp/openwhispr*; do
   remove_target "$tmp"
 done
-for crash in "$HOME/Library/Application Support/CrashReporter"/GigaType_*; do
+for crash in "$HOME/Library/Application Support/CrashReporter"/Type_*; do
   remove_target "$crash"
 done
 shopt -u nullglob
@@ -56,7 +56,7 @@ read -r -p "Remove legacy Whisper model caches (~/.cache/whisper, ~/Library/Appl
 if [[ "$wipe_models" =~ ^[Yy]$ ]]; then
   remove_target "$HOME/.cache/whisper"
   remove_target "$HOME/Library/Application Support/whisper"
-  remove_target "$HOME/Library/Application Support/GigaType/models"
+  remove_target "$HOME/Library/Application Support/Type/models"
 fi
 
 ENV_FILE="$PROJECT_ROOT/.env"

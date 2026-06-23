@@ -39,8 +39,6 @@ export default function NotesOnboarding({ onComplete }: NotesOnboardingProps) {
   const cleanupProvider = useSettingsStore((s) => s.cleanupProvider);
   const setCleanupProvider = useSettingsStore((s) => s.setCleanupProvider);
   const setCleanupMode = useSettingsStore((s) => s.setCleanupMode);
-  const cleanupCloudBaseUrl = useSettingsStore((s) => s.cleanupCloudBaseUrl);
-  const setCleanupCloudBaseUrl = useSettingsStore((s) => s.setCleanupCloudBaseUrl);
 
   const { alertDialog, hideAlertDialog } = useDialogs();
   const {
@@ -162,8 +160,6 @@ export default function NotesOnboarding({ onComplete }: NotesOnboardingProps) {
                   setReasoningModel={setCleanupModel}
                   localReasoningProvider={cleanupProvider}
                   setLocalReasoningProvider={setCleanupProvider}
-                  cloudReasoningBaseUrl={cleanupCloudBaseUrl}
-                  setCloudReasoningBaseUrl={setCleanupCloudBaseUrl}
                   setReasoningMode={setCleanupMode}
                 />
               </div>

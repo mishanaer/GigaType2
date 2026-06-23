@@ -4,7 +4,7 @@
       "sectionTitle": "Idioma",
       "sectionDescription": "Configura por separado el idioma de la interfaz y de la transcripción",
       "uiLabel": "Idioma de la interfaz",
-      "uiDescription": "Elige el idioma usado en la interfaz de GigaType",
+      "uiDescription": "Elige el idioma usado en la interfaz de Type",
       "transcriptionLabel": "Idioma de transcripción",
       "transcriptionDescription": "Elige el idioma que hablas para mejorar la precisión"
     },
@@ -33,12 +33,12 @@
       "hide": "Ocultar panel de dictado"
     },
     "openControlPanel": "Abrir panel de control",
-    "quit": "Salir de GigaType",
-    "tooltip": "GigaType - Dictado por voz"
+    "quit": "Salir de Type",
+    "tooltip": "Type - Dictado por voz"
   },
   "menu": {
-    "appLabel": "GigaType",
-    "quit": "Salir de GigaType",
+    "appLabel": "Type",
+    "quit": "Salir de Type",
     "speech": "Voz",
     "settings": "Configuración...",
     "help": "Ayuda",
@@ -57,8 +57,8 @@
       "message": "No se pudo abrir el enlace en tu navegador:\n{{url}}\n\nError: {{error}}"
     },
     "loadFailure": {
-      "title": "GigaType no pudo cargarse",
-      "message": "GigaType no pudo cargar su interfaz.",
+      "title": "Type no pudo cargarse",
+      "message": "Type no pudo cargar su interfaz.",
       "detail": {
         "window": "Ventana: {{windowName}}",
         "error": "Error {{errorCode}}: {{errorDescription}}",
@@ -69,17 +69,17 @@
   },
   "startup": {
     "error": {
-      "title": "Error de inicio de GigaType",
+      "title": "Error de inicio de Type",
       "message": "No se pudo iniciar la aplicación:\n\n{{error}}\n\nPor favor, reporta este problema."
     },
     "globeHotkey": {
       "title": "Atajo Globe no disponible",
-      "message": "GigaType no pudo activar el atajo de la tecla Globe.",
+      "message": "Type no pudo activar el atajo de la tecla Globe.",
       "details": {
         "unknown": "Ocurrió un error desconocido al iniciar el proceso de escucha de Globe.",
         "fallback": "El atajo Globe permanecerá deshabilitado; los atajos actuales seguirán funcionando.",
         "devHint": "Ejecuta `npm run compile:globe` y recompila la app para regenerar el binario.",
-        "reinstallHint": "Reinstala GigaType o contacta soporte si el problema persiste."
+        "reinstallHint": "Reinstala Type o contacta soporte si el problema persiste."
       }
     }
   },
@@ -102,9 +102,9 @@
     "systemAudio": "La configuración de audio del sistema no está disponible en esta plataforma."
   },
   "titleBar": {
-    "quitTitle": "Salir de GigaType",
-    "quitConfirmTitle": "¿Salir de GigaType?",
-    "quitConfirmDescription": "Esto cerrará GigaType y detendrá los procesos en segundo plano.",
+    "quitTitle": "Salir de Type",
+    "quitConfirmTitle": "¿Salir de Type?",
+    "quitConfirmDescription": "Esto cerrará Type y detendrá los procesos en segundo plano.",
     "quit": "Salir",
     "cancel": "Cancelar"
   },
@@ -192,14 +192,14 @@
       "accessibilityTitle": "Accesibilidad",
       "accessibilityDescription": "Permite pegar automáticamente el texto transcrito en cualquier aplicación",
       "testAndGrant": "Probar y conceder",
-      "requiredForApp": "Necesario para que GigaType funcione",
+      "requiredForApp": "Necesario para que Type funcione",
       "microphoneRequired": "Se requiere acceso al micrófono",
       "openSystemSettings": "Abrir Ajustes del Sistema",
       "systemAudioTitle": "Audio del Sistema",
       "systemAudioDescription": "Transcribe reuniones, llamadas, clases, podcasts y otros audios del sistema.",
       "optional": "Opcional",
       "recommended": "Recomendado",
-      "accessibilityTroubleshooting": "En Configuración del Sistema → Accesibilidad, desactiva el interruptor de GigaType y vuelve a activarlo. Si eso no funciona, elimina GigaType de la lista y añádelo de nuevo."
+      "accessibilityTroubleshooting": "En Configuración del Sistema → Accesibilidad, desactiva el interruptor de Type y vuelve a activarlo. Si eso no funciona, elimina Type de la lista y añádelo de nuevo."
     },
     "transcription": {
       "title": "Configuración de transcripción",
@@ -219,7 +219,7 @@
       "textareaPlaceholder": "Haz clic aquí y usa tu atajo para dictar..."
     },
     "connectivity": {
-      "title": "No podemos conectar con GigaType Cloud desde esta red",
+      "title": "No podemos conectar con Type Cloud desde esta red",
       "body": "{{cause}} Puedes cambiar al motor local o continuar e intentarlo más tarde.",
       "useLocal": "Usar motor local",
       "continue": "Continuar de todos modos"
@@ -228,7 +228,7 @@
   "streaming": {
     "errors": {
       "cloudUnreachable": {
-        "title": "No se puede conectar con GigaType Cloud",
+        "title": "No se puede conectar con Type Cloud",
         "generic": "La solicitud de red falló. Comprueba tu conexión.",
         "dnsBlocked": "El DNS no resuelve openwhispr.com: puede que un bloqueador de anuncios o un filtro lo esté bloqueando.",
         "refused": "La conexión fue rechazada: probablemente un firewall o una VPN.",
@@ -245,7 +245,7 @@
       "problemTitle": "Hubo un problema con la actualización",
       "problemDescription": "No pudimos completar la actualización. Inténtalo más tarde.",
       "installTitle": "Instalar actualización",
-      "installDescription": "GigaType se reiniciará para aplicar la actualización. Se guardará el trabajo en curso.",
+      "installDescription": "Type se reiniciará para aplicar la actualización. Se guardará el trabajo en curso.",
       "couldNotInstallTitle": "No se pudo instalar la actualización",
       "couldNotInstallDescription": "Algo salió mal. Inténtalo de nuevo.",
       "couldNotDownloadTitle": "No se pudo descargar la actualización",
@@ -260,7 +260,7 @@
     },
     "accessibilityMissing": {
       "title": "Se necesitan permisos de accesibilidad",
-      "description": "Hemos detectado que GigaType necesita permisos de accesibilidad para funcionar correctamente. Actívalos a continuación."
+      "description": "Hemos detectado que Type necesita permisos de accesibilidad para funcionar correctamente. Actívalos a continuación."
     },
     "billing": {
       "pastDueTitle": "No pudimos procesar tu pago",
@@ -315,8 +315,8 @@
       "rawTranscript": "Transcripción sin procesar"
     },
     "cloudMigration": {
-      "title": "Bienvenido a GigaType Cloud",
-      "description": "Cambiamos tu transcripción a GigaType Cloud para resultados más rápidos y precisos. Tu configuración anterior se guardó: puedes volver cuando quieras en Ajustes.",
+      "title": "Bienvenido a Type Cloud",
+      "description": "Cambiamos tu transcripción a Type Cloud para resultados más rápidos y precisos. Tu configuración anterior se guardó: puedes volver cuando quieras en Ajustes.",
       "viewSettings": "Ver ajustes"
     },
     "loading": "Cargando...",
@@ -419,7 +419,7 @@
         "description": "La grabación no contiene audio detectable. Inténtalo de nuevo."
       },
       "errorDescriptions": {
-        "sessionExpired": "Tu sesión de GigaType Cloud no está disponible. Vuelve a iniciar sesión desde Ajustes.",
+        "sessionExpired": "Tu sesión de Type Cloud no está disponible. Vuelve a iniciar sesión desde Ajustes.",
         "offline": "Estás sin conexión. La transcripción en la nube requiere conexión a Internet.",
         "dailyLimitReached": "Has alcanzado el límite de transcripción de hoy. Inténtalo mañana o mejora tu plan."
       }
@@ -485,7 +485,7 @@
       "micErrors": {
         "accessFailed": "Falló el acceso al micrófono. Inténtalo de nuevo.",
         "noMicrophones": "No se detectaron micrófonos. Conecta o selecciona un micrófono en {{settingsPath}}.",
-        "permissionDenied": "Permiso denegado. Abre {{privacyPath}} y permite GigaType.",
+        "permissionDenied": "Permiso denegado. Abre {{privacyPath}} y permite Type.",
         "couldNotStart": "No se pudo iniciar el micrófono seleccionado. Elige un dispositivo en {{settingsPath}} y vuelve a probar.",
         "noActiveInput": "No se encontró una entrada de audio activa. Elige un micrófono en {{settingsPath}}.",
         "unknown": "Falló el acceso al micrófono: {{error}}. Selecciona otro dispositivo e inténtalo de nuevo.",
@@ -514,8 +514,8 @@
         "accessibilityNeeded": "Concede permisos de accesibilidad en la configuración del sistema para habilitar el pegado automático.",
         "windowsReady": "Windows no requiere permisos especiales para pegado automático. ¡Todo listo!",
         "linuxReadyWithMethod": "El pegado automático está disponible usando {{method}}. ¡Todo listo!",
-        "waylandClipboardMode": "El pegado automático no está disponible en esta sesión Wayland. GigaType copiará el texto al portapapeles y podrás pegar con Ctrl+V.",
-        "optionalPasteTool": "Para pegado automático, instala {{tool}}:\n\n{{installCmd}}{{waylandNote}}\n\nSin esto, aún puedes usar GigaType: el texto se copiará al portapapeles y podrás pegar con Ctrl+V."
+        "waylandClipboardMode": "El pegado automático no está disponible en esta sesión Wayland. Type copiará el texto al portapapeles y podrás pegar con Ctrl+V.",
+        "optionalPasteTool": "Para pegado automático, instala {{tool}}:\n\n{{installCmd}}{{waylandNote}}\n\nSin esto, aún puedes usar Type: el texto se copiará al portapapeles y podrás pegar con Ctrl+V."
       },
       "alerts": {
         "accessibilityNeeded": "¡Se necesitan permisos de accesibilidad! Concédelos en la configuración del sistema."
@@ -528,7 +528,7 @@
         "defaultPasteTool": "xdotool",
         "xdotoolXwayland": "xdotool (apps XWayland)"
       },
-      "accessibilityTestText": "Prueba de accesibilidad de GigaType",
+      "accessibilityTestText": "Prueba de accesibilidad de Type",
       "warning": {
         "messages": {
           "macos": "Revisa la configuración de Sonido para seleccionar tu dispositivo de entrada",
@@ -601,7 +601,7 @@
       "protocolUnavailable": "Inicio de sesión por navegador no disponible — vuelve a registrar el protocolo openwhispr:// en los ajustes de Aplicaciones predeterminadas del sistema."
     },
     "welcomeSubtitle": "Dicta en cualquier lugar usando tu voz",
-    "welcomeTitle": "Bienvenido a GigaType",
+    "welcomeTitle": "Bienvenido a Type",
     "sessionExpired": "Sesión expirada"
   },
   "cleanupPrompt": "Corrección",
@@ -672,7 +672,7 @@
   },
   "apiKeysSection": {
     "title": "Claves API",
-    "description": "Crea claves para acceder a la API de GigaType de forma programática.",
+    "description": "Crea claves para acceder a la API de Type de forma programática.",
     "docsLink": "Docs de la API",
     "empty": "Aún no hay claves API",
     "createButton": "Crear clave API",
@@ -854,10 +854,10 @@
     "recheckChecking": "Verificando...",
     "title": "Pegado automático",
     "usingMethodPrefix": "Usando",
-    "waylandClipboardDescription": "El pegado automático no está disponible en esta sesión Wayland. GigaType copiará el texto al portapapeles para que puedas pegarlo manualmente con Ctrl+V.",
+    "waylandClipboardDescription": "El pegado automático no está disponible en esta sesión Wayland. Type copiará el texto al portapapeles para que puedas pegarlo manualmente con Ctrl+V.",
     "waylandClipboardTitle": "Modo portapapeles en Wayland",
     "windowsReady": "Windows es compatible con el pegado automático de forma nativa. ¡No se requiere configuración!",
-    "withoutToolPrefix": "Sin esta herramienta, GigaType copiará el texto al portapapeles. Luego puedes pegarlo manualmente con Ctrl+V.",
+    "withoutToolPrefix": "Sin esta herramienta, Type copiará el texto al portapapeles. Luego puedes pegarlo manualmente con Ctrl+V.",
     "xwaylandAppsOnly": "el pegado automático funciona solo en apps XWayland"
   },
   "promptStudio": {
@@ -907,7 +907,7 @@
       "none": "Ninguno",
       "outputLabel": "Salida",
       "processing": "Procesando...",
-      "openwhisprCloud": "GigaType Cloud",
+      "openwhisprCloud": "Type Cloud",
       "providerLabel": "Proveedor",
       "run": "Ejecutar prueba",
       "customEndpoint": "Endpoint personalizado"
@@ -1008,7 +1008,7 @@
           "price": "$0",
           "period": "para siempre",
           "features": [
-            "## GigaType Cloud",
+            "## Type Cloud",
             "2.000 palabras/semana de transcripción",
             "5 horas de grabaciones de reuniones/mes",
             "## Siempre gratis",
@@ -1122,7 +1122,7 @@
         "button": "Eliminar mi cuenta",
         "deleting": "Eliminando...",
         "title": "¿Eliminar tu cuenta?",
-        "description": "Esto eliminará permanentemente tu cuenta de GigaType, todas las notas sincronizadas en la nube y todos los datos locales, incluyendo transcripciones, grabaciones de audio, modelos descargados, conexiones de calendario y configuraciones. Esta acción no se puede deshacer.",
+        "description": "Esto eliminará permanentemente tu cuenta de Type, todas las notas sincronizadas en la nube y todos los datos locales, incluyendo transcripciones, grabaciones de audio, modelos descargados, conexiones de calendario y configuraciones. Esta acción no se puede deshacer.",
         "confirmText": "Eliminar todo",
         "successTitle": "Cuenta eliminada",
         "successDescription": "Tu cuenta y todos los datos han sido eliminados. La aplicación se recargará ahora.",
@@ -1156,7 +1156,7 @@
       "customSetupDescription": "Usa tu propio proveedor y clave API.",
       "description": "Corrige transcripciones, gestiona comandos y soluciona errores preservando tu tono.",
       "modes": {
-        "openwhispr": "GigaType Cloud",
+        "openwhispr": "Type Cloud",
         "providers": "Proveedores en la nube",
         "local": "Local",
         "selfHosted": "Autoalojado",
@@ -1167,13 +1167,13 @@
         "enterprise": "Empresarial",
         "enterpriseDesc": "Usa la cuenta en la nube de tu organización (AWS, Azure, GCP)."
       },
-      "openwhisprCloud": "GigaType Cloud",
+      "openwhisprCloud": "Type Cloud",
       "openwhisprCloudDescription": "Resultados fiables. Sin configuración.",
       "title": "Mejora de texto con IA",
       "toasts": {
         "switchedCloud": {
-          "description": "La mejora de texto usará el servicio en la nube de GigaType.",
-          "title": "Cambiado a GigaType Cloud"
+          "description": "La mejora de texto usará el servicio en la nube de Type.",
+          "title": "Cambiado a Type Cloud"
         },
         "switchedCustom": {
           "description": "Configura tu propio proveedor y clave API.",
@@ -1270,7 +1270,7 @@
       },
       "notifications": {
         "title": "Notificaciones",
-        "description": "Controla qué notificaciones puede mostrar GigaType",
+        "description": "Controla qué notificaciones puede mostrar Type",
         "disableAll": "Desactivar todas las notificaciones",
         "disableAllDescription": "Silenciar todo excepto los mensajes de error",
         "meetingDetection": "Detección de reuniones",
@@ -1282,9 +1282,9 @@
       },
       "startup": {
         "launchAtLogin": "Abrir al iniciar sesión",
-        "launchAtLoginDescription": "Inicia GigaType automáticamente al iniciar sesión",
+        "launchAtLoginDescription": "Inicia Type automáticamente al iniciar sesión",
         "title": "Inicio",
-        "description": "Controla el comportamiento de GigaType al iniciar",
+        "description": "Controla el comportamiento de Type al iniciar",
         "startMinimized": "Iniciar minimizado",
         "startMinimizedDescription": "Iniciar sin mostrar la ventana del panel de control"
       },
@@ -1330,7 +1330,7 @@
           "group": {
             "step1Title": "Añade tu usuario al grupo input",
             "step2Title": "Cierra sesión y vuelve a entrar",
-            "step2Desc": "Los cambios de grupo solo surten efecto tras una nueva sesión. Cierra sesión en tu escritorio, vuelve a entrar y reabre GigaType."
+            "step2Desc": "Los cambios de grupo solo surten efecto tras una nueva sesión. Cierra sesión en tu escritorio, vuelve a entrar y reabre Type."
           },
           "service": {
             "step1Title": "Crear el directorio del servicio",
@@ -1354,7 +1354,7 @@
           "manualTitle": "Añade esto a tu configuración",
           "manualDesc": "Configúralo tú mismo y luego reconstruye.",
           "flakeTitle": "¿Instalando mediante nuestro flake?",
-          "flakeDesc": "Si instalas GigaType desde el flake, programs.openwhispr.enable activa ydotool, el módulo uinput y las pertenencias de grupo por ti.",
+          "flakeDesc": "Si instalas Type desde el flake, programs.openwhispr.enable activa ydotool, el módulo uinput y las pertenencias de grupo por ti.",
           "rebuildNote": "Ejecuta sudo nixos-rebuild switch, luego cierra sesión y vuelve a abrirla para que el cambio de grupo y la regla de /dev/uinput surtan efecto. Sustituye <you> por tu nombre de usuario."
         }
       },
@@ -1387,7 +1387,7 @@
           },
           "installUpdate": {
             "confirmText": "Instalar y reiniciar",
-            "description": "GigaType se reiniciará para aplicar la actualización.",
+            "description": "Type se reiniciará para aplicar la actualización.",
             "title": "Instalar actualización"
           },
           "noUpdates": {
@@ -1418,13 +1418,13 @@
     "permissions": {
       "accessibilityDescription": "Necesario para que el pegado automático funcione tras la transcripción",
       "accessibilityTitle": "Accesibilidad",
-      "description": "Prueba y administra los permisos del sistema necesarios para que GigaType funcione correctamente",
+      "description": "Prueba y administra los permisos del sistema necesarios para que Type funcione correctamente",
       "microphoneDescription": "Captura tu voz para dictado y transcripción",
       "microphoneTitle": "Micrófono",
       "resetAccessibility": {
-        "description": "Esto eliminará a GigaType de los permisos de accesibilidad. Tendrás que volver a conceder acceso en Configuración del sistema > Privacidad y seguridad > Accesibilidad.",
+        "description": "Esto eliminará a Type de los permisos de accesibilidad. Tendrás que volver a conceder acceso en Configuración del sistema > Privacidad y seguridad > Accesibilidad.",
         "label": "Restablecer permisos de accesibilidad",
-        "rowDescription": "Soluciona problemas tras reinstalar o recompilar la app eliminando y volviendo a agregar GigaType en Configuración del sistema",
+        "rowDescription": "Soluciona problemas tras reinstalar o recompilar la app eliminando y volviendo a agregar Type en Configuración del sistema",
         "title": "Restablecer permisos de accesibilidad"
       },
       "optional": "Opcional",
@@ -1438,14 +1438,10 @@
       "troubleshootingTitle": "Solución de problemas"
     },
     "privacy": {
-      "cloudBackup": "Respaldo en la nube",
-      "cloudBackupDescription": "Respalda tus transcripciones y notas en la nube para acceder desde cualquier dispositivo.",
-      "cloudNotesMigration": "Respaldando notas… {{done}} / {{total}}",
-      "cloudNotesMigrationDone": "Todas las notas respaldadas",
       "description": "Controla qué datos salen de tu dispositivo. Todo está desactivado por defecto.",
       "title": "Privacidad",
       "usageAnalytics": "Analíticas de uso",
-      "usageAnalyticsDescription": "Ayúdanos a mejorar GigaType compartiendo métricas de rendimiento anónimas. Nunca enviamos contenido de transcripciones, solo datos de tiempo y errores.",
+      "usageAnalyticsDescription": "Ayúdanos a mejorar Type compartiendo métricas de rendimiento anónimas. Nunca enviamos contenido de transcripciones, solo datos de tiempo y errores.",
       "dataRetention": "Retención de datos",
       "dataRetentionDescription": "Almacenar transcripciones y audio localmente en tu historial. Cuando está desactivado, las transcripciones se pegan pero no se guardan.",
       "hoursAgo": "hace {{count}}h",
@@ -1474,9 +1470,9 @@
     "transcription": {
       "customSetup": "Configuración personalizada",
       "customSetupDescription": "Usa tu propio proveedor y clave API.",
-      "description": "Elige cómo GigaType transcribe tu voz",
+      "description": "Elige cómo Type transcribe tu voz",
       "modes": {
-        "openwhispr": "GigaType Cloud",
+        "openwhispr": "Type Cloud",
         "providers": "Proveedores en la nube",
         "local": "Local",
         "selfHosted": "Autoalojado",
@@ -1485,13 +1481,13 @@
         "localDesc": "Modelos en el dispositivo. Privado.",
         "selfHostedDesc": "Tu servidor en tu red."
       },
-      "openwhisprCloud": "GigaType Cloud",
+      "openwhisprCloud": "Type Cloud",
       "openwhisprCloudDescription": "Resultados fiables. Sin configuración.",
       "title": "Voz a texto",
       "toasts": {
         "switchedCloud": {
-          "description": "La transcripción usará el servicio en la nube de GigaType.",
-          "title": "Cambiado a GigaType Cloud"
+          "description": "La transcripción usará el servicio en la nube de Type.",
+          "title": "Cambiado a Type Cloud"
         },
         "switchedCustom": {
           "description": "Configura tu propio proveedor y clave API.",
@@ -1802,7 +1798,7 @@
     },
     "tryAgain": "Intentar de nuevo",
     "card": {
-      "brand": "GigaType",
+      "brand": "Type",
       "signalId": "Signal ID",
       "audioSignature": "Tu firma de audio",
       "stop": "Detener",
@@ -1899,7 +1895,7 @@
       "setupTitle": "Configurar transcripción",
       "setupDescription": "Elige cómo transcribir tu audio. Esto también se aplica al dictado en vivo.",
       "continue": "Continuar",
-      "openwhisprCloud": "GigaType Cloud",
+      "openwhisprCloud": "Type Cloud",
       "custom": "Personalizado",
       "selectFolder": "Seleccionar carpeta",
       "transcriptionFailed": "Error en la transcripción",
@@ -1911,15 +1907,15 @@
       "fileTooLarge": "Este archivo supera el límite de 500 MB.",
       "largeFileNote": "Los archivos grandes se dividen y transcriben en paralelo.",
       "chunkProgress": "Transcribiendo parte {{completed}} de {{total}}...",
-      "paidPlanRequired": "La transcripción en la nube para archivos de más de 25 MB requiere un plan de pago. Los archivos grandes se procesan con GigaType Cloud para resultados fiables y de alta calidad.",
+      "paidPlanRequired": "La transcripción en la nube para archivos de más de 25 MB requiere un plan de pago. Los archivos grandes se procesan con Type Cloud para resultados fiables y de alta calidad.",
       "byokTooLarge": "Las claves API de terceros solo admiten archivos de hasta 25 MB.",
-      "byokTooLargeDetail": "Para archivos de más de 25 MB, GigaType Cloud se encarga de dividir, procesar en paralelo y reensamblar, obteniendo resultados fiables sin depender de los límites de proveedores de terceros.",
-      "byokTooLargeNeedsAccount": "Crea una cuenta y cambia a un plan de pago para transcribir archivos más grandes con GigaType Cloud.",
-      "byokTooLargeNeedsUpgrade": "Cambia a un plan de pago para transcribir archivos más grandes con GigaType Cloud.",
-      "switchToCloudForLargeFiles": "Cambia a GigaType Cloud para transcribir este archivo.",
+      "byokTooLargeDetail": "Para archivos de más de 25 MB, Type Cloud se encarga de dividir, procesar en paralelo y reensamblar, obteniendo resultados fiables sin depender de los límites de proveedores de terceros.",
+      "byokTooLargeNeedsAccount": "Crea una cuenta y cambia a un plan de pago para transcribir archivos más grandes con Type Cloud.",
+      "byokTooLargeNeedsUpgrade": "Cambia a un plan de pago para transcribir archivos más grandes con Type Cloud.",
+      "switchToCloudForLargeFiles": "Cambia a Type Cloud para transcribir este archivo.",
       "createAccount": "Crear cuenta",
       "upgrade": "Mejorar plan",
-      "switchToCloud": "GigaType Cloud"
+      "switchToCloud": "Type Cloud"
     },
     "meeting": {
       "title": "Notas de reunión",
@@ -2119,7 +2115,7 @@
     "upgradeUnlimited": "Actualizar a Pro — transcripciones ilimitadas"
   },
   "postMigration": {
-    "title": "Te damos la bienvenida de nuevo a GigaType",
+    "title": "Te damos la bienvenida de nuevo a Type",
     "description": "Tus notas y ajustes se han trasladado desde la versión anterior. Eso sí, macOS lo trata como una app nueva, así que tendrás que volver a conceder algunos permisos.",
     "done": "Hecho",
     "remindLater": "Recordármelo más tarde"
@@ -2160,7 +2156,7 @@
       "undo": "Deshacer",
       "accessibilityMissing": {
         "title": "Se requieren permisos de accesibilidad",
-        "description": "GigaType necesita permisos de accesibilidad para detectar tu atajo y pegar texto. Actívalos en el Panel de Control."
+        "description": "Type necesita permisos de accesibilidad para detectar tu atajo y pegar texto. Actívalos en el Panel de Control."
       }
     },
     "mic": {
@@ -2183,8 +2179,8 @@
     "enabled": "Activar agente de voz",
     "enabledDescription": "Dicta instrucciones a tu agente. Actívalo diciendo \"{{agentName}}\". Configurable más abajo.",
     "modes": {
-      "openwhispr": "GigaType Cloud",
-      "openwhisprDesc": "Usa el agente gestionado por GigaType, sin necesidad de clave API.",
+      "openwhispr": "Type Cloud",
+      "openwhisprDesc": "Usa el agente gestionado por Type, sin necesidad de clave API.",
       "providers": "Usa tu propia clave API",
       "providersDesc": "Conéctate a OpenAI, Anthropic, Gemini o Groq con tu propia clave API.",
       "local": "Local",
@@ -2210,7 +2206,7 @@
       "systemPromptDescription": "Instrucciones personalizadas para el agente",
       "systemPromptPlaceholder": "Introduce un prompt de sistema personalizado...",
       "modes": {
-        "openwhispr": "GigaType Cloud",
+        "openwhispr": "Type Cloud",
         "providers": "Proveedores Cloud",
         "local": "Local",
         "selfHosted": "Autoalojado",
@@ -2221,7 +2217,7 @@
         "enterprise": "Empresarial",
         "enterpriseDesc": "Usa la cuenta en la nube de tu organización (AWS, Azure, GCP)."
       },
-      "openwhisprCloud": "GigaType Cloud",
+      "openwhisprCloud": "Type Cloud",
       "openwhisprCloudDescription": "Resultados fiables. Sin configuración.",
       "customSetup": "Configuración personalizada (BYOK)",
       "customSetupDescription": "Usa tus propias claves API y elige tu modelo preferido"
@@ -2290,7 +2286,7 @@
       "disconnectConfirm": "¿Desconectar {{email}}?",
       "disconnectDescription": "Ya no se grabarán notas de reuniones de este calendario.",
       "systemAudioRequired": "Se requiere permiso de Audio del Sistema",
-      "systemAudioDescription": "Para transcribir reuniones, GigaType necesita el permiso de Audio del Sistema para capturar el audio de otros participantes. Nunca grabamos tu pantalla. Serás dirigido a Ajustes del Sistema para activarlo.",
+      "systemAudioDescription": "Para transcribir reuniones, Type necesita el permiso de Audio del Sistema para capturar el audio de otros participantes. Nunca grabamos tu pantalla. Serás dirigido a Ajustes del Sistema para activarlo.",
       "openSettings": "Abrir Ajustes del Sistema"
     },
     "sections": {
@@ -2310,13 +2306,13 @@
     "mcp": {
       "title": "Lleva tus notas a tus herramientas de IA",
       "description": "Chatea, busca y trabaja con tus notas en Claude, ChatGPT y Cursor.",
-      "step1": "En tu herramienta de IA, añade GigaType MCP usando la URL pública",
+      "step1": "En tu herramienta de IA, añade Type MCP usando la URL pública",
       "step2": "Crea una clave API arriba con los permisos que necesites.",
       "step3": "Pega la clave como cabecera Authorization para conectar.",
       "learnMore": "Más información",
       "viewPlans": "Ver planes",
       "copyUrl": "Copiar URL de MCP",
-      "proRequired": "Actualiza a un plan de pago para conectar GigaType con Claude, ChatGPT y Cursor.",
+      "proRequired": "Actualiza a un plan de pago para conectar Type con Claude, ChatGPT y Cursor.",
       "copied": "Copiado"
     },
     "cli": {
@@ -2330,7 +2326,7 @@
       "local": {
         "label": "Local",
         "freeBadge": "Gratis",
-        "description": "Lee tus notas locales directamente. Sin inicio de sesión ni clave API — funciona mientras GigaType esté abierto."
+        "description": "Lee tus notas locales directamente. Sin inicio de sesión ni clave API — funciona mientras Type esté abierto."
       },
       "cloud": {
         "label": "Nube",
@@ -2350,8 +2346,8 @@
       "upgrade": "Mejorar"
     },
     "notABot": {
-      "title": "GigaType es un grabador de reuniones, no un bot",
-      "description": "GigaType captura el audio directamente de tu sistema — nunca se une a tus reuniones como participante. Solo conecta tu calendario y toma notas con normalidad."
+      "title": "Type es un grabador de reuniones, no un bot",
+      "description": "Type captura el audio directamente de tu sistema — nunca se une a tus reuniones como participante. Solo conecta tu calendario y toma notas con normalidad."
     }
   },
   "calendar": {
@@ -2399,7 +2395,7 @@
     "signInDescription": "Crea una cuenta o inicia sesión para grabar y transcribir reuniones.",
     "connectCalendar": "Conecta tu calendario",
     "connectCalendarDescription": "Vincula tu Google Calendar para ver próximas reuniones y grabar notas automáticamente.",
-    "notABot": "GigaType graba usando el audio de tu sistema — nunca se une a las reuniones como un bot.",
+    "notABot": "Type graba usando el audio de tu sistema — nunca se une a las reuniones como un bot.",
     "connectCalendarButton": "Conectar calendario"
   },
   "notesView": {
@@ -2474,13 +2470,13 @@
     }
   },
   "updateNotification": {
-    "title": "Actualización de GigaType disponible",
+    "title": "Actualización de Type disponible",
     "body": "La versión {{version}} está lista para descargar",
     "cta": "Actualizar ahora"
   },
   "permissionsGate": {
     "title": "Permisos necesarios",
-    "description": "GigaType necesita algunos permisos para funcionar en este ordenador.",
+    "description": "Type necesita algunos permisos para funcionar en este ordenador.",
     "continue": "Continuar"
   },
   "embeddedChat": {

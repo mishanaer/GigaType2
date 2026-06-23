@@ -7,10 +7,10 @@ Enable verbose logging to diagnose issues like "no audio detected" or transcript
 ### Option 1: Command Line
 ```bash
 # macOS
-/Applications/GigaType.app/Contents/MacOS/GigaType --log-level=debug
+/Applications/Type.app/Contents/MacOS/Type --log-level=debug
 
 # Windows
-GigaType.exe --log-level=debug
+Type.exe --log-level=debug
 ```
 
 ### Option 2: Environment File
@@ -20,15 +20,15 @@ OPENWHISPR_LOG_LEVEL=debug
 ```
 
 **Env file locations:**
-- macOS: `~/Library/Application Support/GigaType/.env`
-- Windows: `%APPDATA%\GigaType\.env`
-- Linux: `~/.config/GigaType/.env`
+- macOS: `~/Library/Application Support/Type/.env`
+- Windows: `%APPDATA%\Type\.env`
+- Linux: `~/.config/Type/.env`
 
 ## Log File Locations
 
-- **macOS**: `~/Library/Application Support/GigaType/logs/debug-*.log`
-- **Windows**: `%APPDATA%\GigaType\logs\debug-*.log`
-- **Linux**: `~/.config/GigaType/logs/debug-*.log`
+- **macOS**: `~/Library/Application Support/Type/logs/debug-*.log`
+- **Windows**: `%APPDATA%\Type\logs\debug-*.log`
+- **Linux**: `~/.config/Type/logs/debug-*.log`
 
 ## What Gets Logged
 

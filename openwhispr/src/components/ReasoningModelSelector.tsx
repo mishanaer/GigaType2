@@ -8,39 +8,18 @@ import type {
   InferenceMode,
 } from "../types/electron";
 import { Button } from "./ui/button";
-import { Cloud, Lock, Zap } from "lucide-react";
-import ModelCardList from "./ui/ModelCardList";
+import { Zap } from "lucide-react";
 import LocalModelPicker, { type LocalProvider } from "./LocalModelPicker";
-import { ProviderTabs } from "./ui/ProviderTabs";
-import OpenAICompatiblePanel from "./OpenAICompatiblePanel";
-import { API_ENDPOINTS } from "../config/constants";
 import logger from "../utils/logger";
-import { REASONING_PROVIDERS } from "../models/ModelRegistry";
 import { modelRegistry } from "../models/ModelRegistry";
-import { getProviderIcon, isMonochromeProvider } from "../utils/providerIcons";
 import { getCachedPlatform } from "../utils/platform";
-
-type CloudModelOption = {
-  value: string;
-  label: string;
-  description?: string;
-  descriptionKey?: string;
-  icon?: string;
-  ownedBy?: string;
-  invertInDark?: boolean;
-};
-
-const CLOUD_PROVIDER_IDS = ["openai", "anthropic", "gemini", "groq", "custom"];
 
 interface ReasoningModelSelectorProps {
   reasoningModel: string;
   setReasoningModel: (model: string) => void;
   localReasoningProvider: string;
   setLocalReasoningProvider: (provider: string) => void;
-  cloudReasoningBaseUrl: string;
-  setCloudReasoningBaseUrl: (value: string) => void;
   setReasoningMode?: (mode: InferenceMode) => void;
-  mode?: "cloud" | "local";
 }
 
 function GpuStatusBadge() {
@@ -299,25 +278,9 @@ export default function ReasoningModelSelector({
   setReasoningModel,
   localReasoningProvider,
   setLocalReasoningProvider,
-  cloudReasoningBaseUrl,
-  setCloudReasoningBaseUrl,
   setReasoningMode: setReasoningModeProp,
-  mode,
 }: ReasoningModelSelectorProps) {
-  const { t } = useTranslation();
-  const [selectedMode, setSelectedMode] = useState<"cloud" | "local">(mode || "cloud");
-  const [selectedCloudProvider, setSelectedCloudProvider] = useState("openai");
   const [selectedLocalProvider, setSelectedLocalProvider] = useState("qwen");
-
-  const effectiveMode = mode || selectedMode;
-
-  const cloudProviders = CLOUD_PROVIDER_IDS.map((id) => ({
-    id,
-    name:
-      id === "custom"
-        ? t("reasoning.custom.providerName")
-        : REASONING_PROVIDERS[id as keyof typeof REASONING_PROVIDERS]?.name || id,
-  }));
 
   const localProviders = useMemo<LocalProvider[]>(() => {
     return modelRegistry.getAllProviders().map((provider) => ({
@@ -336,47 +299,24 @@ export default function ReasoningModelSelector({
     }));
   }, []);
 
-  const openaiModelOptions = useMemo<CloudModelOption[]>(() => {
-    const iconUrl = getProviderIcon("openai");
-    return REASONING_PROVIDERS.openai.models.map((model) => ({
-      ...model,
-      description: model.descriptionKey
-        ? t(model.descriptionKey, { defaultValue: model.description })
-        : model.description,
-      icon: iconUrl,
-      invertInDark: true,
-    }));
-  }, [t]);
-
-  const selectedCloudModels = useMemo<CloudModelOption[]>(() => {
-    if (selectedCloudProvider === "openai") return openaiModelOptions;
-    if (selectedCloudProvider === "custom") return [];
-
-    const provider = REASONING_PROVIDERS[selectedCloudProvider as keyof typeof REASONING_PROVIDERS];
-    if (!provider?.models) return [];
-
-    const iconUrl = getProviderIcon(selectedCloudProvider);
-    const invertInDark = isMonochromeProvider(selectedCloudProvider);
-    return provider.models.map((model) => ({
-      ...model,
-      description: model.descriptionKey
-        ? t(model.descriptionKey, { defaultValue: model.description })
-        : model.description,
-      icon: iconUrl,
-      invertInDark,
-    }));
-  }, [selectedCloudProvider, openaiModelOptions, t]);
-
   useEffect(() => {
     const localProviderIds = localProviders.map((p) => p.id);
     if (localProviderIds.includes(localReasoningProvider)) {
-      setSelectedMode("local");
       setSelectedLocalProvider(localReasoningProvider);
-    } else if (CLOUD_PROVIDER_IDS.includes(localReasoningProvider)) {
-      setSelectedMode("cloud");
-      setSelectedCloudProvider(localReasoningProvider);
+      return;
     }
-  }, [localProviders, localReasoningProvider]);
+
+    setSelectedLocalProvider("qwen");
+    setReasoningModeProp?.("local");
+    setLocalReasoningProvider("qwen");
+    setReasoningModel("");
+  }, [
+    localProviders,
+    localReasoningProvider,
+    setLocalReasoningProvider,
+    setReasoningModeProp,
+    setReasoningModel,
+  ]);
 
   const [downloadedModels, setDownloadedModels] = useState<Set<string>>(new Set());
 
@@ -402,50 +342,8 @@ export default function ReasoningModelSelector({
     loadDownloadedModels();
   }, [loadDownloadedModels]);
 
-  const handleModeChange = async (newMode: "cloud" | "local") => {
-    setSelectedMode(newMode);
-    setReasoningModeProp?.(newMode === "local" ? "local" : "providers");
-
-    if (newMode === "cloud") {
-      window.electronAPI?.llamaServerStop?.();
-      setLocalReasoningProvider(selectedCloudProvider);
-
-      if (selectedCloudProvider === "custom") return;
-
-      const provider =
-        REASONING_PROVIDERS[selectedCloudProvider as keyof typeof REASONING_PROVIDERS];
-      if (provider?.models?.length > 0) {
-        setReasoningModel(provider.models[0].value);
-      }
-    } else {
-      setLocalReasoningProvider(selectedLocalProvider);
-      const downloaded = await loadDownloadedModels();
-      const provider = localProviders.find((p) => p.id === selectedLocalProvider);
-      const models = provider?.models ?? [];
-      if (models.length > 0) {
-        const firstDownloaded = models.find((m) => downloaded.has(m.id));
-        if (firstDownloaded) {
-          setReasoningModel(firstDownloaded.id);
-        } else {
-          setReasoningModel("");
-        }
-      }
-    }
-  };
-
-  const handleCloudProviderChange = (provider: string) => {
-    setSelectedCloudProvider(provider);
-    setLocalReasoningProvider(provider);
-
-    if (provider === "custom") return;
-
-    const providerData = REASONING_PROVIDERS[provider as keyof typeof REASONING_PROVIDERS];
-    if (providerData?.models?.length > 0) {
-      setReasoningModel(providerData.models[0].value);
-    }
-  };
-
   const handleLocalProviderChange = async (providerId: string) => {
+    setReasoningModeProp?.("local");
     setSelectedLocalProvider(providerId);
     setLocalReasoningProvider(providerId);
     const downloaded = await loadDownloadedModels();
@@ -461,86 +359,19 @@ export default function ReasoningModelSelector({
     }
   };
 
-  const MODE_TABS = [
-    { id: "cloud", name: t("reasoning.mode.cloud") },
-    { id: "local", name: t("reasoning.mode.local") },
-  ];
-
-  const renderModeIcon = (id: string) => {
-    if (id === "cloud") return <Cloud className="w-4 h-4" />;
-    return <Lock className="w-4 h-4" />;
-  };
-
   return (
     <div className="space-y-4">
-      {!mode && (
-        <div className="space-y-2">
-          <ProviderTabs
-            providers={MODE_TABS}
-            selectedId={effectiveMode}
-            onSelect={(id) => handleModeChange(id as "cloud" | "local")}
-            renderIcon={renderModeIcon}
-            colorScheme="purple"
-          />
-          <p className="text-xs text-muted-foreground text-center">
-            {effectiveMode === "local"
-              ? t("reasoning.mode.localDescription")
-              : t("reasoning.mode.cloudDescription")}
-          </p>
-        </div>
-      )}
-
-      {effectiveMode === "cloud" && (
-        <div className="space-y-2">
-          <ProviderTabs
-            providers={cloudProviders}
-            selectedId={selectedCloudProvider}
-            onSelect={handleCloudProviderChange}
-            colorScheme="purple"
-          />
-
-          <div>
-            {selectedCloudProvider === "custom" ? (
-              <OpenAICompatiblePanel
-                baseUrl={cloudReasoningBaseUrl}
-                setBaseUrl={setCloudReasoningBaseUrl}
-                model={reasoningModel}
-                setModel={setReasoningModel}
-                defaultBaseUrl={API_ENDPOINTS.OPENAI_BASE}
-              />
-            ) : (
-              <>
-                <div className="pt-3 space-y-2">
-                  <h4 className="text-sm font-medium text-foreground">
-                    {t("reasoning.selectModel")}
-                  </h4>
-                  <ModelCardList
-                    models={selectedCloudModels}
-                    selectedModel={reasoningModel}
-                    onModelSelect={setReasoningModel}
-                  />
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {effectiveMode === "local" && (
-        <>
-          <LocalModelPicker
-            providers={localProviders}
-            selectedModel={reasoningModel}
-            selectedProvider={selectedLocalProvider}
-            onModelSelect={setReasoningModel}
-            onProviderSelect={handleLocalProviderChange}
-            modelType="llm"
-            colorScheme="purple"
-            onDownloadComplete={loadDownloadedModels}
-          />
-          <GpuStatusBadge />
-        </>
-      )}
+      <LocalModelPicker
+        providers={localProviders}
+        selectedModel={reasoningModel}
+        selectedProvider={selectedLocalProvider}
+        onModelSelect={setReasoningModel}
+        onProviderSelect={handleLocalProviderChange}
+        modelType="llm"
+        colorScheme="purple"
+        onDownloadComplete={loadDownloadedModels}
+      />
+      <GpuStatusBadge />
     </div>
   );
 }

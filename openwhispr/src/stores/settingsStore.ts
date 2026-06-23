@@ -46,10 +46,43 @@ const AUTH_BACKED_CLOUD_MODE_KEYS = new Set([
   "chatAgentCloudMode",
   "dictationAgentCloudMode",
 ]);
+const DISABLED_CLOUD_PROVIDER_IDS = new Set(["openai", "anthropic", "gemini", "groq"]);
+const DEFAULT_LOCAL_PROVIDER = "qwen";
+
+const INFERENCE_STORAGE_SCOPES = [
+  {
+    modeKey: "cleanupMode",
+    providerKey: "cleanupProvider",
+    modelKey: "cleanupModel",
+    cloudBaseUrlKey: "cleanupCloudBaseUrl",
+    remoteUrlKey: "cleanupRemoteUrl",
+  },
+  {
+    modeKey: "noteFormattingMode",
+    providerKey: "noteFormattingProvider",
+    modelKey: "noteFormattingModel",
+    cloudBaseUrlKey: "noteFormattingCloudBaseUrl",
+    remoteUrlKey: "noteFormattingRemoteUrl",
+  },
+  {
+    modeKey: "chatAgentMode",
+    providerKey: "chatAgentProvider",
+    modelKey: "chatAgentModel",
+    cloudBaseUrlKey: "chatAgentCloudBaseUrl",
+    remoteUrlKey: "chatAgentRemoteUrl",
+  },
+  {
+    modeKey: "dictationAgentMode",
+    providerKey: "dictationAgentProvider",
+    modelKey: "dictationAgentModel",
+    cloudBaseUrlKey: "dictationAgentCloudBaseUrl",
+    remoteUrlKey: "dictationAgentRemoteUrl",
+  },
+] as const;
 
 function normalizeAuthBackedSetting(key: string, value: string): string {
   if (AUTH_BACKED_INFERENCE_MODE_KEYS.has(key) && value === "openwhispr") {
-    return "providers";
+    return "local";
   }
   if (AUTH_BACKED_CLOUD_MODE_KEYS.has(key) && value === "openwhispr") {
     return "byok";
@@ -104,8 +137,9 @@ function disableAccountBackedFeatures() {
   localStorage.setItem("skipAuth", "true");
 
   for (const key of AUTH_BACKED_INFERENCE_MODE_KEYS) {
-    if (localStorage.getItem(key) === "openwhispr") {
-      localStorage.setItem(key, "providers");
+    const value = localStorage.getItem(key);
+    if (value === "openwhispr" || value === "providers") {
+      localStorage.setItem(key, "local");
     }
   }
   for (const key of AUTH_BACKED_CLOUD_MODE_KEYS) {
@@ -161,7 +195,6 @@ const BOOLEAN_SETTINGS = new Set([
   "useCleanupModel",
   "useDictationAgent",
   "preferBuiltInMic",
-  "cloudBackupEnabled",
   "audioCuesEnabled",
   "pauseMediaOnDictation",
   "startMinimized",
@@ -304,7 +337,7 @@ function migrateProviderSettings() {
 
   const reasoningMode = localStorage.getItem("cloudReasoningMode");
   const reasoningProvider = localStorage.getItem("reasoningProvider");
-  let newReasoningMode: InferenceMode = "providers";
+  let newReasoningMode: InferenceMode = "local";
   if (reasoningMode === "byok") {
     if (reasoningProvider === "custom") {
       newReasoningMode = "self-hosted";
@@ -323,7 +356,7 @@ function migrateProviderSettings() {
     ) {
       newReasoningMode = "local";
     } else {
-      newReasoningMode = "providers";
+      newReasoningMode = "local";
     }
   }
   localStorage.setItem("reasoningMode", newReasoningMode);
@@ -344,7 +377,7 @@ function migrateAgentMode() {
   const cloudAgentMode = localStorage.getItem("cloudAgentMode");
   const agentProvider = localStorage.getItem("agentProvider");
 
-  let agentInferenceMode: InferenceMode = "providers";
+  let agentInferenceMode: InferenceMode = "local";
   if (cloudAgentMode === "byok") {
     const localProviders = ["qwen", "llama", "mistral", "openai-oss", "gemma"];
     if (agentProvider === "custom") {
@@ -358,7 +391,7 @@ function migrateAgentMode() {
     } else if (agentProvider && localProviders.includes(agentProvider)) {
       agentInferenceMode = "local";
     } else {
-      agentInferenceMode = "providers";
+      agentInferenceMode = "local";
     }
   }
   localStorage.setItem("agentInferenceMode", agentInferenceMode);
@@ -440,6 +473,33 @@ function migrateLLMScopeKeys() {
 }
 
 migrateLLMScopeKeys();
+
+function migrateDisabledCloudProviderModes() {
+  if (!isBrowser) return;
+
+  for (const scope of INFERENCE_STORAGE_SCOPES) {
+    const mode = localStorage.getItem(scope.modeKey);
+    if (mode !== "providers" && mode !== "openwhispr") continue;
+
+    const provider = localStorage.getItem(scope.providerKey);
+    if (provider === "custom") {
+      localStorage.setItem(scope.modeKey, "self-hosted");
+      const cloudBaseUrl = localStorage.getItem(scope.cloudBaseUrlKey);
+      if (cloudBaseUrl && !localStorage.getItem(scope.remoteUrlKey)) {
+        localStorage.setItem(scope.remoteUrlKey, cloudBaseUrl);
+      }
+      continue;
+    }
+
+    localStorage.setItem(scope.modeKey, "local");
+    if (!provider || DISABLED_CLOUD_PROVIDER_IDS.has(provider)) {
+      localStorage.setItem(scope.providerKey, DEFAULT_LOCAL_PROVIDER);
+      localStorage.setItem(scope.modelKey, "");
+    }
+  }
+}
+
+migrateDisabledCloudProviderModes();
 disableAccountBackedFeatures();
 
 export interface SettingsState
@@ -577,7 +637,6 @@ export interface SettingsState
   setSelectedMicDeviceId: (value: string) => void;
 
   setTheme: (value: "light" | "dark" | "auto") => void;
-  setCloudBackupEnabled: (value: boolean) => void;
   setTelemetryEnabled: (value: boolean) => void;
   setAudioRetentionDays: (days: number) => void;
   setDataRetentionEnabled: (value: boolean) => void;
@@ -668,7 +727,7 @@ function persistSettingsPatch(patch: Partial<SettingsState>) {
   useSettingsStore.setState(patch);
 }
 
-async function syncGigaTypeAsrSettings(status?: GigaamSidecarStatus | null): Promise<void> {
+async function syncTypeAsrSettings(status?: GigaamSidecarStatus | null): Promise<void> {
   if (!isBrowser) return;
 
   let sidecarStatus = status;
@@ -777,7 +836,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   useCleanupModel: readBoolean("useCleanupModel", false),
   useDictationAgent: readBoolean("useDictationAgent", false),
   cleanupModel: readString("cleanupModel", ""),
-  cleanupProvider: readString("cleanupProvider", "openai"),
+  cleanupProvider: readString("cleanupProvider", DEFAULT_LOCAL_PROVIDER),
 
   // Enterprise providers
   bedrockAuthMode: readString("bedrockAuthMode", "sso"),
@@ -801,7 +860,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   selectedMicDeviceId: readString("selectedMicDeviceId", ""),
 
   theme: FIXED_THEME,
-  cloudBackupEnabled: false,
   telemetryEnabled: false,
   audioRetentionDays: 0,
   dataRetentionEnabled: false,
@@ -872,9 +930,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   remoteTranscriptionUrl: readString("remoteTranscriptionUrl", ""),
   cleanupMode: (() => {
-    const v = readString("cleanupMode", "providers");
-    if (v === "providers" || v === "local" || v === "self-hosted" || v === "enterprise") return v;
-    return "providers" as InferenceMode;
+    const v = readString("cleanupMode", "local");
+    if (v === "local" || v === "self-hosted" || v === "enterprise") return v;
+    return "local" as InferenceMode;
   })(),
   cleanupRemoteUrl: readString("cleanupRemoteUrl", ""),
 
@@ -886,9 +944,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   meetingRemoteTranscriptionUrl: readString("meetingRemoteTranscriptionUrl", ""),
 
   noteFormattingMode: (() => {
-    const v = readString("noteFormattingMode", "providers");
-    if (v === "providers" || v === "local" || v === "self-hosted" || v === "enterprise") return v;
-    return "providers" as InferenceMode;
+    const v = readString("noteFormattingMode", "local");
+    if (v === "local" || v === "self-hosted" || v === "enterprise") return v;
+    return "local" as InferenceMode;
   })(),
   noteFormattingProvider: readString("noteFormattingProvider", ""),
   noteFormattingModel: readString("noteFormattingModel", ""),
@@ -910,22 +968,22 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setNoteFormattingCloudMode: createStringSetter("noteFormattingCloudMode"),
   setNoteFormattingCloudBaseUrl: createStringSetter("noteFormattingCloudBaseUrl"),
   setNoteFormattingRemoteUrl: createStringSetter("noteFormattingRemoteUrl"),
-  chatAgentModel: readString("chatAgentModel", "openai/gpt-oss-120b"),
-  chatAgentProvider: readString("chatAgentProvider", "groq"),
+  chatAgentModel: readString("chatAgentModel", ""),
+  chatAgentProvider: readString("chatAgentProvider", DEFAULT_LOCAL_PROVIDER),
   chatAgentKey: readString("chatAgentKey", ""),
   chatAgentCloudMode: readString("chatAgentCloudMode", "byok"),
   chatAgentMode: (() => {
-    const v = readString("chatAgentMode", "providers");
-    if (v === "providers" || v === "local" || v === "self-hosted" || v === "enterprise") return v;
-    return "providers" as InferenceMode;
+    const v = readString("chatAgentMode", "local");
+    if (v === "local" || v === "self-hosted" || v === "enterprise") return v;
+    return "local" as InferenceMode;
   })(),
   chatAgentRemoteUrl: readString("chatAgentRemoteUrl", ""),
   chatAgentCloudBaseUrl: readString("chatAgentCloudBaseUrl", ""),
 
   dictationAgentMode: (() => {
-    const v = readString("dictationAgentMode", "");
-    if (v === "providers" || v === "local" || v === "self-hosted" || v === "enterprise") return v;
-    return "providers" as InferenceMode;
+    const v = readString("dictationAgentMode", "local");
+    if (v === "local" || v === "self-hosted" || v === "enterprise") return v;
+    return "local" as InferenceMode;
   })(),
   dictationAgentProvider: readString("dictationAgentProvider", ""),
   dictationAgentModel: readString("dictationAgentModel", ""),
@@ -1082,10 +1140,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ theme: FIXED_THEME });
   },
 
-  setCloudBackupEnabled: () => {
-    if (isBrowser) localStorage.setItem("cloudBackupEnabled", "false");
-    set({ cloudBackupEnabled: false });
-  },
   setTelemetryEnabled: () => {
     if (isBrowser) localStorage.setItem("telemetryEnabled", "false");
     set({ telemetryEnabled: false });
@@ -1534,7 +1588,7 @@ export async function initializeSettings(): Promise<void> {
       );
     }
 
-    // UI and transcription languages are fixed to Russian in GigaType.
+    // UI and transcription languages are fixed to Russian in Type.
     try {
       enforceFixedUiSettings();
       if (state.uiLanguage !== FIXED_UI_LANGUAGE) {
@@ -1554,7 +1608,7 @@ export async function initializeSettings(): Promise<void> {
       void i18n.changeLanguage(FIXED_UI_LANGUAGE);
     }
 
-    await syncGigaTypeAsrSettings();
+    await syncTypeAsrSettings();
 
     // Sync meeting detection preferences to main process
     try {
@@ -1729,6 +1783,6 @@ export async function initializeSettings(): Promise<void> {
   });
 
   window.electronAPI?.onGigaamSidecarStatus?.((status: GigaamSidecarStatus) => {
-    void syncGigaTypeAsrSettings(status);
+    void syncTypeAsrSettings(status);
   });
 }

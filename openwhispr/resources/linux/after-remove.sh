@@ -17,7 +17,7 @@ MODELS_DIR="$CACHE_DIR/models"
 
 if [ -d "$MODELS_DIR" ]; then
   rm -rf "$MODELS_DIR"
-  echo "Removed GigaType cached models"
+  echo "Removed Type cached models"
 fi
 
 if [ -d "$CACHE_DIR" ]; then

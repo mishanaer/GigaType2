@@ -7,6 +7,7 @@ const MenuManager = require("./menuManager");
 const DevServerManager = require("./devServerManager");
 const { i18nMain } = require("./i18nMain");
 const { DEV_SERVER_PORT } = DevServerManager;
+const { isAllowedAppNavigation, isSafeExternalUrl } = require("./securityPolicy");
 const {
   MAIN_WINDOW_CONFIG,
   CONTROL_PANEL_CONFIG,
@@ -574,6 +575,11 @@ class WindowManager {
   }
 
   openExternalUrl(url, showError = true) {
+    if (!isSafeExternalUrl(url, { allowLocalHttp: process.env.NODE_ENV === "development" })) {
+      debugLogger.warn("Blocked unsafe external URL", { url }, "security");
+      return;
+    }
+
     shell.openExternal(url).catch((error) => {
       if (showError) {
         dialog.showErrorBox(
@@ -600,12 +606,14 @@ class WindowManager {
 
     this.controlPanelWindow.webContents.on("will-navigate", (event, url) => {
       const appUrl = DevServerManager.getAppUrl(true);
-      const controlPanelUrl = appUrl.startsWith("http") ? appUrl : `file://${appUrl}`;
+      const appFileInfo = DevServerManager.getAppFilePath(true);
 
       if (
-        url.startsWith(controlPanelUrl) ||
-        url.startsWith("file://") ||
-        url.startsWith("devtools://")
+        isAllowedAppNavigation(url, {
+          appUrl,
+          appFilePath: appFileInfo?.path,
+          devServerPort: DEV_SERVER_PORT,
+        })
       ) {
         return;
       }

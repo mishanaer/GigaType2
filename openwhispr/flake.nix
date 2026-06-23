@@ -1,5 +1,5 @@
 {
-  description = "GigaType – privacy-first voice dictation, meeting transcription & notes";
+  description = "Type – privacy-first voice dictation, meeting transcription & notes";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

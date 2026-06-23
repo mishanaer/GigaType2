@@ -1,9 +1,9 @@
 ---
 name: openwhispr-cli
-description: Use this skill whenever the user wants to operate on GigaType notes, folders, transcriptions, or audio from a terminal or shell. The GigaType CLI (`openwhispr` binary, npm package `@openwhispr/cli`) talks to either the local desktop app or the cloud API and exposes every operation needed for managing notes, folders, transcriptions, audio, plus auth and config. Trigger this skill when the user mentions "openwhispr cli", running shell commands against GigaType, automating note workflows, cleaning up a transcription, building agent integrations against GigaType, or scripting any GigaType operation — even if they don't say "CLI" explicitly.
+description: Use this skill whenever the user wants to operate on Type notes, folders, transcriptions, or audio from a terminal or shell. The Type CLI (`openwhispr` binary, npm package `@openwhispr/cli`) talks to either the local desktop app or the cloud API and exposes every operation needed for managing notes, folders, transcriptions, audio, plus auth and config. Trigger this skill when the user mentions "openwhispr cli", running shell commands against Type, automating note workflows, cleaning up a transcription, building agent integrations against Type, or scripting any Type operation — even if they don't say "CLI" explicitly.
 ---
 
-# GigaType CLI
+# Type CLI
 
 Use this reference when running the `openwhispr` command-line tool. The CLI is a single binary that operates against either the local desktop app (via a loopback HTTP bridge) or the cloud REST API. The same command works against both backends.
 

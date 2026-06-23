@@ -1,7 +1,7 @@
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useTranslation } from "react-i18next";
-import { Key, Cpu, Network } from "lucide-react";
+import { Cpu, Network } from "lucide-react";
 import {
   useSettingsStore,
   selectResolvedLLMConfig,
@@ -14,12 +14,10 @@ import OpenAICompatiblePanel from "../OpenAICompatiblePanel";
 import { Toggle } from "../ui/toggle";
 import type { InferenceMode } from "../../types/electron";
 import type { InferenceScope } from "../../config/inferenceScopes";
-import { modelRegistry, getCloudModel, getLocalModel } from "../../models/ModelRegistry";
+import { modelRegistry, getLocalModel } from "../../models/ModelRegistry";
 
 function isProviderValidForMode(provider: string, mode: InferenceMode): boolean {
   switch (mode) {
-    case "providers":
-      return modelRegistry.getCloudProviders().some((p) => p.id === provider);
     case "local":
       return modelRegistry.getAllProviders().some((p) => p.id === provider);
     default:
@@ -42,15 +40,16 @@ interface InferenceConfigEditorProps {
 export default function InferenceConfigEditor({ scope, onModeChange }: InferenceConfigEditorProps) {
   const { t } = useTranslation();
   const config = useSettingsStore(useShallow((s) => selectResolvedLLMConfig(s, scope)));
+  const effectiveMode = config.mode === "providers" ? "local" : config.mode;
+
+  useEffect(() => {
+    if (config.mode === "providers") {
+      setResolvedLLMConfig(scope, { mode: "local" });
+    }
+  }, [config.mode, scope]);
 
   const prefix = MODE_LABEL_PREFIX[scope];
   const modes: InferenceModeOption[] = [
-    {
-      id: "providers",
-      label: t(`${prefix}.providers`),
-      description: t(`${prefix}.providersDesc`),
-      icon: <Key className="w-4 h-4" />,
-    },
     {
       id: "local",
       label: t(`${prefix}.local`),
@@ -79,7 +78,6 @@ export default function InferenceConfigEditor({ scope, onModeChange }: Inference
 
       const patch: Parameters<typeof setResolvedLLMConfig>[1] = {
         mode,
-        cloudMode: "byok",
       };
       if (!isProviderValidForMode(config.provider, mode)) {
         patch.provider = "";
@@ -100,33 +98,27 @@ export default function InferenceConfigEditor({ scope, onModeChange }: Inference
   const setProvider = setField("provider");
   const setModel = setField("model");
 
-  const renderModelSelector = (mode?: "cloud" | "local") => (
+  const renderModelSelector = () => (
     <ReasoningModelSelector
       reasoningModel={config.model}
       setReasoningModel={setModel}
       localReasoningProvider={config.provider}
       setLocalReasoningProvider={setProvider}
-      cloudReasoningBaseUrl={config.cloudBaseUrl ?? ""}
-      setCloudReasoningBaseUrl={setField("cloudBaseUrl")}
       setReasoningMode={setMode}
-      mode={mode}
     />
   );
 
   const showThinkingToggle =
-    config.mode === "self-hosted" ||
-    (config.mode === "providers" &&
-      (config.provider === "custom" || !!getCloudModel(config.model)?.supportsThinking)) ||
-    (config.mode === "local" && !!getLocalModel(config.model)?.supportsThinking);
+    effectiveMode === "self-hosted" ||
+    (effectiveMode === "local" && !!getLocalModel(config.model)?.supportsThinking);
 
   return (
     <div className="space-y-3">
-      <InferenceModeSelector modes={modes} activeMode={config.mode} onSelect={handleModeSelect} />
+      <InferenceModeSelector modes={modes} activeMode={effectiveMode} onSelect={handleModeSelect} />
 
-      {config.mode === "providers" && renderModelSelector("cloud")}
-      {config.mode === "local" && renderModelSelector("local")}
+      {effectiveMode === "local" && renderModelSelector()}
 
-      {config.mode === "self-hosted" && (
+      {effectiveMode === "self-hosted" && (
         <OpenAICompatiblePanel
           baseUrl={config.remoteUrl ?? ""}
           setBaseUrl={setField("remoteUrl")}

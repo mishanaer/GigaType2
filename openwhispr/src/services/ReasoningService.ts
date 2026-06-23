@@ -428,7 +428,7 @@ class ReasoningService extends BaseReasoningService {
     if (isEnterpriseProvider(provider)) {
       throw new Error(
         "Agent Mode is not yet supported with enterprise providers (Bedrock/Azure/Vertex). " +
-          "Switch to Cloud or Local for Agent Mode, or use this provider for text cleanup only."
+          "Switch to self-hosted or local mode for Agent Mode, or use this provider for text cleanup only."
       );
     }
 

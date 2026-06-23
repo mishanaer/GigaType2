@@ -94,10 +94,8 @@ export function useChatStreaming({
       setAgentState("thinking");
 
       const settings = getSettings();
-      const chatAgentMode = settings.chatAgentMode || "providers";
+      const chatAgentMode = settings.chatAgentMode || "local";
       const isLanAgent = chatAgentMode === "self-hosted" && !!settings.chatAgentRemoteUrl;
-      const isCustomAgent =
-        chatAgentMode === "providers" && settings.chatAgentProvider === "custom";
       const isLocalProvider = !["openai", "groq", "custom", "anthropic", "gemini"].includes(
         settings.chatAgentProvider
       );
@@ -149,7 +147,6 @@ export function useChatStreaming({
           {
             systemPrompt,
             lanUrl: isLanAgent ? settings.chatAgentRemoteUrl : undefined,
-            baseUrl: isCustomAgent ? settings.chatAgentCloudBaseUrl || undefined : undefined,
             disableThinking: settings.chatAgentDisableThinking,
           },
           aiTools

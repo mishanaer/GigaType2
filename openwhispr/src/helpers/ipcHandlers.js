@@ -32,6 +32,8 @@ const {
   sanitizeSpeechVadConfig,
 } = require("./speechVadConfig");
 const { resolveGigaamTranscriptionUrl } = require("../utils/gigaamTranscription.cjs");
+const DevServerManager = require("./devServerManager");
+const { isAllowedIpcSenderUrl, isSafeExternalUrl } = require("./securityPolicy");
 
 const ALLOWED_MEETING_PROVIDERS = new Set(["gigaam"]);
 const GIGAAM_TRANSCRIPTION_MODEL = "gigaam-v3-e2e-rnnt";
@@ -177,7 +179,7 @@ const AUDIO_MIME_TYPES = {
 };
 
 function buildMultipartBody(fileBuffer, fileName, contentType, fields = {}) {
-  const boundary = `----GigaType${Date.now()}`;
+  const boundary = `----Type${Date.now()}`;
   const parts = [];
 
   parts.push(
@@ -484,14 +486,41 @@ class IPCHandlers {
     }
   }
 
+  _createSecuredIpcHandle() {
+    const devServerPort = DevServerManager.DEV_SERVER_PORT;
+
+    return (channel, listener) => {
+      ipcMain.handle(channel, async (event, ...args) => {
+        const senderUrl = event?.senderFrame?.url || event?.sender?.getURL?.() || "";
+        if (
+          !isAllowedIpcSenderUrl(senderUrl, {
+            appPath: app.getAppPath(),
+            devServerPort,
+          })
+        ) {
+          debugLogger.warn(
+            "Blocked IPC call from untrusted sender",
+            { channel, senderUrl },
+            "security"
+          );
+          throw new Error("Blocked IPC call from untrusted sender");
+        }
+
+        return listener(event, ...args);
+      });
+    };
+  }
+
   setupHandlers() {
-    ipcMain.handle("window-minimize", () => {
+    const handle = this._createSecuredIpcHandle();
+
+    handle("window-minimize", () => {
       if (this.windowManager.controlPanelWindow) {
         this.windowManager.controlPanelWindow.minimize();
       }
     });
 
-    ipcMain.handle("window-maximize", () => {
+    handle("window-maximize", () => {
       if (this.windowManager.controlPanelWindow) {
         if (this.windowManager.controlPanelWindow.isMaximized()) {
           this.windowManager.controlPanelWindow.unmaximize();
@@ -501,24 +530,24 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("window-close", () => {
+    handle("window-close", () => {
       if (this.windowManager.controlPanelWindow) {
         this.windowManager.controlPanelWindow.close();
       }
     });
 
-    ipcMain.handle("window-is-maximized", () => {
+    handle("window-is-maximized", () => {
       if (this.windowManager.controlPanelWindow) {
         return this.windowManager.controlPanelWindow.isMaximized();
       }
       return false;
     });
 
-    ipcMain.handle("app-quit", () => {
+    handle("app-quit", () => {
       app.quit();
     });
 
-    ipcMain.handle("hide-window", () => {
+    handle("hide-window", () => {
       if (process.platform === "darwin") {
         this.windowManager.hideDictationPanel();
         if (app.dock) app.dock.show();
@@ -527,40 +556,40 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("show-dictation-panel", () => {
+    handle("show-dictation-panel", () => {
       this.windowManager.showDictationPanel();
     });
 
-    ipcMain.handle("hide-dictation-panel", () => {
+    handle("hide-dictation-panel", () => {
       this.windowManager.hideDictationPanel();
     });
 
-    ipcMain.handle("force-stop-dictation", () => {
+    handle("force-stop-dictation", () => {
       if (this.windowManager?.forceStopMacCompoundPush) {
         this.windowManager.forceStopMacCompoundPush("manual");
       }
       return { success: true };
     });
 
-    ipcMain.handle("set-main-window-interactivity", (event, shouldCapture) => {
+    handle("set-main-window-interactivity", (event, shouldCapture) => {
       this.windowManager.setMainWindowInteractivity(Boolean(shouldCapture));
       return { success: true };
     });
 
-    ipcMain.handle("set-notification-interactivity", (event, interactive) => {
+    handle("set-notification-interactivity", (event, interactive) => {
       this.windowManager.setNotificationInteractivity(Boolean(interactive));
       return { success: true };
     });
 
-    ipcMain.handle("resize-main-window", (event, sizeKey) => {
+    handle("resize-main-window", (event, sizeKey) => {
       return this.windowManager.resizeMainWindow(sizeKey);
     });
 
-    ipcMain.handle("resize-control-panel-to-content", (event, height, width) => {
+    handle("resize-control-panel-to-content", (event, height, width) => {
       return this.windowManager.resizeControlPanelToContent(height, width);
     });
 
-    ipcMain.handle("db-save-transcription", async (event, text, rawText, options) => {
+    handle("db-save-transcription", async (event, text, rawText, options) => {
       const result = this.databaseManager.saveTranscription(text, rawText, options);
       if (result?.success && result?.transcription) {
         setImmediate(() => {
@@ -570,11 +599,11 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("db-get-transcriptions", async (event, limit = 50) => {
+    handle("db-get-transcriptions", async (event, limit = 50) => {
       return this.databaseManager.getTranscriptions(limit);
     });
 
-    ipcMain.handle("db-clear-transcriptions", async (event) => {
+    handle("db-clear-transcriptions", async (event) => {
       this.audioStorageManager.deleteAllAudio();
       const result = this.databaseManager.clearTranscriptions();
       if (result?.success) {
@@ -587,12 +616,12 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("db-delete-transcription", async (event, id) => {
+    handle("db-delete-transcription", async (event, id) => {
       return this.deleteTranscriptionInternal(id);
     });
 
     // Audio storage handlers
-    ipcMain.handle("save-transcription-audio", async (event, id, audioBuffer, metadata) => {
+    handle("save-transcription-audio", async (event, id, audioBuffer, metadata) => {
       const transcription = this.databaseManager.getTranscriptionById(id);
       const timestamp = transcription?.timestamp || null;
       const result = this.audioStorageManager.saveAudio(id, Buffer.from(audioBuffer), timestamp);
@@ -609,23 +638,23 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("get-audio-path", async (event, id) => {
+    handle("get-audio-path", async (event, id) => {
       return this.audioStorageManager.getAudioPath(id);
     });
 
-    ipcMain.handle("show-audio-in-folder", async (event, id) => {
+    handle("show-audio-in-folder", async (event, id) => {
       const filePath = this.audioStorageManager.getAudioPath(id);
       if (!filePath) return { success: false };
       shell.showItemInFolder(filePath);
       return { success: true };
     });
 
-    ipcMain.handle("get-audio-buffer", async (event, id) => {
+    handle("get-audio-buffer", async (event, id) => {
       const buffer = this.audioStorageManager.getAudioBuffer(id);
       return buffer ? buffer.buffer : null;
     });
 
-    ipcMain.handle("delete-transcription-audio", async (event, id) => {
+    handle("delete-transcription-audio", async (event, id) => {
       const result = this.audioStorageManager.deleteAudio(id);
       if (result.success) {
         this.databaseManager.updateTranscriptionAudio(id, {
@@ -638,11 +667,11 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("get-audio-storage-usage", async () => {
+    handle("get-audio-storage-usage", async () => {
       return this.audioStorageManager.getStorageUsage();
     });
 
-    ipcMain.handle("delete-all-audio", async () => {
+    handle("delete-all-audio", async () => {
       const result = this.audioStorageManager.deleteAllAudio();
       try {
         const rows = this.databaseManager.db
@@ -661,11 +690,11 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("get-transcription-by-id", async (event, id) => {
+    handle("get-transcription-by-id", async (event, id) => {
       return this.databaseManager.getTranscriptionById(id);
     });
 
-    ipcMain.handle(
+    handle(
       "db-save-note",
       async (event, title, content, noteType, sourceFile, audioDuration, folderId) => {
         const result = this.databaseManager.saveNote(
@@ -685,15 +714,15 @@ class IPCHandlers {
       }
     );
 
-    ipcMain.handle("db-get-note", async (event, id) => {
+    handle("db-get-note", async (event, id) => {
       return this.databaseManager.getNote(id);
     });
 
-    ipcMain.handle("db-get-notes", async (event, noteType, limit, folderId) => {
+    handle("db-get-notes", async (event, noteType, limit, folderId) => {
       return this.databaseManager.getNotes(noteType, limit, folderId);
     });
 
-    ipcMain.handle("db-update-note", async (event, id, updates) => {
+    handle("db-update-note", async (event, id, updates) => {
       const result = this.databaseManager.updateNote(id, updates);
       if (result?.success && result?.note) {
         setImmediate(() => this.broadcastToWindows("note-updated", result.note));
@@ -704,15 +733,15 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("db-delete-note", async (event, id) => {
+    handle("db-delete-note", async (event, id) => {
       return this.deleteNoteInternal(id);
     });
 
-    ipcMain.handle("db-search-notes", async (event, query, limit) => {
+    handle("db-search-notes", async (event, query, limit) => {
       return this.databaseManager.searchNotes(query, limit);
     });
 
-    ipcMain.handle("db-semantic-search-notes", async (event, query, limit = 5) => {
+    handle("db-semantic-search-notes", async (event, query, limit = 5) => {
       const vectorIndex = require("./vectorIndex");
       if (!vectorIndex.isReady()) {
         return this.databaseManager.searchNotes(query, limit);
@@ -757,7 +786,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("db-semantic-reindex-all", async () => {
+    handle("db-semantic-reindex-all", async () => {
       const vectorIndex = require("./vectorIndex");
       if (!vectorIndex.isReady()) return { success: false, error: "Vector index not ready" };
 
@@ -770,15 +799,15 @@ class IPCHandlers {
       return { success: true, indexed: done };
     });
 
-    ipcMain.handle("db-update-note-cloud-id", async (event, id, cloudId) => {
+    handle("db-update-note-cloud-id", async (event, id, cloudId) => {
       return this.databaseManager.updateNoteCloudId(id, cloudId);
     });
 
-    ipcMain.handle("db-get-folders", async () => {
+    handle("db-get-folders", async () => {
       return this.databaseManager.getFolders();
     });
 
-    ipcMain.handle("db-create-folder", async (event, name) => {
+    handle("db-create-folder", async (event, name) => {
       const result = this.databaseManager.createFolder(name);
       if (result?.success && result?.folder) {
         setImmediate(() => {
@@ -792,7 +821,7 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("db-delete-folder", async (event, id) => {
+    handle("db-delete-folder", async (event, id) => {
       const folderName = this._noteFilesEnabled ? this._getFolderName(id) : null;
       const result = this.databaseManager.deleteFolder(id);
       if (result?.success) {
@@ -810,7 +839,7 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("db-rename-folder", async (event, id, name) => {
+    handle("db-rename-folder", async (event, id, name) => {
       const oldName = this._noteFilesEnabled ? this._getFolderName(id) : null;
       const result = this.databaseManager.renameFolder(id, name);
       if (result?.success && result?.folder) {
@@ -825,19 +854,19 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("db-get-folder-note-counts", async () => {
+    handle("db-get-folder-note-counts", async () => {
       return this.databaseManager.getFolderNoteCounts();
     });
 
-    ipcMain.handle("db-get-actions", async () => {
+    handle("db-get-actions", async () => {
       return this.databaseManager.getActions();
     });
 
-    ipcMain.handle("db-get-action", async (event, id) => {
+    handle("db-get-action", async (event, id) => {
       return this.databaseManager.getAction(id);
     });
 
-    ipcMain.handle("db-create-action", async (event, name, description, prompt, icon) => {
+    handle("db-create-action", async (event, name, description, prompt, icon) => {
       const result = this.databaseManager.createAction(name, description, prompt, icon);
       if (result?.success && result?.action) {
         setImmediate(() => {
@@ -847,7 +876,7 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("db-update-action", async (event, id, updates) => {
+    handle("db-update-action", async (event, id, updates) => {
       const result = this.databaseManager.updateAction(id, updates);
       if (result?.success && result?.action) {
         setImmediate(() => {
@@ -857,7 +886,7 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("db-delete-action", async (event, id) => {
+    handle("db-delete-action", async (event, id) => {
       const result = this.databaseManager.deleteAction(id);
       if (result?.success) {
         setImmediate(() => {
@@ -868,23 +897,23 @@ class IPCHandlers {
     });
 
     // Agent conversation handlers
-    ipcMain.handle("db-create-agent-conversation", async (event, title, noteId) => {
+    handle("db-create-agent-conversation", async (event, title, noteId) => {
       return this.databaseManager.createAgentConversation(title, noteId);
     });
 
-    ipcMain.handle("db-get-conversations-for-note", async (event, noteId, limit) => {
+    handle("db-get-conversations-for-note", async (event, noteId, limit) => {
       return this.databaseManager.getConversationsForNote(noteId, limit);
     });
 
-    ipcMain.handle("db-get-agent-conversations", async (event, limit) => {
+    handle("db-get-agent-conversations", async (event, limit) => {
       return this.databaseManager.getAgentConversations(limit);
     });
 
-    ipcMain.handle("db-get-agent-conversation", async (event, id) => {
+    handle("db-get-agent-conversation", async (event, id) => {
       return this.databaseManager.getAgentConversation(id);
     });
 
-    ipcMain.handle("db-delete-agent-conversation", async (event, id) => {
+    handle("db-delete-agent-conversation", async (event, id) => {
       const result = this.databaseManager.deleteAgentConversation(id);
       if (this.vectorIndex?.isReady?.()) {
         this.vectorIndex.deleteConversationChunks(id).catch(() => {});
@@ -892,11 +921,11 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("db-update-agent-conversation-title", async (event, id, title) => {
+    handle("db-update-agent-conversation-title", async (event, id, title) => {
       return this.databaseManager.updateAgentConversationTitle(id, title);
     });
 
-    ipcMain.handle(
+    handle(
       "db-add-agent-message",
       async (event, conversationId, role, content, metadata) => {
         const result = this.databaseManager.addAgentMessage(
@@ -917,11 +946,11 @@ class IPCHandlers {
       }
     );
 
-    ipcMain.handle("db-get-agent-messages", async (event, conversationId) => {
+    handle("db-get-agent-messages", async (event, conversationId) => {
       return this.databaseManager.getAgentMessages(conversationId);
     });
 
-    ipcMain.handle(
+    handle(
       "db-get-agent-conversations-with-preview",
       async (event, limit, offset, includeArchived) => {
         return this.databaseManager.getAgentConversationsWithPreview(
@@ -932,23 +961,23 @@ class IPCHandlers {
       }
     );
 
-    ipcMain.handle("db-search-agent-conversations", async (event, query, limit) => {
+    handle("db-search-agent-conversations", async (event, query, limit) => {
       return this.databaseManager.searchAgentConversations(query, limit);
     });
 
-    ipcMain.handle("db-archive-agent-conversation", async (event, id) => {
+    handle("db-archive-agent-conversation", async (event, id) => {
       return this.databaseManager.archiveAgentConversation(id);
     });
 
-    ipcMain.handle("db-unarchive-agent-conversation", async (event, id) => {
+    handle("db-unarchive-agent-conversation", async (event, id) => {
       return this.databaseManager.unarchiveAgentConversation(id);
     });
 
-    ipcMain.handle("db-update-agent-conversation-cloud-id", async (event, id, cloudId) => {
+    handle("db-update-agent-conversation-cloud-id", async (event, id, cloudId) => {
       return this.databaseManager.updateAgentConversationCloudId(id, cloudId);
     });
 
-    ipcMain.handle("db-semantic-search-conversations", async (event, query, limit) => {
+    handle("db-semantic-search-conversations", async (event, query, limit) => {
       if (this.vectorIndex?.isReady?.()) {
         try {
           const vectorResults = await this.vectorIndex.searchConversations(query, limit);
@@ -972,23 +1001,23 @@ class IPCHandlers {
     });
 
     // Notes sync
-    ipcMain.handle("db-get-pending-notes", () => this.databaseManager.getPendingNotes());
-    ipcMain.handle("db-get-pending-note-deletes", () =>
+    handle("db-get-pending-notes", () => this.databaseManager.getPendingNotes());
+    handle("db-get-pending-note-deletes", () =>
       this.databaseManager.getPendingNoteDeletes()
     );
-    ipcMain.handle("db-get-note-by-client-id", (_, clientNoteId) =>
+    handle("db-get-note-by-client-id", (_, clientNoteId) =>
       this.databaseManager.getNoteByClientId(clientNoteId)
     );
-    ipcMain.handle("db-upsert-note-from-cloud", (_, cloudNote, localFolderId) =>
+    handle("db-upsert-note-from-cloud", (_, cloudNote, localFolderId) =>
       this.databaseManager.upsertNoteFromCloud(cloudNote, localFolderId)
     );
-    ipcMain.handle("db-mark-note-synced", (_, id, cloudId) =>
+    handle("db-mark-note-synced", (_, id, cloudId) =>
       this.databaseManager.markNoteSynced(id, cloudId)
     );
-    ipcMain.handle("db-mark-note-sync-error", (_, id) =>
+    handle("db-mark-note-sync-error", (_, id) =>
       this.databaseManager.markNoteSyncError(id)
     );
-    ipcMain.handle("db-hard-delete-note", (_, id) => {
+    handle("db-hard-delete-note", (_, id) => {
       const result = this.databaseManager.hardDeleteNote(id);
       if (result?.success) {
         this._asyncVectorDelete(id);
@@ -999,21 +1028,21 @@ class IPCHandlers {
     });
 
     // Folders sync
-    ipcMain.handle("db-get-pending-folders", () => this.databaseManager.getPendingFolders());
-    ipcMain.handle("db-get-folder-by-client-id", (_, clientFolderId) =>
+    handle("db-get-pending-folders", () => this.databaseManager.getPendingFolders());
+    handle("db-get-folder-by-client-id", (_, clientFolderId) =>
       this.databaseManager.getFolderByClientId(clientFolderId)
     );
-    ipcMain.handle("db-upsert-folder-from-cloud", (_, cloudFolder) =>
+    handle("db-upsert-folder-from-cloud", (_, cloudFolder) =>
       this.databaseManager.upsertFolderFromCloud(cloudFolder)
     );
-    ipcMain.handle("db-mark-folder-synced", (_, id, cloudId) =>
+    handle("db-mark-folder-synced", (_, id, cloudId) =>
       this.databaseManager.markFolderSynced(id, cloudId)
     );
-    ipcMain.handle("db-get-folder-id-map", () => this.databaseManager.getFolderIdMap());
-    ipcMain.handle("db-get-pending-folder-deletes", () =>
+    handle("db-get-folder-id-map", () => this.databaseManager.getFolderIdMap());
+    handle("db-get-pending-folder-deletes", () =>
       this.databaseManager.getPendingFolderDeletes()
     );
-    ipcMain.handle("db-hard-delete-folder", (_, id) => {
+    handle("db-hard-delete-folder", (_, id) => {
       const result = this.databaseManager.hardDeleteFolder(id);
       if (result?.success) {
         for (const noteId of result.noteIds ?? []) {
@@ -1031,22 +1060,22 @@ class IPCHandlers {
     });
 
     // Conversations sync
-    ipcMain.handle("db-get-pending-conversations", () =>
+    handle("db-get-pending-conversations", () =>
       this.databaseManager.getPendingConversations()
     );
-    ipcMain.handle("db-get-pending-conversation-deletes", () =>
+    handle("db-get-pending-conversation-deletes", () =>
       this.databaseManager.getPendingConversationDeletes()
     );
-    ipcMain.handle("db-get-conversation-by-client-id", (_, clientId) =>
+    handle("db-get-conversation-by-client-id", (_, clientId) =>
       this.databaseManager.getConversationByClientId(clientId)
     );
-    ipcMain.handle("db-upsert-conversation-from-cloud", (_, cloudConv, messages) =>
+    handle("db-upsert-conversation-from-cloud", (_, cloudConv, messages) =>
       this.databaseManager.upsertConversationFromCloud(cloudConv, messages)
     );
-    ipcMain.handle("db-mark-conversation-synced", (_, id, cloudId) =>
+    handle("db-mark-conversation-synced", (_, id, cloudId) =>
       this.databaseManager.markConversationSynced(id, cloudId)
     );
-    ipcMain.handle("db-hard-delete-conversation", (_, id) => {
+    handle("db-hard-delete-conversation", (_, id) => {
       const result = this.databaseManager.hardDeleteConversation(id);
       if (result?.success) {
         setImmediate(() => this.broadcastToWindows("conversation-deleted", { id }));
@@ -1055,22 +1084,22 @@ class IPCHandlers {
     });
 
     // Transcriptions sync
-    ipcMain.handle("db-get-pending-transcriptions", () =>
+    handle("db-get-pending-transcriptions", () =>
       this.databaseManager.getPendingTranscriptions()
     );
-    ipcMain.handle("db-get-transcription-by-client-id", (_, clientId) =>
+    handle("db-get-transcription-by-client-id", (_, clientId) =>
       this.databaseManager.getTranscriptionByClientId(clientId)
     );
-    ipcMain.handle("db-upsert-transcription-from-cloud", (_, cloudTranscription) =>
+    handle("db-upsert-transcription-from-cloud", (_, cloudTranscription) =>
       this.databaseManager.upsertTranscriptionFromCloud(cloudTranscription)
     );
-    ipcMain.handle("db-mark-transcription-synced", (_, id, cloudId) =>
+    handle("db-mark-transcription-synced", (_, id, cloudId) =>
       this.databaseManager.markTranscriptionSynced(id, cloudId)
     );
-    ipcMain.handle("db-get-pending-transcription-deletes", () =>
+    handle("db-get-pending-transcription-deletes", () =>
       this.databaseManager.getPendingTranscriptionDeletes()
     );
-    ipcMain.handle("db-hard-delete-transcription", (_, id) => {
+    handle("db-hard-delete-transcription", (_, id) => {
       const result = this.databaseManager.hardDeleteTranscription(id);
       if (result?.success) {
         setImmediate(() => this.broadcastToWindows("transcription-deleted", { id }));
@@ -1078,7 +1107,7 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("export-note", async (event, noteId, format) => {
+    handle("export-note", async (event, noteId, format) => {
       try {
         const note = this.databaseManager.getNote(noteId);
         if (!note) return { success: false, error: "Note not found" };
@@ -1119,7 +1148,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("export-transcript", async (event, noteId, format) => {
+    handle("export-transcript", async (event, noteId, format) => {
       try {
         const note = this.databaseManager.getNote(noteId);
         if (!note) return { success: false, error: "Note not found" };
@@ -1167,7 +1196,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("select-audio-file", async () => {
+    handle("select-audio-file", async () => {
       const { dialog } = require("electron");
       const result = await dialog.showOpenDialog({
         properties: ["openFile"],
@@ -1184,7 +1213,7 @@ class IPCHandlers {
       return { canceled: false, filePath: result.filePaths[0] };
     });
 
-    ipcMain.handle("get-file-size", async (_event, filePath) => {
+    handle("get-file-size", async (_event, filePath) => {
       const fs = require("fs");
       try {
         const stats = fs.statSync(filePath);
@@ -1194,7 +1223,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("transcribe-audio-file", async (event, filePath, options = {}) => {
+    handle("transcribe-audio-file", async (event, filePath, options = {}) => {
       const fs = require("fs");
       try {
         const audioBuffer = fs.readFileSync(filePath);
@@ -1217,7 +1246,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("paste-text", async (event, text, options) => {
+    handle("paste-text", async (event, text, options) => {
       const pasteRequestStartedAt = Date.now();
       const pasteTimings = {};
       const mainWindow = this.windowManager?.mainWindow;
@@ -1293,25 +1322,25 @@ class IPCHandlers {
       return result;
     });
 
-    ipcMain.handle("check-accessibility-permission", async (_event, silent = false) => {
+    handle("check-accessibility-permission", async (_event, silent = false) => {
       return this.clipboardManager.checkAccessibilityPermissions(silent);
     });
 
     // This handler is called from an explicit user action in onboarding/settings.
-    ipcMain.handle("prompt-accessibility-permission", async () => {
+    handle("prompt-accessibility-permission", async () => {
       if (process.platform !== "darwin") return true;
       return systemPreferences.isTrustedAccessibilityClient(true);
     });
 
-    ipcMain.handle("read-clipboard", async (event) => {
+    handle("read-clipboard", async (event) => {
       return this.clipboardManager.readClipboard();
     });
 
-    ipcMain.handle("write-clipboard", async (event, text) => {
+    handle("write-clipboard", async (event, text) => {
       return this.clipboardManager.writeClipboard(text, event.sender);
     });
 
-    ipcMain.handle("copy-debug-logs", async (event) => {
+    handle("copy-debug-logs", async (event) => {
       try {
         debugLogger.ensureFileLogging();
 
@@ -1350,12 +1379,12 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("check-paste-tools", async () => {
+    handle("check-paste-tools", async () => {
       return this.clipboardManager.checkPasteTools();
     });
 
     // Diarization model management
-    ipcMain.handle("download-diarization-models", async (event) => {
+    handle("download-diarization-models", async (event) => {
       try {
         const result = await this.diarizationManager.downloadModels((progressData) => {
           if (!event.sender.isDestroyed()) {
@@ -1379,7 +1408,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("get-diarization-model-status", async () => {
+    handle("get-diarization-model-status", async () => {
       return {
         available: this.diarizationManager?.isAvailable() ?? false,
         modelsDownloaded:
@@ -1388,7 +1417,7 @@ class IPCHandlers {
       };
     });
 
-    ipcMain.handle("delete-diarization-models", async () => {
+    handle("delete-diarization-models", async () => {
       try {
         await this.diarizationManager.deleteModels();
         return { success: true };
@@ -1398,11 +1427,11 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("cancel-diarization-download", async () => {
+    handle("cancel-diarization-download", async () => {
       return this.diarizationManager.cancelDownload();
     });
 
-    ipcMain.handle("cleanup-app", async (event) => {
+    handle("cleanup-app", async (event) => {
       const fs = require("fs");
       const os = require("os");
       const errors = [];
@@ -1481,11 +1510,11 @@ class IPCHandlers {
       return { success: errors.length === 0, message: "Cleanup completed", errors };
     });
 
-    ipcMain.handle("update-hotkey", async (event, hotkey) => {
+    handle("update-hotkey", async (event, hotkey) => {
       return await this.windowManager.updateHotkey(hotkey);
     });
 
-    ipcMain.handle("set-hotkey-listening-mode", async (event, enabled, newHotkey = null) => {
+    handle("set-hotkey-listening-mode", async (event, enabled, newHotkey = null) => {
       if (this._hotkeyCaptureMode === enabled) return { success: true, skipped: true };
       this._hotkeyCaptureMode = enabled;
       this.windowManager.setHotkeyListeningMode(enabled);
@@ -1678,7 +1707,7 @@ class IPCHandlers {
       return { success: true };
     });
 
-    ipcMain.handle("get-hotkey-mode-info", async () => {
+    handle("get-hotkey-mode-info", async () => {
       const isUsingNativeShortcut = this.windowManager.isUsingNativeShortcutHotkeys();
       const supportsPushToTalk =
         process.platform === "linux"
@@ -1694,7 +1723,7 @@ class IPCHandlers {
       };
     });
 
-    ipcMain.handle("register-cancel-hotkey", async (event, key) => {
+    handle("register-cancel-hotkey", async (event, key) => {
       const hotkeyManager = this.windowManager.hotkeyManager;
       const mainWindow = this.windowManager.mainWindow;
       return hotkeyManager.registerSlot("cancel", key, () => {
@@ -1702,21 +1731,25 @@ class IPCHandlers {
       });
     });
 
-    ipcMain.handle("unregister-cancel-hotkey", async () => {
+    handle("unregister-cancel-hotkey", async () => {
       this.windowManager.hotkeyManager.unregisterSlot("cancel");
       return { success: true };
     });
 
-    ipcMain.handle("start-window-drag", async (event) => {
+    handle("start-window-drag", async (event) => {
       return await this.windowManager.startWindowDrag();
     });
 
-    ipcMain.handle("stop-window-drag", async (event) => {
+    handle("stop-window-drag", async (event) => {
       return await this.windowManager.stopWindowDrag();
     });
 
-    ipcMain.handle("open-external", async (event, url) => {
+    handle("open-external", async (event, url) => {
       try {
+        if (!isSafeExternalUrl(url, { allowLocalHttp: process.env.NODE_ENV === "development" })) {
+          return { success: false, error: "Blocked unsafe external URL" };
+        }
+
         await shell.openExternal(url);
         return { success: true };
       } catch (error) {
@@ -1724,7 +1757,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("get-auto-start-enabled", async () => {
+    handle("get-auto-start-enabled", async () => {
       try {
         const loginSettings = app.getLoginItemSettings();
         return loginSettings.openAtLogin;
@@ -1734,7 +1767,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("set-auto-start-enabled", async (event, enabled) => {
+    handle("set-auto-start-enabled", async (event, enabled) => {
       try {
         app.setLoginItemSettings({
           openAtLogin: enabled,
@@ -1748,7 +1781,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("model-get-all", async () => {
+    handle("model-get-all", async () => {
       try {
         debugLogger.debug("model-get-all called", undefined, "ipc");
         const modelManager = require("./modelManagerBridge").default;
@@ -1761,12 +1794,12 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("model-check", async (_, modelId) => {
+    handle("model-check", async (_, modelId) => {
       const modelManager = require("./modelManagerBridge").default;
       return modelManager.isModelDownloaded(modelId);
     });
 
-    ipcMain.handle("model-download", async (event, modelId) => {
+    handle("model-download", async (event, modelId) => {
       try {
         const modelManager = require("./modelManagerBridge").default;
         const result = await modelManager.downloadModel(
@@ -1793,7 +1826,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("model-cancel-download", async (event, modelId) => {
+    handle("model-cancel-download", async (event, modelId) => {
       try {
         const modelManager = require("./modelManagerBridge").default;
         const cancelled = modelManager.cancelDownload(modelId);
@@ -1806,7 +1839,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("model-check-runtime", async (event) => {
+    handle("model-check-runtime", async (event) => {
       try {
         const modelManager = require("./modelManagerBridge").default;
         await modelManager.ensureLlamaCpp();
@@ -1822,51 +1855,51 @@ class IPCHandlers {
     });
 
     // Enterprise provider configuration handlers
-    ipcMain.handle("get-bedrock-region", async () => {
+    handle("get-bedrock-region", async () => {
       return this.environmentManager.getBedrockRegion();
     });
-    ipcMain.handle("save-bedrock-region", async (event, value) => {
+    handle("save-bedrock-region", async (event, value) => {
       return this.environmentManager.saveBedrockRegion(value);
     });
-    ipcMain.handle("get-bedrock-profile", async () => {
+    handle("get-bedrock-profile", async () => {
       return this.environmentManager.getBedrockProfile();
     });
-    ipcMain.handle("save-bedrock-profile", async (event, value) => {
+    handle("save-bedrock-profile", async (event, value) => {
       return this.environmentManager.saveBedrockProfile(value);
     });
-    ipcMain.handle("get-azure-endpoint", async () => {
+    handle("get-azure-endpoint", async () => {
       return this.environmentManager.getAzureEndpoint();
     });
-    ipcMain.handle("save-azure-endpoint", async (event, value) => {
+    handle("save-azure-endpoint", async (event, value) => {
       return this.environmentManager.saveAzureEndpoint(value);
     });
-    ipcMain.handle("get-azure-deployment", async () => {
+    handle("get-azure-deployment", async () => {
       return this.environmentManager.getAzureDeployment();
     });
-    ipcMain.handle("save-azure-deployment", async (event, value) => {
+    handle("save-azure-deployment", async (event, value) => {
       return this.environmentManager.saveAzureDeployment(value);
     });
-    ipcMain.handle("get-azure-api-version", async () => {
+    handle("get-azure-api-version", async () => {
       return this.environmentManager.getAzureApiVersion();
     });
-    ipcMain.handle("save-azure-api-version", async (event, value) => {
+    handle("save-azure-api-version", async (event, value) => {
       return this.environmentManager.saveAzureApiVersion(value);
     });
-    ipcMain.handle("get-vertex-project", async () => {
+    handle("get-vertex-project", async () => {
       return this.environmentManager.getVertexProject();
     });
-    ipcMain.handle("save-vertex-project", async (event, value) => {
+    handle("save-vertex-project", async (event, value) => {
       return this.environmentManager.saveVertexProject(value);
     });
-    ipcMain.handle("get-vertex-location", async () => {
+    handle("get-vertex-location", async () => {
       return this.environmentManager.getVertexLocation();
     });
-    ipcMain.handle("save-vertex-location", async (event, value) => {
+    handle("save-vertex-location", async (event, value) => {
       return this.environmentManager.saveVertexLocation(value);
     });
 
     // Enterprise provider test connection
-    ipcMain.handle("test-enterprise-connection", async (event, provider, config) => {
+    handle("test-enterprise-connection", async (event, provider, config) => {
       const {
         mapEnterpriseError,
         pickEnterpriseConfig,
@@ -1903,7 +1936,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle(
+    handle(
       "process-enterprise-reasoning",
       async (event, text, modelId, _agentName, config) => {
         const {
@@ -1954,75 +1987,75 @@ class IPCHandlers {
       }
     );
 
-    ipcMain.handle("get-dictation-key", async () => {
+    handle("get-dictation-key", async () => {
       return this.environmentManager.getDictationKey();
     });
 
-    ipcMain.handle("save-dictation-key", async (event, key) => {
+    handle("save-dictation-key", async (event, key) => {
       return this.environmentManager.saveDictationKey(key);
     });
 
-    ipcMain.handle("get-active-dictation-key", async () => {
+    handle("get-active-dictation-key", async () => {
       return this.windowManager?.hotkeyManager?.currentHotkey ?? null;
     });
 
-    ipcMain.handle("get-effective-default-hotkey", async () => {
+    handle("get-effective-default-hotkey", async () => {
       return this.windowManager?.hotkeyManager?.getEffectiveDefaultHotkey() ?? null;
     });
 
-    ipcMain.handle("get-activation-mode", async () => {
+    handle("get-activation-mode", async () => {
       return this.environmentManager.getActivationMode();
     });
 
-    ipcMain.handle("save-activation-mode", async (event, mode) => {
+    handle("save-activation-mode", async (event, mode) => {
       return this.environmentManager.saveActivationMode(mode);
     });
 
-    ipcMain.handle("get-ui-language", async () => {
+    handle("get-ui-language", async () => {
       return this.environmentManager.getUiLanguage();
     });
 
-    ipcMain.handle("save-ui-language", async (event, language) => {
+    handle("save-ui-language", async (event, language) => {
       return this.environmentManager.saveUiLanguage(language);
     });
 
-    ipcMain.handle("check-for-updates", async () => {
+    handle("check-for-updates", async () => {
       return this.updateManager.checkForUpdates();
     });
 
-    ipcMain.handle("download-update", async () => {
+    handle("download-update", async () => {
       return this.updateManager.downloadUpdate();
     });
 
-    ipcMain.handle("install-update", async () => {
+    handle("install-update", async () => {
       return this.updateManager.installUpdate();
     });
 
-    ipcMain.handle("get-app-version", async () => {
+    handle("get-app-version", async () => {
       return this.updateManager.getAppVersion();
     });
 
-    ipcMain.handle("get-update-status", async () => {
+    handle("get-update-status", async () => {
       return this.updateManager.getUpdateStatus();
     });
 
-    ipcMain.handle("get-update-info", async () => {
+    handle("get-update-info", async () => {
       return this.updateManager.getUpdateInfo();
     });
 
-    ipcMain.handle("get-post-migration-state", async () => ({
+    handle("get-post-migration-state", async () => ({
       justMigrated: postMigrationDetector.isReturningFromOldBundle(),
     }));
 
-    ipcMain.handle("mark-bundle-migrated", async () => {
+    handle("mark-bundle-migrated", async () => {
       postMigrationDetector.markBundleMigrated();
     });
 
-    ipcMain.handle("mark-bundle-migration-dismissed", async () => {
+    handle("mark-bundle-migration-dismissed", async () => {
       postMigrationDetector.markBundleMigrationDismissed();
     });
 
-    ipcMain.handle("set-ui-language", async (event, language) => {
+    handle("set-ui-language", async (event, language) => {
       const result = this.environmentManager.saveUiLanguage(language);
       process.env.UI_LANGUAGE = result.language;
       changeLanguage(result.language);
@@ -2031,11 +2064,11 @@ class IPCHandlers {
       return { success: true, language: result.language };
     });
 
-    ipcMain.handle("save-runtime-config-to-env", async () => {
+    handle("save-runtime-config-to-env", async () => {
       return this.environmentManager.saveRuntimeConfigToEnvFile();
     });
 
-    ipcMain.handle("sync-startup-preferences", async (_event, _prefs) => {
+    handle("sync-startup-preferences", async (_event, _prefs) => {
       const setVars = {};
       const clearVars = ["LOCAL_TRANSCRIPTION_PROVIDER", "PARAKEET_MODEL", "LOCAL_WHISPER_MODEL"];
 
@@ -2058,7 +2091,7 @@ class IPCHandlers {
       this._syncStartupEnv(setVars, clearVars);
     });
 
-    ipcMain.handle("process-local-reasoning", async (event, text, modelId, _agentName, config) => {
+    handle("process-local-reasoning", async (event, text, modelId, _agentName, config) => {
       try {
         const LocalReasoningService = require("../services/localReasoningBridge").default;
         const result = await LocalReasoningService.processText(text, modelId, config);
@@ -2068,14 +2101,14 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle(
+    handle(
       "process-anthropic-reasoning",
       async (_event, _text, _modelId, _agentName, _config) => {
         return { success: false, error: "Cloud reasoning providers are disabled" };
       }
     );
 
-    ipcMain.handle("check-local-reasoning-available", async () => {
+    handle("check-local-reasoning-available", async () => {
       try {
         const LocalReasoningService = require("../services/localReasoningBridge").default;
         return await LocalReasoningService.isAvailable();
@@ -2084,7 +2117,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("llama-cpp-check", async () => {
+    handle("llama-cpp-check", async () => {
       try {
         const llamaCppInstaller = require("./llamaCppInstaller").default;
         const isInstalled = await llamaCppInstaller.isInstalled();
@@ -2095,7 +2128,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("llama-cpp-install", async () => {
+    handle("llama-cpp-install", async () => {
       try {
         const llamaCppInstaller = require("./llamaCppInstaller").default;
         const result = await llamaCppInstaller.install();
@@ -2105,7 +2138,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("llama-cpp-uninstall", async () => {
+    handle("llama-cpp-uninstall", async () => {
       try {
         const llamaCppInstaller = require("./llamaCppInstaller").default;
         const result = await llamaCppInstaller.uninstall();
@@ -2115,7 +2148,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("llama-server-start", async (event, modelId) => {
+    handle("llama-server-start", async (event, modelId) => {
       try {
         const modelManager = require("./modelManagerBridge").default;
         modelManager.ensureInitialized();
@@ -2136,7 +2169,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("llama-server-stop", async () => {
+    handle("llama-server-stop", async () => {
       try {
         const modelManager = require("./modelManagerBridge").default;
         await modelManager.stopServer();
@@ -2146,7 +2179,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("llama-server-status", async () => {
+    handle("llama-server-status", async () => {
       try {
         const modelManager = require("./modelManagerBridge").default;
         return modelManager.getServerStatus();
@@ -2155,7 +2188,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("llama-gpu-reset", async () => {
+    handle("llama-gpu-reset", async () => {
       try {
         const modelManager = require("./modelManagerBridge").default;
         const previousModelId = modelManager.currentServerModelId;
@@ -2173,7 +2206,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("detect-vulkan-gpu", async () => {
+    handle("detect-vulkan-gpu", async () => {
       try {
         const { detectVulkanGpu } = require("../utils/vulkanDetection");
         return await detectVulkanGpu();
@@ -2182,7 +2215,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("get-llama-vulkan-status", async () => {
+    handle("get-llama-vulkan-status", async () => {
       try {
         if (!this._llamaVulkanManager) {
           const LlamaVulkanManager = require("./llamaVulkanManager");
@@ -2194,7 +2227,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("download-llama-vulkan-binary", async (event) => {
+    handle("download-llama-vulkan-binary", async (event) => {
       try {
         if (!this._llamaVulkanManager) {
           const LlamaVulkanManager = require("./llamaVulkanManager");
@@ -2240,14 +2273,14 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("cancel-llama-vulkan-download", async () => {
+    handle("cancel-llama-vulkan-download", async () => {
       if (this._llamaVulkanManager) {
         return { success: this._llamaVulkanManager.cancelDownload() };
       }
       return { success: false };
     });
 
-    ipcMain.handle("delete-llama-vulkan-binary", async () => {
+    handle("delete-llama-vulkan-binary", async () => {
       try {
         if (!this._llamaVulkanManager) {
           const LlamaVulkanManager = require("./llamaVulkanManager");
@@ -2272,16 +2305,16 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("get-log-level", async () => {
+    handle("get-log-level", async () => {
       return debugLogger.getLevel();
     });
 
-    ipcMain.handle("app-log", async (event, entry) => {
+    handle("app-log", async (event, entry) => {
       debugLogger.logEntry(entry);
       return { success: true };
     });
 
-    ipcMain.handle("get-debug-state", async () => {
+    handle("get-debug-state", async () => {
       debugLogger.ensureFileLogging();
       return {
         enabled: debugLogger.isEnabled(),
@@ -2290,7 +2323,7 @@ class IPCHandlers {
       };
     });
 
-    ipcMain.handle("set-debug-logging", async (event, enabled) => {
+    handle("set-debug-logging", async (event, enabled) => {
       try {
         const nextLevel = enabled ? "debug" : "info";
         this._syncStartupEnv({ OPENWHISPR_LOG_LEVEL: nextLevel });
@@ -2308,7 +2341,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("open-logs-folder", async () => {
+    handle("open-logs-folder", async () => {
       try {
         const logsDir = path.join(app.getPath("userData"), "logs");
         fs.mkdirSync(logsDir, { recursive: true });
@@ -2319,7 +2352,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("get-ydotool-status", async () => {
+    handle("get-ydotool-status", async () => {
       try {
         return require("./ensureYdotool").getYdotoolStatus();
       } catch (error) {
@@ -2383,27 +2416,27 @@ class IPCHandlers {
       }
     };
 
-    ipcMain.handle("open-microphone-settings", () => openSystemSettings("microphone"));
-    ipcMain.handle("open-sound-input-settings", () => openSystemSettings("sound"));
-    ipcMain.handle("open-accessibility-settings", () => openSystemSettings("accessibility"));
-    ipcMain.handle("open-system-audio-settings", () => openSystemSettings("systemAudio"));
+    handle("open-microphone-settings", () => openSystemSettings("microphone"));
+    handle("open-sound-input-settings", () => openSystemSettings("sound"));
+    handle("open-accessibility-settings", () => openSystemSettings("accessibility"));
+    handle("open-system-audio-settings", () => openSystemSettings("systemAudio"));
 
-    ipcMain.handle("toggle-media-playback", () => {
+    handle("toggle-media-playback", () => {
       const mediaPlayer = require("./mediaPlayer");
       return mediaPlayer.toggleMedia();
     });
 
-    ipcMain.handle("pause-media-playback", () => {
+    handle("pause-media-playback", () => {
       const mediaPlayer = require("./mediaPlayer");
       return mediaPlayer.pauseMedia();
     });
 
-    ipcMain.handle("resume-media-playback", () => {
+    handle("resume-media-playback", () => {
       const mediaPlayer = require("./mediaPlayer");
       return mediaPlayer.resumeMedia();
     });
 
-    ipcMain.handle("request-microphone-access", async () => {
+    handle("request-microphone-access", async () => {
       if (process.platform !== "darwin") {
         return { granted: true, status: "granted" };
       }
@@ -2411,7 +2444,7 @@ class IPCHandlers {
       return { granted };
     });
 
-    ipcMain.handle("check-microphone-access", () => {
+    handle("check-microphone-access", () => {
       if (process.platform !== "darwin") {
         return { granted: true, status: "granted" };
       }
@@ -2501,9 +2534,9 @@ class IPCHandlers {
       });
     };
 
-    ipcMain.handle("check-system-audio-access", () => getSystemAudioAccess());
+    handle("check-system-audio-access", () => getSystemAudioAccess());
 
-    ipcMain.handle("request-system-audio-access", async () => {
+    handle("request-system-audio-access", async () => {
       if (process.platform === "win32") {
         return buildSystemAudioAccess({
           granted: true,
@@ -2560,7 +2593,7 @@ class IPCHandlers {
       });
     });
 
-    ipcMain.handle("retry-transcription", async (event, id, settings) => {
+    handle("retry-transcription", async (event, id, settings) => {
       const buffer = this.audioStorageManager.getAudioBuffer(id);
       if (!buffer) return { success: false, error: "Audio file not found" };
       try {
@@ -3438,7 +3471,7 @@ class IPCHandlers {
       resetMeetingLocalState();
     };
 
-    ipcMain.handle("meeting-transcription-prepare", async (_event, options = {}) => {
+    handle("meeting-transcription-prepare", async (_event, options = {}) => {
       if (meetingTranscriptionStartInProgress) {
         debugLogger.debug("Meeting transcription prepare already in progress, ignoring");
         return { success: false, error: "Operation in progress" };
@@ -3451,7 +3484,7 @@ class IPCHandlers {
       return { success: true };
     });
 
-    ipcMain.handle("meeting-transcription-cancel", async () => {
+    handle("meeting-transcription-cancel", async () => {
       if (meetingLocalTimer) {
         return { success: false, reason: "recording-active" };
       }
@@ -3459,7 +3492,7 @@ class IPCHandlers {
       return { success: true };
     });
 
-    ipcMain.handle("meeting-transcription-start", async (event, options = {}) => {
+    handle("meeting-transcription-start", async (event, options = {}) => {
       if (meetingTranscriptionStartInProgress) {
         debugLogger.debug("Meeting transcription start already in progress, ignoring");
         return { success: false, error: "Operation in progress" };
@@ -3656,7 +3689,7 @@ class IPCHandlers {
       sendMeetingAudio(audioBuffer, source);
     });
 
-    ipcMain.handle("meeting-transcription-stop", async () => {
+    handle("meeting-transcription-stop", async () => {
       this.meetingDetectionEngine?.setUserRecording(false);
       try {
         if (this.audioTapManager) {
@@ -3742,13 +3775,13 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("dismiss-dictation-preview", async () => {
+    handle("dismiss-dictation-preview", async () => {
       resetDictationPreviewState();
       this.windowManager.hideTranscriptionPreview();
       return { success: true };
     });
 
-    ipcMain.handle("complete-dictation-preview", async (_event, { text } = {}) => {
+    handle("complete-dictation-preview", async (_event, { text } = {}) => {
       if (!dictationPreviewSessionActive) {
         return { success: true };
       }
@@ -3761,20 +3794,20 @@ class IPCHandlers {
       return { success: true };
     });
 
-    ipcMain.handle("hide-dictation-preview", async () => {
+    handle("hide-dictation-preview", async () => {
       resetDictationPreviewState();
       this.windowManager.hideTranscriptionPreview();
       return { success: true };
     });
 
-    ipcMain.handle("resize-transcription-preview-window", async (_event, width, height) => {
+    handle("resize-transcription-preview-window", async (_event, width, height) => {
       if (!dictationPreviewSessionActive) {
         return { success: false, error: "Preview session not active" };
       }
       return this.windowManager.resizeTranscriptionPreview(width, height);
     });
 
-    ipcMain.handle("stop-dictation-preview", async (_event, options = {}) => {
+    handle("stop-dictation-preview", async (_event, options = {}) => {
       if (!dictationPreviewMode && !dictationPreviewSessionActive) {
         return { success: true };
       }
@@ -3786,7 +3819,7 @@ class IPCHandlers {
       return { success: true };
     });
 
-    ipcMain.handle("update-transcription-text", async (_event, id, text, rawText) => {
+    handle("update-transcription-text", async (_event, id, text, rawText) => {
       try {
         this.databaseManager.updateTranscriptionText(id, text, rawText);
         const updated = this.databaseManager.getTranscriptionById(id);
@@ -3801,7 +3834,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("acquire-recording-lock", async (_event, pipeline) => {
+    handle("acquire-recording-lock", async (_event, pipeline) => {
       if (this._activeRecordingPipeline && this._activeRecordingPipeline !== pipeline) {
         return { success: false, holder: this._activeRecordingPipeline };
       }
@@ -3809,7 +3842,7 @@ class IPCHandlers {
       return { success: true };
     });
 
-    ipcMain.handle("release-recording-lock", async (_event, pipeline) => {
+    handle("release-recording-lock", async (_event, pipeline) => {
       if (this._activeRecordingPipeline === pipeline) {
         this._activeRecordingPipeline = null;
       }
@@ -3817,7 +3850,7 @@ class IPCHandlers {
     });
 
     // Google Calendar
-    ipcMain.handle("gcal-start-oauth", async () => {
+    handle("gcal-start-oauth", async () => {
       try {
         return await this.googleCalendarManager.startOAuth();
       } catch (error) {
@@ -3826,7 +3859,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("gcal-disconnect", async () => {
+    handle("gcal-disconnect", async () => {
       try {
         this.googleCalendarManager.disconnect();
         return { success: true };
@@ -3840,7 +3873,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("gcal-get-connection-status", async () => {
+    handle("gcal-get-connection-status", async () => {
       try {
         return this.googleCalendarManager.getConnectionStatus();
       } catch (error) {
@@ -3848,7 +3881,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("gcal-get-calendars", async () => {
+    handle("gcal-get-calendars", async () => {
       try {
         return { success: true, calendars: this.googleCalendarManager.getCalendars() };
       } catch (error) {
@@ -3856,7 +3889,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("gcal-set-calendar-selection", async (_event, calendarId, isSelected) => {
+    handle("gcal-set-calendar-selection", async (_event, calendarId, isSelected) => {
       try {
         await this.googleCalendarManager.setCalendarSelection(calendarId, isSelected);
         return { success: true };
@@ -3865,7 +3898,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("gcal-set-primary-only", async (_event, value) => {
+    handle("gcal-set-primary-only", async (_event, value) => {
       try {
         await this.googleCalendarManager.setPrimaryOnly(value);
         return { success: true };
@@ -3874,7 +3907,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("gcal-sync-events", async () => {
+    handle("gcal-sync-events", async () => {
       try {
         await this.googleCalendarManager.syncEvents();
         return { success: true };
@@ -3883,7 +3916,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("gcal-get-upcoming-events", async (_event, windowMinutes) => {
+    handle("gcal-get-upcoming-events", async (_event, windowMinutes) => {
       try {
         return {
           success: true,
@@ -3894,7 +3927,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("gcal-get-event", async (_event, eventId) => {
+    handle("gcal-get-event", async (_event, eventId) => {
       try {
         const event = this.databaseManager.getCalendarEventById(eventId);
         return { success: true, event };
@@ -3903,7 +3936,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("search-contacts", async (_event, query) => {
+    handle("search-contacts", async (_event, query) => {
       try {
         const contacts = this.databaseManager.searchContacts(query);
         return { success: true, contacts };
@@ -3912,7 +3945,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("upsert-contact", async (_event, contact) => {
+    handle("upsert-contact", async (_event, contact) => {
       try {
         this.databaseManager.upsertContacts([contact]);
         return { success: true };
@@ -3921,11 +3954,11 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("get-md5-hash", (_event, text) => {
+    handle("get-md5-hash", (_event, text) => {
       return crypto.createHash("md5").update(text.toLowerCase().trim()).digest("hex");
     });
 
-    ipcMain.handle("meeting-detection-get-preferences", async () => {
+    handle("meeting-detection-get-preferences", async () => {
       try {
         return { success: true, preferences: this.meetingDetectionEngine.getPreferences() };
       } catch (error) {
@@ -3933,7 +3966,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("meeting-detection-set-preferences", async (_event, prefs) => {
+    handle("meeting-detection-set-preferences", async (_event, prefs) => {
       try {
         this.meetingDetectionEngine.setPreferences(prefs);
         return { success: true };
@@ -3949,7 +3982,7 @@ class IPCHandlers {
       "notifyUpdates",
     ]);
 
-    ipcMain.handle("sync-notification-preferences", async (_event, prefs) => {
+    handle("sync-notification-preferences", async (_event, prefs) => {
       try {
         if (!prefs || typeof prefs !== "object") {
           return { success: false, error: "Invalid preferences" };
@@ -3963,7 +3996,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("meeting-set-speaker-diarization-enabled", async (_event, payload) => {
+    handle("meeting-set-speaker-diarization-enabled", async (_event, payload) => {
       try {
         this.speakerDiarizationEnabled = payload?.enabled !== false;
         return { success: true };
@@ -3972,7 +4005,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("speech-vad-get-config", async () => {
+    handle("speech-vad-get-config", async () => {
       try {
         return { success: true, config: this._getSpeechVadSettings() };
       } catch (error) {
@@ -3980,7 +4013,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("speech-vad-set-config", async (_event, payload) => {
+    handle("speech-vad-set-config", async (_event, payload) => {
       try {
         const config = this._setSpeechVadSettings(payload || {});
         return { success: true, config };
@@ -3989,7 +4022,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("meeting-set-session-speaker-config", async (_event, payload) => {
+    handle("meeting-set-session-speaker-config", async (_event, payload) => {
       try {
         const enabled = payload?.enabled !== false;
         const expectedCount = Math.max(
@@ -4008,7 +4041,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("meeting-notification-respond", async (_event, detectionId, action) => {
+    handle("meeting-notification-respond", async (_event, detectionId, action) => {
       try {
         await this.meetingDetectionEngine.handleNotificationResponse(detectionId, action);
         return { success: true };
@@ -4017,7 +4050,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("join-calendar-meeting", async (_event, eventId) => {
+    handle("join-calendar-meeting", async (_event, eventId) => {
       try {
         await this.meetingDetectionEngine.joinCalendarMeeting(eventId);
         return { success: true };
@@ -4026,23 +4059,23 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("get-meeting-notification-data", async () => {
+    handle("get-meeting-notification-data", async () => {
       return this.windowManager?._pendingNotificationData ?? null;
     });
 
-    ipcMain.handle("meeting-notification-ready", async () => {
+    handle("meeting-notification-ready", async () => {
       this.windowManager?.showNotificationWindow();
     });
 
-    ipcMain.handle("get-update-notification-data", async () => {
+    handle("get-update-notification-data", async () => {
       return this.windowManager?._pendingUpdateNotificationData ?? null;
     });
 
-    ipcMain.handle("update-notification-ready", async () => {
+    handle("update-notification-ready", async () => {
       this.windowManager?.showUpdateNotificationWindow();
     });
 
-    ipcMain.handle("update-notification-respond", async (_event, action) => {
+    handle("update-notification-respond", async (_event, action) => {
       this.windowManager?.dismissUpdateNotification();
       if (action === "update") {
         try {
@@ -4055,7 +4088,7 @@ class IPCHandlers {
     });
 
     // Note files (markdown mirror) handlers
-    ipcMain.handle("note-files-set-enabled", async (_event, enabled, customPath, options) => {
+    handle("note-files-set-enabled", async (_event, enabled, customPath, options) => {
       try {
         this._noteFilesEnabled = !!enabled;
         if (!enabled) return { success: true };
@@ -4076,7 +4109,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("note-files-set-path", async (_event, newPath) => {
+    handle("note-files-set-path", async (_event, newPath) => {
       try {
         if (!this._noteFilesEnabled) return { success: false, error: "Note files not enabled" };
         this._rebuildMirror(newPath);
@@ -4087,7 +4120,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("note-files-rebuild", async () => {
+    handle("note-files-rebuild", async () => {
       try {
         if (!this._noteFilesEnabled) return { success: false, error: "Note files not enabled" };
         this._rebuildMirror();
@@ -4098,11 +4131,11 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("note-files-get-default-path", async () => {
+    handle("note-files-get-default-path", async () => {
       return path.join(app.getPath("userData"), "notes");
     });
 
-    ipcMain.handle("show-note-file", async (_event, noteId) => {
+    handle("show-note-file", async (_event, noteId) => {
       try {
         const markdownMirror = require("./markdownMirror");
         const filePath = markdownMirror.getNotePath(noteId);
@@ -4119,7 +4152,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("show-folder-in-explorer", async (_event, folderName) => {
+    handle("show-folder-in-explorer", async (_event, folderName) => {
       try {
         const markdownMirror = require("./markdownMirror");
         const dirPath = markdownMirror.getFolderPath(folderName);
@@ -4136,7 +4169,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("note-files-pick-folder", async () => {
+    handle("note-files-pick-folder", async () => {
       try {
         const { dialog } = require("electron");
         const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
@@ -4150,11 +4183,11 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("get-speaker-mappings", async (_event, noteId) => {
+    handle("get-speaker-mappings", async (_event, noteId) => {
       return this.databaseManager.getSpeakerMappings(noteId);
     });
 
-    ipcMain.handle(
+    handle(
       "set-speaker-mapping",
       async (_event, noteId, speakerId, displayName, email, profileId) => {
         const embeddings = this.databaseManager.getNoteSpeakerEmbeddings(noteId);
@@ -4182,16 +4215,16 @@ class IPCHandlers {
       }
     );
 
-    ipcMain.handle("remove-speaker-mapping", async (_event, noteId, speakerId) => {
+    handle("remove-speaker-mapping", async (_event, noteId, speakerId) => {
       this.databaseManager.removeSpeakerMapping(noteId, speakerId);
       return { success: true };
     });
 
-    ipcMain.handle("get-speaker-profiles", async () => {
+    handle("get-speaker-profiles", async () => {
       return this.databaseManager.getSpeakerProfiles();
     });
 
-    ipcMain.handle("attach-speaker-email", async (_event, profileId, email) => {
+    handle("attach-speaker-email", async (_event, profileId, email) => {
       try {
         const profile = this.databaseManager.attachEmailToProfile(profileId, email);
         this._retroactiveMapping(profile);
@@ -4214,7 +4247,7 @@ class IPCHandlers {
       }
     });
 
-    ipcMain.handle("save-note-speaker-embeddings", async (_event, noteId, embeddingsObj) => {
+    handle("save-note-speaker-embeddings", async (_event, noteId, embeddingsObj) => {
       const buffers = {};
       for (const [speakerId, arr] of Object.entries(embeddingsObj)) {
         buffers[speakerId] = Buffer.from(new Float32Array(arr).buffer);

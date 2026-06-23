@@ -9,15 +9,15 @@ const DBUS_INTERFACE = "com.openwhispr.App";
 const SLOT_CONFIG = {
   dictation: {
     path: "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/openwhispr/",
-    name: "GigaType Toggle",
+    name: "Type Toggle",
   },
   agent: {
     path: "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/openwhispr-agent/",
-    name: "GigaType Agent",
+    name: "Type Agent",
   },
   meeting: {
     path: "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/openwhispr-meeting/",
-    name: "GigaType Meeting",
+    name: "Type Meeting",
   },
 };
 
@@ -153,7 +153,7 @@ class GnomeShortcutManager {
   }
 
   _createInterfaceClass(dbusModule) {
-    class GigaTypeInterface extends dbusModule.interface.Interface {
+    class TypeInterface extends dbusModule.interface.Interface {
       constructor(dictationCallback, agentCallback, meetingCallback) {
         super(DBUS_INTERFACE);
         this._dictationCallback = dictationCallback;
@@ -180,7 +180,7 @@ class GnomeShortcutManager {
       }
     }
 
-    GigaTypeInterface.configureMembers({
+    TypeInterface.configureMembers({
       methods: {
         Toggle: { inSignature: "", outSignature: "" },
         ToggleAgent: { inSignature: "", outSignature: "" },
@@ -188,7 +188,7 @@ class GnomeShortcutManager {
       },
     });
 
-    return GigaTypeInterface;
+    return TypeInterface;
   }
 
   static isValidShortcut(shortcut) {

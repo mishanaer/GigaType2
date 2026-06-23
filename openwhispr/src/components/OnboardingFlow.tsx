@@ -18,7 +18,7 @@ import GigaamModelPreparationStep from "./GigaamModelPreparationStep";
 import { areRequiredPermissionsMet } from "../utils/permissions";
 import {
   ONBOARDING_CURRENT_STEP_KEY,
-  markGigaTypeOnboardingCompleted,
+  markTypeOnboardingCompleted,
 } from "../utils/onboardingState";
 
 interface OnboardingFlowProps {
@@ -195,10 +195,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       return false;
     }
     setDictationKey(hotkey);
-    saveAgentName("GigaType");
+    saveAgentName("Type");
 
     localStorage.setItem("authenticationSkipped", "true");
-    markGigaTypeOnboardingCompleted();
+    markTypeOnboardingCompleted();
     localStorage.setItem("skipAuth", "true");
     localStorage.setItem("isSignedIn", "false");
 

@@ -1,11 +1,11 @@
 ---
 name: openwhispr-api
-description: Use this skill when building integrations with the GigaType REST API, calling GigaType endpoints, managing notes/folders/transcriptions programmatically, or connecting to the GigaType MCP server. Covers authentication, all V1 endpoints, pagination, rate limits, error handling, and the remote MCP server.
+description: Use this skill when building integrations with the Type REST API, calling Type endpoints, managing notes/folders/transcriptions programmatically, or connecting to the Type MCP server. Covers authentication, all V1 endpoints, pagination, rate limits, error handling, and the remote MCP server.
 ---
 
-# GigaType API v1
+# Type API v1
 
-Use this reference when making requests to the GigaType REST API. All endpoints are under the V1 path and require API key authentication.
+Use this reference when making requests to the Type REST API. All endpoints are under the V1 path and require API key authentication.
 
 ## Authentication
 
@@ -15,7 +15,7 @@ Pass the API key as a Bearer token in the `Authorization` header on every reques
 Authorization: Bearer owk_live_YOUR_KEY
 ```
 
-Generate keys from the GigaType desktop app under **Settings > API Keys**. Keys start with `owk_live_` and are shown once at creation.
+Generate keys from the Type desktop app under **Settings > API Keys**. Keys start with `owk_live_` and are shown once at creation.
 
 ### Scopes
 

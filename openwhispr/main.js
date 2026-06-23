@@ -46,7 +46,7 @@ try {
 
 const VALID_CHANNELS = new Set(["development", "staging", "production"]);
 const BASE_WINDOWS_APP_ID = "com.gizmolabs.openwhispr";
-const PRODUCT_NAME = "GigaType";
+const PRODUCT_NAME = "Type";
 
 function isElectronBinaryExec() {
   const execPath = (process.execPath || "").toLowerCase();
@@ -324,7 +324,7 @@ function logStartupState() {
   }
 
   debugLogger.info(
-    "GigaType startup state",
+    "Type startup state",
     {
       appChannel: APP_CHANNEL,
       nodeEnv: process.env.NODE_ENV || null,

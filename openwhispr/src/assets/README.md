@@ -1,6 +1,6 @@
 # Assets Directory
 
-This directory contains app icons and other assets for GigaType.
+This directory contains app icons and other assets for Type.
 
 ## Required Icons
 

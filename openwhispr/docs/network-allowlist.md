@@ -1,13 +1,13 @@
 # Network Allowlist
 
-Outbound hosts the GigaType desktop app contacts. For firewall, proxy, and
+Outbound hosts the Type desktop app contacts. For firewall, proxy, and
 DNS filter configuration.
 
 All connections are client-initiated over TLS. No inbound ports.
 
 ## Required by default
 
-Contacted by every install using GigaType Cloud (the default after
+Contacted by every install using Type Cloud (the default after
 onboarding).
 
 | Host | Protocol | Port | Purpose |
@@ -68,7 +68,7 @@ Run from a machine on the same network as the user. A successful response
 (any HTTP status, including `401`) confirms the network path works.
 
 ```sh
-# GigaType Cloud reachability
+# Type Cloud reachability
 curl -v https://api.openwhispr.com/api/health
 
 # Model downloads (only when local models are in use)

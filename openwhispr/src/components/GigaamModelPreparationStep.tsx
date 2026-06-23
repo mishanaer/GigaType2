@@ -145,9 +145,7 @@ function AppshotsGigaamModelPanel({
   const actionLabel = isReady ? readyActionLabel : "Повторить";
   const showAction = (isReady && showReadyAction && onReadyAction) || isError;
   const showReadyButton = isReady && showReadyAction && Boolean(onReadyAction);
-  const detailsText = isError
-    ? "Ошибка"
-    : "Модель для распознавания речи";
+  const detailsText = isError ? "Ошибка" : "Модель для распознавания речи";
   const handleAction = () => {
     if (!showAction) return;
     if (isReady) {

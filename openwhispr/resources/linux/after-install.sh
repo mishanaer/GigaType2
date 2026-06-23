@@ -1,5 +1,5 @@
 #!/bin/bash
-# Post-install script for GigaType (deb/rpm)
+# Post-install script for Type (deb/rpm)
 # Sets up chrome-sandbox permissions and ydotool daemon prerequisites
 
 set -euo pipefail
@@ -9,7 +9,7 @@ set -euo pipefail
 CHROME_SANDBOX=$(dpkg -L open-whispr 2>/dev/null | grep chrome-sandbox || echo "")
 if [ -z "$CHROME_SANDBOX" ]; then
   # Fallback: conventional electron-builder install path
-  CHROME_SANDBOX="/opt/GigaType/chrome-sandbox"
+  CHROME_SANDBOX="/opt/Type/chrome-sandbox"
 fi
 if [ -f "$CHROME_SANDBOX" ]; then
   chown root:root "$CHROME_SANDBOX"

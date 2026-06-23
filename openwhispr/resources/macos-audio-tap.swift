@@ -100,7 +100,7 @@ final class AudioTapCapture {
 
     private func createAggregateDevice(tapUID: String) throws {
         let description: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "GigaType Audio Tap",
+            kAudioAggregateDeviceNameKey: "Type Audio Tap",
             kAudioAggregateDeviceUIDKey: "com.openwhispr.audio-tap.\(UUID().uuidString)",
             kAudioAggregateDeviceSubDeviceListKey: [],
             kAudioAggregateDeviceTapListKey: [[kAudioSubTapUIDKey: tapUID]],
@@ -367,7 +367,7 @@ func makeError(
         userInfo["AudioTapStatus"] = Int(status)
         userInfo["NSLocalizedFailureReasonErrorKey"] = "\(message): \(Int(status))"
     }
-    return NSError(domain: "GigaTypeAudioTap", code: Int(status ?? -1), userInfo: userInfo)
+    return NSError(domain: "TypeAudioTap", code: Int(status ?? -1), userInfo: userInfo)
 }
 
 func inferErrorCode(status: OSStatus?, operation: String) -> String {

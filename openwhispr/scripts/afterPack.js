@@ -245,7 +245,7 @@ function wrapLinuxBinary(context) {
   fs.renameSync(binaryPath, realBinaryPath);
 
   const wrapper = `#!/bin/bash
-# GigaType launcher
+# Type launcher
 # User flags: ~/.config/${binaryName}-flags.conf (one per line, # = comment)
 
 HERE="$(dirname "$(readlink -f "\${BASH_SOURCE[0]}")")"

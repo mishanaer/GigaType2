@@ -106,7 +106,7 @@ class MenuManager {
               label: i18nMain.t("menu.learnMore"),
               click: async () => {
                 const { shell } = require("electron");
-                await shell.openExternal("https://github.com/GigaType/openwhispr");
+                await shell.openExternal("https://github.com/Type/openwhispr");
               },
             },
           ],

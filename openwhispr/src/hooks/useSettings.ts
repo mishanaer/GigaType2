@@ -38,7 +38,6 @@ export interface MicrophoneSettings {
 }
 
 export interface PrivacySettings {
-  cloudBackupEnabled: boolean;
   telemetryEnabled: boolean;
   audioRetentionDays: number;
   dataRetentionEnabled: boolean;
@@ -171,8 +170,6 @@ function useSettingsInternal() {
     setSpeechVadSpeechPadMs: store.setSpeechVadSpeechPadMs,
     speechVadSamplesOverlap: store.speechVadSamplesOverlap,
     setSpeechVadSamplesOverlap: store.setSpeechVadSamplesOverlap,
-    cloudBackupEnabled: store.cloudBackupEnabled,
-    setCloudBackupEnabled: store.setCloudBackupEnabled,
     telemetryEnabled: store.telemetryEnabled,
     setTelemetryEnabled: store.setTelemetryEnabled,
     audioRetentionDays: store.audioRetentionDays,

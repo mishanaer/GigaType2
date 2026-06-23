@@ -13,31 +13,6 @@ const noop = () => undefined;
 const noopAsync = async () => undefined;
 const totalBytes = 892_000_000;
 
-const appshotsThemeVars = {
-  "--side-padding": "16px",
-  "--cell-separator-height": "0.33px",
-  "--image-cell-offset": "0",
-  "--tg-theme-bg-color": "#ffffff",
-  "--tg-theme-text-color": "#000000",
-  "--tg-theme-secondary-bg-color": "transparent",
-  "--tg-theme-button-color": "#007aff",
-  "--tg-theme-button-text-color": "#ffffff",
-  "--tg-theme-subtitle-text-color": "#8e8e93",
-  "--tg-theme-destructive-text-color": "#ff3b30",
-  "--tg-theme-section-bg-color": "#ffffff",
-  "--tg-theme-accent-text-color": "#007aff",
-  "--tg-theme-section-header-text-color": "#6d6d72",
-  "--tg-theme-section-separator-color": "#c8c7cc",
-  "--tg-theme-bottom-bar-bg-color": "#f2f2f2",
-  "--tg-theme-hint-color": "#8e8e93",
-  "--secondary-button-color": "rgb(0 122 255 / 0.1)",
-  "--text-confirm-color": "#34c759",
-  "--tertiary-fill-background": "rgb(116 116 128 / 0.12)",
-  "--quaternary-fill-background": "rgb(116 116 128 / 0.08)",
-  "--separator-non-opaque": "rgb(60 60 67 / 0.36)",
-  "--border-color": "rgb(142 142 147 / 0.5)",
-} as React.CSSProperties;
-
 const permissionSets = {
   fresh: createPermissions(false, false),
   partial: createPermissions(true, false),
@@ -168,12 +143,7 @@ function AnimatedDownloadPreview() {
     };
   }, []);
 
-  return (
-    <GigaamModelPreparationStep
-      status={createDownloadStatus(progress)}
-      restart={noop}
-    />
-  );
+  return <GigaamModelPreparationStep status={createDownloadStatus(progress)} restart={noop} />;
 }
 
 function WindowFrame({
@@ -200,10 +170,7 @@ function WindowFrame({
           <span className="h-3 w-3 rounded-full bg-[#28c840]" />
         </div>
       </div>
-      <div
-        className="mx-auto w-[500px] overflow-hidden rounded-[26px] bg-[rgb(204_208_218/0.9)] text-black"
-        style={appshotsThemeVars}
-      >
+      <div className="appshots-showcase-surface mx-auto w-[500px] overflow-hidden rounded-[26px] bg-[rgb(204_208_218/0.9)] text-[var(--tg-theme-text-color)] dark:bg-[rgb(28_28_29/0.92)]">
         {children}
       </div>
     </article>
@@ -233,7 +200,7 @@ function SettingsPreview() {
             isBuiltIn: true,
           },
         ]}
-        logPathOverride="/Users/misha/Library/Application Support/GigaType-development/logs/debug.log"
+        logPathOverride="/Users/misha/Library/Application Support/Type-development/logs/debug.log"
       />
     </div>
   );
@@ -246,9 +213,7 @@ export default function AppShowcase() {
     <div className="min-h-screen bg-[#e9ebf2] px-6 py-10 text-slate-950">
       <header className="mx-auto mb-10 flex max-w-[1120px] items-end justify-between gap-6">
         <div>
-          <p className="font-mono text-[12px] uppercase tracking-[0.2em] text-slate-500">
-            GigaType UI
-          </p>
+          <p className="font-mono text-[12px] uppercase tracking-[0.2em] text-slate-500">Type UI</p>
           <h1 className="mt-2 text-[40px] font-semibold leading-none tracking-[-0.02em]">
             App Screens
           </h1>

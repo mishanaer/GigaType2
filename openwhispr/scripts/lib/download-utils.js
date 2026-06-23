@@ -22,7 +22,7 @@ function fetchJson(url, redirectCount = 0) {
     }
 
     const headers = {
-      "User-Agent": "GigaType-Downloader",
+      "User-Agent": "Type-Downloader",
       Accept: "application/vnd.github+json",
     };
 

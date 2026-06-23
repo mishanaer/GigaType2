@@ -9,7 +9,7 @@ let
   version = "1.7.2";
 
   src = fetchurl {
-    url = "https://github.com/GigaType/openwhispr/releases/download/v${version}/GigaType-${version}-linux-x86_64.AppImage";
+    url = "https://github.com/Type/openwhispr/releases/download/v${version}/Type-${version}-linux-x86_64.AppImage";
     hash = "sha256-EPJTZFtd2bQ026KNcI/FOHfoAMu96HKfJxTPceTc5jw=";
   };
 
@@ -51,7 +51,7 @@ appimageTools.wrapType2 {
   meta = {
     description = "Privacy-first desktop voice dictation, meeting transcription & notes";
     homepage = "https://openwhispr.com/";
-    changelog = "https://github.com/GigaType/openwhispr/releases/tag/v${version}";
+    changelog = "https://github.com/Type/openwhispr/releases/tag/v${version}";
     license = lib.licenses.mit;
     sourceProvenance = with lib.sourceTypes; [ binaryNativeCode ];
     platforms = [ "x86_64-linux" ];
