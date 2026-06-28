@@ -83,7 +83,7 @@ export default function GigaamModelPreparationStep({
     description = downloadingDescription;
   } else if (!status.available) {
     title = "GigaAM недоступна";
-    description = "Локальная модель доступна только в macOS сборке для Apple Silicon";
+    description = "Локальная модель доступна только в macOS сборке";
   } else if (isError) {
     title = "Не удалось подготовить модель";
     description = status.healthDetail || "Проверьте подключение к интернету и попробуйте ещё раз";

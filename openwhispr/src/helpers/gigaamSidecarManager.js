@@ -26,7 +26,10 @@ const MODEL_REQUIRED_FILES = [
   "v3_e2e_rnnt_joint.onnx",
   "v3_e2e_rnnt_vocab.txt",
 ];
-const BINARY_NAME = "gigatype-sidecar-darwin-arm64";
+const BINARY_NAMES = {
+  arm64: "gigatype-sidecar-darwin-arm64",
+  x64: "gigatype-sidecar-darwin-x64",
+};
 const STARTUP_TIMEOUT_MS = 30000;
 const STARTUP_POLL_INTERVAL_MS = 100;
 const HEALTH_CHECK_INTERVAL_MS = 5000;
@@ -52,16 +55,44 @@ class GigaamSidecarManager extends EventEmitter {
   }
 
   getBinaryPath() {
-    if (process.platform !== "darwin" || process.arch !== "arm64") return null;
-    return resolveBinaryPath(BINARY_NAME);
+    if (process.platform !== "darwin") return null;
+    const binaryName = BINARY_NAMES[process.arch];
+    if (!binaryName) return null;
+    return resolveBinaryPath(binaryName);
   }
 
   getFfmpegPath() {
-    return resolveBinaryPath("ffmpeg");
+    const fromBin = resolveBinaryPath("ffmpeg");
+    if (fromBin) return fromBin;
+    if (process.resourcesPath) {
+      const unpacked = path.join(
+        process.resourcesPath,
+        "app.asar.unpacked",
+        "node_modules",
+        "ffmpeg-static",
+        "ffmpeg"
+      );
+      if (fs.existsSync(unpacked)) return unpacked;
+    }
+    return null;
   }
 
   getFfprobePath() {
-    return resolveBinaryPath("ffprobe");
+    const fromBin = resolveBinaryPath("ffprobe");
+    if (fromBin) return fromBin;
+    if (process.resourcesPath) {
+      const platform = `${process.platform}-${process.arch}`;
+      const unpacked = path.join(
+        process.resourcesPath,
+        "app.asar.unpacked",
+        "node_modules",
+        `@ffprobe-installer`,
+        platform,
+        "ffprobe"
+      );
+      if (fs.existsSync(unpacked)) return unpacked;
+    }
+    return null;
   }
 
   getHfHome() {
