@@ -85,8 +85,8 @@ export default function GigaamModelPreparationStep({
     title = "GigaAM недоступна";
     description = "Локальная модель доступна только в macOS сборке для Apple Silicon";
   } else if (isError) {
-    title = "Не удалось подготовить модель";
-    description = status.healthDetail || "Проверьте подключение к интернету и попробуйте ещё раз";
+    title = "Модель не скачалась";
+    description = "Попробуйте выключить VPN или сменить Wi-Fi";
   } else if (isReady) {
     title = "Модель готова";
     description = "GigaAM загружена и готова к диктовке";
@@ -201,6 +201,7 @@ function AppshotsGigaamModelPanel({
           ) : (
             <m.div
               key="model-card"
+              className="appshots-gigaam-model-card"
               initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
               exit={{ opacity: 0, y: -12, filter: "blur(4px)" }}
