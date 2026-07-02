@@ -72,6 +72,9 @@
     "!**/node_modules/react-markdown/**",
     "!**/node_modules/shadcn-ui/**",
 
+    "!**/node_modules/@ffprobe-installer/**",
+    "!**/node_modules/onnxruntime-node/**",
+    "!**/node_modules/@qdrant/**",
     "!**/node_modules/@types/**",
     "!**/node_modules/concurrently/**",
     "!**/node_modules/cross-env/**",
@@ -87,7 +90,6 @@
   "asarUnpack": [
     "**/node_modules/ffmpeg-static/**/*",
     "**/node_modules/better-sqlite3/**/*",
-    "**/node_modules/onnxruntime-node/**/*",
     "**/node_modules/@napi-rs/keyring/**/*"
   ],
   "extraResources": [
@@ -101,7 +103,6 @@
         "ffprobe*",
         "llama-server-*",
         "sherpa-onnx-diarize-*",
-        "qdrant-*",
         "macos-audio-tap",
         "macos-globe-listener",
         "macos-fast-paste",

@@ -240,7 +240,6 @@ class GigaamSidecarManager extends EventEmitter {
     const ffmpegPath = this.getFfmpegPath();
     const ffprobePath = this.getFfprobePath();
     if (!ffmpegPath) throw new Error("Bundled ffmpeg not found");
-    if (!ffprobePath) throw new Error("Bundled ffprobe not found");
 
     this.port = await findAvailablePort(PORT_RANGE_START, PORT_RANGE_END);
     this.healthStatus = "starting";
@@ -263,7 +262,7 @@ class GigaamSidecarManager extends EventEmitter {
       GIGAAM_MODEL: MODEL_NAME,
       GIGATYPE_LOG_LEVEL: process.env.GIGATYPE_LOG_LEVEL || "debug",
       FFMPEG_BIN: ffmpegPath,
-      FFPROBE_BIN: ffprobePath,
+      ...(ffprobePath ? { FFPROBE_BIN: ffprobePath } : {}),
       HF_HOME: hfHome,
     };
 

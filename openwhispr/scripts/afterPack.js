@@ -231,6 +231,77 @@ function stripOnnxruntimeBinaries(context) {
 }
 
 // ---------------------------------------------------------------------------
+// Resource bin stripping
+// ---------------------------------------------------------------------------
+
+function stripResourceBinaries(context) {
+  const platform = context.electronPlatformName; // darwin | linux | win32
+  const archName = Arch[context.arch]; // x64 | arm64 | ia32 | universal
+
+  const resourcesDir = resolveResourcesDir(context);
+  const binDir = path.join(resourcesDir, "bin");
+
+  if (!fs.existsSync(binDir)) return;
+
+  const keepArchs = archName === "universal" ? ["arm64", "x64"] : [archName];
+  let totalRemoved = 0;
+
+  for (const entry of fs.readdirSync(binDir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    const name = entry.name;
+    const fullPath = path.join(binDir, name);
+
+    // OS-prefixed binaries: windows-*, linux-*, macos-*
+    if (name.startsWith("windows-") && platform !== "win32") {
+      fs.rmSync(fullPath, { force: true });
+      totalRemoved++;
+      continue;
+    }
+    if (name.startsWith("linux-") && platform !== "linux") {
+      fs.rmSync(fullPath, { force: true });
+      totalRemoved++;
+      continue;
+    }
+    if (name.startsWith("macos-") && platform !== "darwin") {
+      fs.rmSync(fullPath, { force: true });
+      totalRemoved++;
+      continue;
+    }
+
+    // Platform+arch suffix: {name}-{platform}-{arch}
+    // e.g. gigatype-sidecar-darwin-arm64, qdrant-linux-x64, llama-server-win32-x64
+    const platformArchMatch = name.match(/^(.+)-(darwin|linux|win32)-(x64|arm64|ia32)(.*)$/);
+    if (platformArchMatch) {
+      const filePlatform = platformArchMatch[2];
+      const fileArch = platformArchMatch[3];
+      if (filePlatform !== platform || !keepArchs.includes(fileArch)) {
+        fs.rmSync(fullPath, { force: true });
+        totalRemoved++;
+      }
+      continue;
+    }
+
+    // Platform-only suffix: {name}-{platform}
+    // e.g. sherpa-onnx-diarize-darwin
+    const platformMatch = name.match(/^(.+)-(darwin|linux|win32)(.*)$/);
+    if (platformMatch) {
+      const filePlatform = platformMatch[2];
+      if (filePlatform !== platform) {
+        fs.rmSync(fullPath, { force: true });
+        totalRemoved++;
+      }
+      continue;
+    }
+  }
+
+  if (totalRemoved > 0) {
+    console.log(
+      `  afterPack: stripped ${totalRemoved} non-target resource binaries from bin/ (keeping ${platform}/${keepArchs.join(",")})`
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Linux XWayland wrapper
 // ---------------------------------------------------------------------------
 
@@ -277,6 +348,7 @@ exec -a "$0" "$HERE/${binaryName}-app" "\${FLAGS[@]}" "$@"
 
 exports.default = async function (context) {
   stripOnnxruntimeBinaries(context);
+  stripResourceBinaries(context);
   clearMacExtendedAttributes(context);
   wrapLinuxBinary(context);
   registerMacResourceBinariesForSigning(context);
