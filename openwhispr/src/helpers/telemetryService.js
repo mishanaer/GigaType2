@@ -5,8 +5,6 @@ const path = require("path");
 const { app, safeStorage } = require("electron");
 const debugLogger = require("./debugLogger");
 
-const SERVICE = "Type";
-const ANONYMOUS_ID_ACCOUNT = "telemetry-anonymous-user-id";
 const DEFAULT_POSTHOG_HOST = "https://eu.i.posthog.com";
 const FLUSH_INTERVAL_MS = 30 * 1000;
 const FLUSH_BATCH_SIZE = 20;
@@ -369,52 +367,12 @@ class TelemetryService {
   }
 
   _ensureAnonymousUserId() {
-    const keyringId = this._readAnonymousIdFromKeyring();
-    if (keyringId) return keyringId;
-
     const fallbackId = this._readAnonymousIdFromFallback();
-    if (fallbackId) {
-      this._writeAnonymousIdToKeyring(fallbackId);
-      return fallbackId;
-    }
+    if (fallbackId) return fallbackId;
 
     const next = crypto.randomUUID();
-    if (!this._writeAnonymousIdToKeyring(next)) {
-      this._writeAnonymousIdToFallback(next);
-    }
+    this._writeAnonymousIdToFallback(next);
     return next;
-  }
-
-  _readAnonymousIdFromKeyring() {
-    try {
-      const { Entry } = require("@napi-rs/keyring");
-      const entry = new Entry(SERVICE, ANONYMOUS_ID_ACCOUNT);
-      const value = entry.getPassword();
-      return this._isUuid(value) ? value : null;
-    } catch (error) {
-      debugLogger.debug(
-        "Telemetry keyring read unavailable",
-        { error: error?.message, platform: process.platform },
-        "telemetry"
-      );
-      return null;
-    }
-  }
-
-  _writeAnonymousIdToKeyring(value) {
-    try {
-      const { Entry } = require("@napi-rs/keyring");
-      const entry = new Entry(SERVICE, ANONYMOUS_ID_ACCOUNT);
-      entry.setPassword(value);
-      return true;
-    } catch (error) {
-      debugLogger.warn(
-        "Telemetry keyring write unavailable",
-        { error: error?.message, platform: process.platform },
-        "telemetry"
-      );
-      return false;
-    }
   }
 
   _readAnonymousIdFromFallback() {

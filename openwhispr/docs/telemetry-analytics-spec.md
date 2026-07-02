@@ -109,15 +109,13 @@ MVP можно внедрять на macOS, но схема событий до�
 
 Стабильный anonymous UUID пользователя.
 
-- хранить в OS credential store через кроссплатформенный keyring:
-  - macOS Keychain
-  - Windows Credential Manager
-  - Linux Secret Service / KWallet
+- для MVP не хранить analytics id в OS credential store / Keychain, чтобы не показывать системные prompts и не блокировать первый запуск
+- хранить в encrypted local file через Electron `safeStorage`
 - генерировать один раз
-- сохранять между обновлениями
-- после удаления и переустановки желательно сохранять тот же user, если OS credential store не очищен
-- если OS credential store недоступен, использовать encrypted local fallback через Electron `safeStorage`
+- сохранять между обновлениями и обычными перезапусками
+- после полного удаления app data пользователь может стать новым пользователем в аналитике; для MVP это приемлемо
 - если encrypted fallback недоступен, хранить plain UUID в local config как последний fallback
+- Keychain можно рассмотреть позже только асинхронно после старта приложения и с timeout, если retention между reinstall станет критичным
 
 ### install_id
 
