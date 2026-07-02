@@ -5,6 +5,12 @@ import logger from "../utils/logger";
 import { playStartCue, playStopCue } from "../utils/dictationCues";
 import { getSettings } from "../stores/settingsStore";
 import { getRecordingErrorTitle, getRecordingErrorDescription } from "../utils/recordingErrors";
+import {
+  getOutputMethod,
+  getOutputStatus,
+  textMetrics,
+  trackTelemetryEvent,
+} from "../utils/telemetry";
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const RMS_NOISE_FLOOR = 0.009;
@@ -13,6 +19,7 @@ const PEAK_NOISE_FLOOR = 0.024;
 const PEAK_ACTIVE_RANGE = 0.07;
 const AUDIO_LEVEL_ATTACK_SMOOTHING = 0.2;
 const AUDIO_LEVEL_RELEASE_SMOOTHING = 0.2;
+const MIN_TELEMETRY_SUCCESS_AUDIO_MS = 1000;
 
 const normalizeAudioLevel = ({ rms = 0, peak = 0 } = {}) => {
   const rmsLevel = clamp01((rms - RMS_NOISE_FLOOR) / RMS_ACTIVE_RANGE);
@@ -33,13 +40,17 @@ export const useAudioRecording = (toast, options = {}) => {
   const stopLockRef = useRef(false);
   const pendingStopRef = useRef(false);
   const audioLevelLogRef = useRef(0);
+  const dictationSessionRef = useRef(null);
   const { onToggle } = options;
-  const notify = useCallback((props) => {
-    if (typeof toast === "function") {
-      return toast(props);
-    }
-    return "";
-  }, [toast]);
+  const notify = useCallback(
+    (props) => {
+      if (typeof toast === "function") {
+        return toast(props);
+      }
+      return "";
+    },
+    [toast]
+  );
 
   const stopActiveRecording = useCallback(async () => {
     if (!audioManagerRef.current) return false;
@@ -81,6 +92,18 @@ export const useAudioRecording = (toast, options = {}) => {
           });
 
       if (didStart) {
+        const sessionId = crypto.randomUUID();
+        dictationSessionRef.current = {
+          sessionId,
+          startedAt: performance.now(),
+        };
+        void trackTelemetryEvent("dictation_started", { session_id: sessionId });
+        void trackTelemetryEvent(
+          "first_dictation_started",
+          { session_id: sessionId },
+          { onceKey: "first_dictation_started_sent" }
+        );
+
         if (getSettings().pauseMediaOnDictation) {
           window.electronAPI?.pauseMediaPlayback?.();
         }
@@ -154,11 +177,19 @@ export const useAudioRecording = (toast, options = {}) => {
         });
       },
       onError: (error) => {
+        const sessionId = dictationSessionRef.current?.sessionId || null;
+        const title = getRecordingErrorTitle(error, t);
+        const description = getRecordingErrorDescription(error, t);
+        const errorArea = error?.title === "Paste Error" ? "paste" : "microphone";
+        void trackTelemetryEvent("error_occurred", {
+          session_id: sessionId,
+          error_area: errorArea,
+          error_code: error?.code || error?.title || "RECORDING_ERROR",
+          safe_message: title,
+        });
         if (error?.title !== "Paste Error") {
           window.electronAPI?.hideDictationPreview?.();
         }
-        const title = getRecordingErrorTitle(error, t);
-        const description = getRecordingErrorDescription(error, t);
         notify({
           title,
           description,
@@ -177,11 +208,40 @@ export const useAudioRecording = (toast, options = {}) => {
           window.electronAPI?.resumeMediaPlayback?.();
         }
 
+        const session = dictationSessionRef.current || {
+          sessionId: crypto.randomUUID(),
+          startedAt: performance.now(),
+        };
+        dictationSessionRef.current = session;
+        const sessionId = session.sessionId;
+        const audioDurationMs = Number.isFinite(result.audioDurationMs)
+          ? result.audioDurationMs
+          : null;
+        const eligibleForSuccess =
+          audioDurationMs === null || audioDurationMs >= MIN_TELEMETRY_SUCCESS_AUDIO_MS;
+
+        if (audioDurationMs !== null) {
+          void trackTelemetryEvent("dictation_audio_captured", {
+            session_id: sessionId,
+            audio_duration_ms: audioDurationMs,
+          });
+        }
+
         if (result.success) {
           const transcribedText = result.text?.trim();
 
           if (!transcribedText) {
             window.electronAPI?.hideDictationPreview?.();
+            if (!result.silent && eligibleForSuccess) {
+              void trackTelemetryEvent("dictation_failed", {
+                session_id: sessionId,
+                audio_duration_ms: audioDurationMs,
+                error_area: "transcription",
+                error_code: result.reason || "NO_TRANSCRIBED_TEXT",
+                safe_message: "No transcribed text",
+              });
+            }
+            dictationSessionRef.current = null;
             if (result.silent) {
               return;
             }
@@ -196,22 +256,71 @@ export const useAudioRecording = (toast, options = {}) => {
           setTranscript(result.text);
           window.electronAPI?.completeDictationPreview?.({ text: result.text });
 
+          const rawMetrics = textMetrics(result.rawText ?? result.text);
+          const finalMetrics = textMetrics(result.text);
+          const transcriptionProperties = {
+            session_id: sessionId,
+            provider: result.source || "gigaam_local",
+            model: "gigaam-v3-e2e-rnnt",
+            audio_duration_ms: audioDurationMs,
+            raw_transcript_chars: rawMetrics.chars,
+            raw_transcript_words: rawMetrics.words,
+            final_output_chars: finalMetrics.chars,
+            final_output_words: finalMetrics.words,
+            transcription_latency_ms: result.timings?.transcriptionProcessingDurationMs ?? null,
+            total_latency_ms: result.timings?.totalLatencyMs ?? null,
+          };
+
+          if (eligibleForSuccess) {
+            void trackTelemetryEvent("dictation_transcribed", transcriptionProperties);
+            void trackTelemetryEvent("first_dictation_transcribed", transcriptionProperties, {
+              onceKey: "first_dictation_transcribed_sent",
+            });
+          }
+
           const isStreaming = result.source?.includes("streaming");
           const pasteStart = performance.now();
-          await audioManagerRef.current.safePaste(result.text, {
+          const pasteResult = await audioManagerRef.current.safePaste(result.text, {
             ...(isStreaming ? { fromStreaming: true } : {}),
             restoreClipboard: true,
             allowClipboardFallback: true,
           });
+          const outputLatencyMs = Math.round(performance.now() - pasteStart);
+          const outputStatus = getOutputStatus(pasteResult);
+          const outputMethod = getOutputMethod(outputStatus);
+          const totalLatencyMs = Math.round(performance.now() - session.startedAt);
           logger.info(
             "Paste timing",
             {
-              pasteMs: Math.round(performance.now() - pasteStart),
+              pasteMs: outputLatencyMs,
               source: result.source,
               textLength: result.text.length,
             },
             "streaming"
           );
+
+          const outputProperties = {
+            ...transcriptionProperties,
+            output_method: outputMethod,
+            output_status: outputStatus,
+            output_latency_ms: outputLatencyMs,
+            total_latency_ms: totalLatencyMs,
+            success: eligibleForSuccess && outputStatus !== "failed",
+          };
+
+          if (eligibleForSuccess && outputStatus !== "failed") {
+            void trackTelemetryEvent("dictation_output_succeeded", outputProperties);
+            void trackTelemetryEvent("first_dictation_output_succeeded", outputProperties, {
+              onceKey: "first_dictation_output_succeeded_sent",
+            });
+          } else if (eligibleForSuccess) {
+            void trackTelemetryEvent("dictation_failed", {
+              ...outputProperties,
+              error_area: "paste",
+              error_code: "OUTPUT_FAILED",
+              safe_message: "Dictation output failed",
+            });
+          }
 
           audioManagerRef.current.saveTranscription(result.text, result.rawText ?? result.text, {
             clientTranscriptionId: result.clientTranscriptionId,
@@ -220,6 +329,19 @@ export const useAudioRecording = (toast, options = {}) => {
           if (audioManagerRef.current.shouldUseStreaming()) {
             audioManagerRef.current.warmupStreamingConnection();
           }
+
+          dictationSessionRef.current = null;
+        } else {
+          if (eligibleForSuccess) {
+            void trackTelemetryEvent("dictation_failed", {
+              session_id: sessionId,
+              audio_duration_ms: audioDurationMs,
+              error_area: "transcription",
+              error_code: result.reason || "TRANSCRIPTION_FAILED",
+              safe_message: "Transcription failed",
+            });
+          }
+          dictationSessionRef.current = null;
         }
       },
     });
@@ -295,6 +417,14 @@ export const useAudioRecording = (toast, options = {}) => {
       if (getSettings().pauseMediaOnDictation) {
         window.electronAPI?.resumeMediaPlayback?.();
       }
+      const sessionId = dictationSessionRef.current?.sessionId || null;
+      void trackTelemetryEvent("dictation_failed", {
+        session_id: sessionId,
+        error_area: "transcription",
+        error_code: "DICTATION_CANCELLED",
+        safe_message: "Dictation cancelled",
+      });
+      dictationSessionRef.current = null;
       if (state.isStreaming) {
         return await audioManagerRef.current.stopStreamingRecording();
       }

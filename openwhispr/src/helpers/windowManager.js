@@ -43,11 +43,16 @@ class WindowManager {
     this._cachedActivationMode = "push";
     this._isDictatingToggle = false;
     this._pendingMeetingNoteNavigation = null;
+    this.telemetryManager = null;
 
     app.on("before-quit", () => {
       this.isQuitting = true;
       this.hotkeyManager.unregisterAll();
     });
+  }
+
+  setTelemetryManager(telemetryManager) {
+    this.telemetryManager = telemetryManager;
   }
 
   async createMainWindow() {
@@ -700,6 +705,11 @@ class WindowManager {
           { reason: details.reason, exitCode: details.exitCode },
           "window"
         );
+        this.telemetryManager?.capture?.("renderer_process_gone", {
+          error_area: "app_start",
+          reason: details.reason,
+          exit_code: details.exitCode,
+        });
         setTimeout(() => this.loadControlPanel(), 1000);
       }
     });
@@ -928,6 +938,16 @@ class WindowManager {
     this.mainWindow.on("closed", () => {
       this.dragManager.cleanup();
       this.mainWindow = null;
+    });
+
+    this.mainWindow.webContents.on("render-process-gone", (_event, details) => {
+      if (details.reason === "crashed" || details.reason === "killed" || details.reason === "oom") {
+        this.telemetryManager?.capture?.("renderer_process_gone", {
+          error_area: "app_start",
+          reason: details.reason,
+          exit_code: details.exitCode,
+        });
+      }
     });
   }
 

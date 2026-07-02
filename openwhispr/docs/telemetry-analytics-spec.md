@@ -32,6 +32,17 @@ npx -y @posthog/wizard@latest --region eu
 
 PostHog Cloud EU подходит для MVP. Если понадобится хранить данные строго в РФ, нужен self-host на нашем сервере.
 
+Runtime env/config:
+
+```bash
+GIGATYPE_POSTHOG_API_KEY=...
+GIGATYPE_POSTHOG_HOST=https://eu.i.posthog.com
+GIGATYPE_TELEMETRY_ENABLED=true
+```
+
+В production telemetry включена по умолчанию, если задан `GIGATYPE_POSTHOG_API_KEY`.
+В development telemetry выключена по умолчанию и включается только через `GIGATYPE_TELEMETRY_ENABLED=true`.
+
 ## Платформы
 
 MVP можно внедрять на macOS, но схема событий должна сразу поддерживать будущие Windows и Linux сборки.
@@ -56,7 +67,7 @@ MVP можно внедрять на macOS, но схема событий до�
 {
   linux_distro?: string,
   linux_desktop_session?: "wayland" | "x11" | "unknown",
-  package_format?: "appimage" | "deb" | "rpm" | "tar" | "unknown"
+  package_format?: "appimage" | "deb" | "rpm" | "tar" | "snap" | "flatpak" | "unknown"
 }
 ```
 
@@ -220,6 +231,8 @@ dictation_output_succeeded
 dictation_failed
 
 error_occurred
+main_process_error
+renderer_process_gone
 app_crashed
 ```
 

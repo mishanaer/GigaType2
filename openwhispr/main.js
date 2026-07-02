@@ -78,6 +78,7 @@ function resolveAppChannel() {
 
 const APP_CHANNEL = resolveAppChannel();
 process.env.OPENWHISPR_CHANNEL = APP_CHANNEL;
+process.env.GIGATYPE_APP_CHANNEL = APP_CHANNEL;
 
 if (app.getName() !== PRODUCT_NAME) {
   app.setName(PRODUCT_NAME);
@@ -158,6 +159,13 @@ if (!gotSingleInstanceLock) {
 }
 
 const isLiveWindow = (window) => window && !window.isDestroyed();
+let telemetryManager = null;
+
+function captureMainProcessError(error, area = "app_start") {
+  telemetryManager?.captureError?.(error, area, {
+    error_code: error?.code || error?.name || "UNHANDLED_MAIN_PROCESS_ERROR",
+  });
+}
 
 // Add global error handling for uncaught exceptions
 process.on("uncaughtException", (error) => {
@@ -168,10 +176,14 @@ process.on("uncaughtException", (error) => {
   }
   // For other errors, log and continue
   console.error("Error stack:", error.stack);
+  captureMainProcessError(error);
 });
 
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
+  const error =
+    reason instanceof Error ? reason : new Error(String(reason || "Unhandled rejection"));
+  captureMainProcessError(error);
 });
 
 // Import helper module classes (but don't instantiate yet - wait for app.whenReady())
@@ -195,6 +207,7 @@ const AudioTapManager = require("./src/helpers/audioTapManager");
 const LinuxPortalAudioManager = require("./src/helpers/linuxPortalAudioManager");
 const MeetingDetectionEngine = require("./src/helpers/meetingDetectionEngine");
 const GigaamSidecarManager = require("./src/helpers/gigaamSidecarManager");
+const TelemetryService = require("./src/helpers/telemetryService");
 const { i18nMain, changeLanguage } = require("./src/helpers/i18nMain");
 const { ensureYdotool } = require("./src/helpers/ensureYdotool");
 const sidecarRegistry = require("./src/helpers/sidecarRegistry");
@@ -257,8 +270,10 @@ function initializeCoreManagers() {
   process.env.UI_LANGUAGE = uiLanguage;
   changeLanguage(uiLanguage);
   debugLogger.refreshLogLevel();
+  telemetryManager = new TelemetryService();
 
   windowManager = new WindowManager();
+  windowManager.setTelemetryManager?.(telemetryManager);
   hotkeyManager = windowManager.hotkeyManager;
   databaseManager = new DatabaseManager();
   clipboardManager = new ClipboardManager();
@@ -297,6 +312,7 @@ function initializeCoreManagers() {
     meetingDetectionEngine,
     audioTapManager,
     linuxPortalAudioManager,
+    telemetryManager,
     getTrayManager: () => trayManager,
   });
 }
@@ -414,7 +430,69 @@ function broadcastGigaamSidecarStatus(status = getGigaamSidecarStatus()) {
 function setupGigaamSidecarIpc() {
   if (!gigaamSidecarManager) return;
 
+  let sawModelDownloadThisRun = false;
+  let sentModelDownloadStarted = false;
+  let sentModelDownloadSucceeded = false;
+  let sentModelReady = false;
+  let sentModelDownloadFailed = false;
+
   gigaamSidecarManager.on("status", (status) => {
+    if (status?.modelStage === "downloading") {
+      sawModelDownloadThisRun = true;
+      if (!sentModelDownloadStarted) {
+        sentModelDownloadStarted = true;
+        telemetryManager?.capture?.("model_download_started", {
+          provider: "huggingface",
+          model: status.modelName,
+          model_stage: status.modelStage,
+          model_progress: status.modelProgress,
+        });
+      }
+    }
+
+    const isReady = status?.healthStatus === "ok" || status?.modelStage === "ready";
+    if (isReady && !sentModelReady) {
+      const source = sawModelDownloadThisRun
+        ? "downloaded"
+        : status?.modelCacheComplete
+          ? "cached"
+          : "unknown";
+      sentModelReady = true;
+      if (sawModelDownloadThisRun && !sentModelDownloadSucceeded) {
+        sentModelDownloadSucceeded = true;
+        telemetryManager?.capture?.("model_download_succeeded", {
+          provider: "huggingface",
+          model: status.modelName,
+          source,
+        });
+      }
+      telemetryManager?.capture?.("model_ready", {
+        provider: "gigaam_local",
+        model: status.modelName,
+        source,
+        model_cache_complete: status.modelCacheComplete === true,
+      });
+    }
+
+    const isError = status?.healthStatus === "error" || status?.modelStage === "error";
+    if (isError && !sentModelDownloadFailed) {
+      sentModelDownloadFailed = true;
+      telemetryManager?.capture?.("model_download_failed", {
+        provider: "huggingface",
+        model: status.modelName,
+        model_stage: status.modelStage,
+        health_status: status.healthStatus,
+        error_code: "MODEL_PREPARATION_FAILED",
+        safe_message: status.healthDetail || "Model preparation failed",
+      });
+      telemetryManager?.capture?.("error_occurred", {
+        error_area: "model_download",
+        error_code: "MODEL_PREPARATION_FAILED",
+        safe_message: status.healthDetail || "Model preparation failed",
+        provider: "huggingface",
+      });
+    }
+
     broadcastGigaamSidecarStatus(status);
   });
 
@@ -491,6 +569,12 @@ async function startApp() {
   // Phase 1: Core managers + IPC handlers before windows
   initializeCoreManagers();
   await environmentManager.init();
+  await telemetryManager.init();
+  await telemetryManager.capture("first_app_opened", {}, { onceKey: "first_app_opened_sent" });
+  await telemetryManager.capture("app_opened", {
+    is_packaged: app.isPackaged,
+    node_env: process.env.NODE_ENV || null,
+  });
   logStartupState();
   ensureAutoStartEnabledByDefault();
   registerSidecars();
@@ -1206,7 +1290,9 @@ if (gotSingleInstanceLock) {
     isShuttingDown = true;
     event.preventDefault();
     performSyncTeardown();
-    sidecarRegistry.shutdownAll().finally(() => app.exit(0));
+    Promise.allSettled([telemetryManager?.shutdown?.(), sidecarRegistry.shutdownAll()]).finally(
+      () => app.exit(0)
+    );
   });
 }
 
