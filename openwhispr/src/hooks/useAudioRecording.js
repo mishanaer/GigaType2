@@ -98,11 +98,6 @@ export const useAudioRecording = (toast, options = {}) => {
           startedAt: performance.now(),
         };
         void trackTelemetryEvent("dictation_started", { session_id: sessionId });
-        void trackTelemetryEvent(
-          "first_dictation_started",
-          { session_id: sessionId },
-          { onceKey: "first_dictation_started_sent" }
-        );
 
         if (getSettings().pauseMediaOnDictation) {
           window.electronAPI?.pauseMediaPlayback?.();
@@ -220,20 +215,13 @@ export const useAudioRecording = (toast, options = {}) => {
         const eligibleForSuccess =
           audioDurationMs === null || audioDurationMs >= MIN_TELEMETRY_SUCCESS_AUDIO_MS;
 
-        if (audioDurationMs !== null) {
-          void trackTelemetryEvent("dictation_audio_captured", {
-            session_id: sessionId,
-            audio_duration_ms: audioDurationMs,
-          });
-        }
-
         if (result.success) {
           const transcribedText = result.text?.trim();
 
           if (!transcribedText) {
             window.electronAPI?.hideDictationPreview?.();
             if (!result.silent && eligibleForSuccess) {
-              void trackTelemetryEvent("dictation_failed", {
+              void trackTelemetryEvent("error_occurred", {
                 session_id: sessionId,
                 audio_duration_ms: audioDurationMs,
                 error_area: "transcription",
@@ -271,13 +259,6 @@ export const useAudioRecording = (toast, options = {}) => {
             total_latency_ms: result.timings?.totalLatencyMs ?? null,
           };
 
-          if (eligibleForSuccess) {
-            void trackTelemetryEvent("dictation_transcribed", transcriptionProperties);
-            void trackTelemetryEvent("first_dictation_transcribed", transcriptionProperties, {
-              onceKey: "first_dictation_transcribed_sent",
-            });
-          }
-
           const isStreaming = result.source?.includes("streaming");
           const pasteStart = performance.now();
           const pasteResult = await audioManagerRef.current.safePaste(result.text, {
@@ -310,11 +291,8 @@ export const useAudioRecording = (toast, options = {}) => {
 
           if (eligibleForSuccess && outputStatus !== "failed") {
             void trackTelemetryEvent("dictation_output_succeeded", outputProperties);
-            void trackTelemetryEvent("first_dictation_output_succeeded", outputProperties, {
-              onceKey: "first_dictation_output_succeeded_sent",
-            });
           } else if (eligibleForSuccess) {
-            void trackTelemetryEvent("dictation_failed", {
+            void trackTelemetryEvent("error_occurred", {
               ...outputProperties,
               error_area: "paste",
               error_code: "OUTPUT_FAILED",
@@ -333,7 +311,7 @@ export const useAudioRecording = (toast, options = {}) => {
           dictationSessionRef.current = null;
         } else {
           if (eligibleForSuccess) {
-            void trackTelemetryEvent("dictation_failed", {
+            void trackTelemetryEvent("error_occurred", {
               session_id: sessionId,
               audio_duration_ms: audioDurationMs,
               error_area: "transcription",
@@ -417,13 +395,6 @@ export const useAudioRecording = (toast, options = {}) => {
       if (getSettings().pauseMediaOnDictation) {
         window.electronAPI?.resumeMediaPlayback?.();
       }
-      const sessionId = dictationSessionRef.current?.sessionId || null;
-      void trackTelemetryEvent("dictation_failed", {
-        session_id: sessionId,
-        error_area: "transcription",
-        error_code: "DICTATION_CANCELLED",
-        safe_message: "Dictation cancelled",
-      });
       dictationSessionRef.current = null;
       if (state.isStreaming) {
         return await audioManagerRef.current.stopStreamingRecording();

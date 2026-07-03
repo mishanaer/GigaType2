@@ -125,7 +125,7 @@ ID конкретной установки.
 - генерировать UUIDv4 при первом запуске
 - после переустановки может измениться
 
-Пользователь = одно устройство с одним `anonymous_user_id`.
+Пользователь для MVP = одна установка с одним `install_id`.
 
 ## Dev Mode
 
@@ -145,9 +145,8 @@ GIGATYPE_TELEMETRY_ENABLED=true
 first_app_opened
 → requirements_ready
 → model_ready
-→ first_dictation_started
-→ first_dictation_transcribed
-→ first_dictation_output_succeeded
+→ settings_screen_viewed
+→ dictation_output_succeeded
 ```
 
 Дополнительные события:
@@ -159,6 +158,7 @@ all_required_permissions_granted
 model_download_started
 model_download_succeeded
 model_download_failed
+settings_screen_viewed
 ```
 
 `requirements_ready` = все требования для первой диктовки выполнены.
@@ -221,12 +221,10 @@ model_download_started
 model_download_succeeded
 model_download_failed
 model_ready
+settings_screen_viewed
 
 dictation_started
-dictation_audio_captured
-dictation_transcribed
 dictation_output_succeeded
-dictation_failed
 
 error_occurred
 main_process_error
@@ -341,17 +339,15 @@ Crash reporting:
 - без текста, аудио, clipboard и raw responses
 - без debug logging payload
 
-## First Events Idempotency
+## One-Time Events Idempotency
 
-События `first_*` отправлять один раз на `anonymous_user_id`.
+One-time события отправлять один раз на `install_id`.
 
 Локально хранить флаги:
 
 ```txt
 first_app_opened_sent
-first_dictation_started_sent
-first_dictation_transcribed_sent
-first_dictation_output_succeeded_sent
+settings_screen_viewed_sent
 ```
 
 Повторная отправка допустима только при retry offline queue с тем же `event_id`.
@@ -374,11 +370,7 @@ first_dictation_output_succeeded_sent
 
 ### Total Users
 
-Unique `anonymous_user_id`.
-
-### New Users
-
-Unique users с `first_app_opened` за период.
+Unique `install_id`.
 
 ### DAU
 
@@ -392,18 +384,16 @@ Unique users с `dictation_output_succeeded` за последние 7 дней.
 
 Unique users с `dictation_output_succeeded` за последние 30 дней.
 
-### Stickiness
-
-```txt
-DAU / MAU
-```
-
 ## Activation
 
-### Activation Rate
+### Activation Funnel To First Dictation
 
 ```txt
-first_dictation_output_succeeded / first_app_opened
+first_app_opened
+→ requirements_ready
+→ model_ready
+→ settings_screen_viewed
+→ dictation_output_succeeded
 ```
 
 ### Requirements Ready Conversion
@@ -418,15 +408,9 @@ requirements_ready / first_app_opened
 model_ready / requirements_ready
 ```
 
-### First Dictation Success Rate
-
-```txt
-first_dictation_output_succeeded / first_dictation_started
-```
-
 ### Median Time To Activation
 
-От `first_app_opened` до `first_dictation_output_succeeded`.
+От `first_app_opened` до первого `dictation_output_succeeded`.
 
 ## Dictation Quality
 
@@ -434,18 +418,6 @@ first_dictation_output_succeeded / first_dictation_started
 
 ```txt
 dictation_output_succeeded / dictation_started
-```
-
-### Transcription Success Rate
-
-```txt
-dictation_transcribed / dictation_audio_captured
-```
-
-### Output Success Rate
-
-```txt
-dictation_output_succeeded / dictation_transcribed
 ```
 
 ### Clipboard Fallback Rate
@@ -465,7 +437,7 @@ dictation_output_succeeded / active_users
 ```txt
 median(
   count(dictation_output_succeeded)
-  per anonymous_user_id
+  per install_id
   per day
 )
 ```
@@ -528,7 +500,7 @@ Median `output_latency_ms`.
 
 ### Time To First Successful Dictation
 
-От `first_app_opened` до `first_dictation_output_succeeded`.
+От `first_app_opened` до первого `dictation_output_succeeded`.
 
 Показывать median и p95.
 
@@ -580,12 +552,6 @@ dictation_started
 
 Общие app/model/update ошибки считать отдельно, чтобы не раздувать error rate диктовки.
 
-### Dictation Failure Rate
-
-```txt
-dictation_failed / dictation_started
-```
-
 ### Top Error Areas
 
 Группировка по `error_area`.
@@ -633,7 +599,7 @@ platform_name
 ### Activation Rate By Platform
 
 ```txt
-first_dictation_output_succeeded / first_app_opened
+dictation_output_succeeded / first_app_opened
 ```
 
 Grouped by:
