@@ -27,7 +27,7 @@ npx -y @posthog/wizard@latest --region eu
 - выключить autocapture
 - выключить session replay
 - выключить IP capture
-- dev-события не отправлять
+- dev- и prod-события отправлять одинаково
 - отправлять события только через наш `TelemetryService`
 
 PostHog Cloud EU подходит для MVP. Если понадобится хранить данные строго в РФ, нужен self-host на нашем сервере.
@@ -35,13 +35,14 @@ PostHog Cloud EU подходит для MVP. Если понадобится х
 Runtime env/config:
 
 ```bash
-GIGATYPE_POSTHOG_API_KEY=...
+GIGATYPE_POSTHOG_API_KEY=... # optional override
 GIGATYPE_POSTHOG_HOST=https://eu.i.posthog.com
-GIGATYPE_TELEMETRY_ENABLED=true
+GIGATYPE_TELEMETRY_ENABLED=false # optional local kill switch
 ```
 
-В production telemetry включена по умолчанию, если задан `GIGATYPE_POSTHOG_API_KEY`.
-В development telemetry выключена по умолчанию и включается только через `GIGATYPE_TELEMETRY_ENABLED=true`.
+Telemetry включена по умолчанию одинаково в production и development через bundled PostHog EU project token.
+`GIGATYPE_POSTHOG_API_KEY` нужен только для override.
+`GIGATYPE_TELEMETRY_ENABLED=false` явно выключает отправку.
 
 ## Платформы
 
@@ -129,13 +130,8 @@ ID конкретной установки.
 
 ## Dev Mode
 
-В dev-сборках telemetry выключена по умолчанию.
-
-Включение только явно:
-
-```bash
-GIGATYPE_TELEMETRY_ENABLED=true
-```
+В dev-сборках telemetry отправляется так же, как в production.
+Dev-события отличаются по `app_channel = development`.
 
 ## Activation Funnel
 

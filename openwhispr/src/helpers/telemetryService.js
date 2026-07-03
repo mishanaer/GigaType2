@@ -6,6 +6,7 @@ const { app, safeStorage } = require("electron");
 const debugLogger = require("./debugLogger");
 
 const DEFAULT_POSTHOG_HOST = "https://eu.i.posthog.com";
+const DEFAULT_POSTHOG_API_KEY = "phc_xQjeveprGamdNM3FRBgwuXefAwXfWgctzMaGfswmReQq";
 const FLUSH_INTERVAL_MS = 30 * 1000;
 const FLUSH_BATCH_SIZE = 20;
 const MAX_QUEUE_EVENTS = 1000;
@@ -283,7 +284,7 @@ class TelemetryService {
         process.env.GIGATYPE_POSTHOG_API_KEY ||
         process.env.POSTHOG_API_KEY ||
         process.env.POSTHOG_PROJECT_TOKEN ||
-        "";
+        DEFAULT_POSTHOG_API_KEY;
       this.host = normalizeHost(process.env.GIGATYPE_POSTHOG_HOST || process.env.POSTHOG_HOST);
       this.enabled = this._resolveEnabled();
       this.disabledReason = this.enabled ? null : this.disabledReason;
@@ -332,15 +333,6 @@ class TelemetryService {
 
   _resolveEnabled() {
     const override = normalizeBoolEnv(process.env.GIGATYPE_TELEMETRY_ENABLED);
-    if (process.env.NODE_ENV === "development") {
-      if (override === true) {
-        if (this.apiKey) return true;
-        this.disabledReason = "missing-api-key";
-        return false;
-      }
-      this.disabledReason = "development";
-      return false;
-    }
     if (override === false) {
       this.disabledReason = "env-disabled";
       return false;

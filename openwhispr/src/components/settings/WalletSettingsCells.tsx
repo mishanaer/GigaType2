@@ -5,7 +5,6 @@ import SectionList from "../../vendor/wallet_animations/components/SectionList";
 import { formatHotkeyLabel, isGlobeLikeHotkey } from "../../utils/hotkeys";
 import { isBuiltInMicrophone } from "../../utils/audioDeviceUtils";
 import { HotkeyInput } from "../ui/HotkeyInput";
-import { CopyButton } from "../ui/SpellCopyButton";
 
 interface AudioDevice {
   deviceId: string;
@@ -23,7 +22,6 @@ interface WalletSettingsCellsProps {
   onPreferBuiltInChange: (value: boolean) => void;
   onDeviceSelect: (deviceId: string) => void;
   devicesOverride?: AudioDevice[];
-  logPathOverride?: string;
 }
 
 const getHotkeyLabel = (hotkey: string) => {
@@ -45,13 +43,10 @@ export default function WalletSettingsCells({
   onPreferBuiltInChange,
   onDeviceSelect,
   devicesOverride,
-  logPathOverride,
 }: WalletSettingsCellsProps) {
   const [captureKey, setCaptureKey] = useState(0);
   const [isHotkeyArmed, setIsHotkeyArmed] = useState(false);
   const [devices, setDevices] = useState<AudioDevice[]>([]);
-  const [logPath, setLogPath] = useState("");
-  const copyLogButtonRef = React.useRef<HTMLButtonElement>(null);
 
   const loadDevices = useCallback(async () => {
     try {
@@ -88,28 +83,6 @@ export default function WalletSettingsCells({
       navigator.mediaDevices?.removeEventListener?.("devicechange", handleDeviceChange);
     };
   }, [devicesOverride, loadDevices]);
-
-  useEffect(() => {
-    if (logPathOverride !== undefined) {
-      setLogPath(logPathOverride);
-      return undefined;
-    }
-
-    let cancelled = false;
-
-    window.electronAPI
-      ?.getDebugState?.()
-      .then((state) => {
-        if (!cancelled) {
-          setLogPath(state.logPath ?? "");
-        }
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [logPathOverride]);
 
   const builtInDevice = devices.find((device) => device.isBuiltIn);
   const selectDevices = devices.filter((device) => device.deviceId !== "default");
@@ -159,37 +132,6 @@ export default function WalletSettingsCells({
     [onDeviceSelect, onPreferBuiltInChange]
   );
 
-  const copyLogs = useCallback(async () => {
-    if (window.electronAPI?.copyDebugLogs) {
-      const result = await window.electronAPI?.copyDebugLogs?.();
-
-      if (result?.success) {
-        return;
-      }
-
-      throw new Error(result?.error || "Failed to copy logs");
-    }
-
-    if (logPath) {
-      await navigator.clipboard.writeText(logPath);
-      return;
-    }
-
-    throw new Error("No logs available");
-  }, [logPath]);
-
-  const handleCopyLogsCellClick = useCallback(() => {
-    copyLogButtonRef.current?.click();
-  }, []);
-  const handleCopyLogsCellKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Enter" && event.key !== " ") {
-      return;
-    }
-
-    event.preventDefault();
-    copyLogButtonRef.current?.click();
-  }, []);
-
   return (
     <MotionProvider>
       <div className="appshots-settings-no-drag">
@@ -235,22 +177,6 @@ export default function WalletSettingsCells({
               <Cell.Text title="Микрофон" />
             </Cell>
 
-            <Cell
-              onClick={handleCopyLogsCellClick}
-              onKeyDown={handleCopyLogsCellKeyDown}
-              role="button"
-              tabIndex={0}
-              end={
-                <CopyButton
-                  ref={copyLogButtonRef}
-                  onCopy={copyLogs}
-                  onClick={(event) => event.stopPropagation()}
-                  className="appshots-window-no-drag appshots-settings-no-drag"
-                />
-              }
-            >
-              <Cell.Text title="Скопировать логи" description="Чтобы отправить разрабам" />
-            </Cell>
           </SectionList.Item>
         </SectionList>
 

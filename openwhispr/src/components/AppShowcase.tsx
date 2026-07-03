@@ -200,7 +200,6 @@ function SettingsPreview() {
             isBuiltIn: true,
           },
         ]}
-        logPathOverride="/Users/misha/Library/Application Support/Type-development/logs/debug.log"
       />
     </div>
   );
