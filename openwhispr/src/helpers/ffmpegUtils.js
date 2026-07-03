@@ -2,11 +2,19 @@ const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const debugLogger = require("./debugLogger");
+const { resolveBinaryPath } = require("../utils/serverUtils");
 
 let cachedFFmpegPath = null;
 
 function getFFmpegPath() {
   if (cachedFFmpegPath) return cachedFFmpegPath;
+
+  // Slim production build: resources/bin/ffmpeg (homebridge-built, ~22-28 MB vs 75 MB ffmpeg-static)
+  const slimBundled = resolveBinaryPath("ffmpeg");
+  if (slimBundled) {
+    cachedFFmpegPath = slimBundled;
+    return slimBundled;
+  }
 
   try {
     let ffmpegPath = require("ffmpeg-static");
