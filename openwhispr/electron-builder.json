@@ -124,6 +124,7 @@
         "gigatype-sidecar-*",
         "ffmpeg*",
         "ffprobe*",
+        "qdrant-*",
         "macos-audio-tap",
         "macos-globe-listener",
         "macos-fast-paste",
