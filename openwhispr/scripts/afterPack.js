@@ -343,12 +343,50 @@ exec -a "$0" "$HERE/${binaryName}-app" "\${FLAGS[@]}" "$@"
 }
 
 // ---------------------------------------------------------------------------
+// Electron locale pruning
+// ---------------------------------------------------------------------------
+
+const KEEP_LOCALE_PREFIXES = ["en", "ru"];
+
+function stripElectronLocales(context) {
+  if (context.electronPlatformName !== "darwin") return;
+
+  const appPath = resolveAppPath(context);
+  const frameworkRes = path.join(
+    appPath,
+    "Contents",
+    "Frameworks",
+    "Electron Framework.framework",
+    "Versions",
+    "A",
+    "Resources"
+  );
+  if (!fs.existsSync(frameworkRes)) return;
+
+  let removed = 0;
+  for (const entry of fs.readdirSync(frameworkRes, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !entry.name.endsWith(".lproj")) continue;
+    const lang = entry.name.replace(/\.lproj$/, "");
+    const keep = KEEP_LOCALE_PREFIXES.some((p) => lang === p || lang.startsWith(p + "_") || lang.startsWith(p + "-"));
+    if (!keep) {
+      fs.rmSync(path.join(frameworkRes, entry.name), { recursive: true, force: true });
+      removed++;
+    }
+  }
+
+  if (removed > 0) {
+    console.log(`  afterPack: removed ${removed} Electron locale directories (kept: ${KEEP_LOCALE_PREFIXES.join(", ")})`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main hook
 // ---------------------------------------------------------------------------
 
 exports.default = async function (context) {
   stripOnnxruntimeBinaries(context);
   stripResourceBinaries(context);
+  stripElectronLocales(context);
   clearMacExtendedAttributes(context);
   wrapLinuxBinary(context);
   registerMacResourceBinariesForSigning(context);
