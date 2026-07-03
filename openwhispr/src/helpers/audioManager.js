@@ -11,6 +11,46 @@ import {
 import { getSettings } from "../stores/settingsStore";
 import { syncService } from "../services/SyncService.js";
 
+function encodeWAVFromChunks(chunks, inputSampleRate = 48000, outputSampleRate = 16000) {
+  const inputLen = chunks.reduce((n, c) => n + c.length, 0);
+  const flat = new Float32Array(inputLen);
+  let flatOff = 0;
+  for (const chunk of chunks) { flat.set(chunk, flatOff); flatOff += chunk.length; }
+
+  let samples;
+  if (inputSampleRate === outputSampleRate) {
+    samples = flat;
+  } else {
+    const ratio = inputSampleRate / outputSampleRate;
+    const outLen = Math.floor(inputLen / ratio);
+    samples = new Float32Array(outLen);
+    for (let i = 0; i < outLen; i++) {
+      const src = i * ratio;
+      const lo = src | 0;
+      const hi = Math.min(lo + 1, inputLen - 1);
+      samples[i] = flat[lo] + (flat[hi] - flat[lo]) * (src - lo);
+    }
+  }
+
+  const numSamples = samples.length;
+  const buffer = new ArrayBuffer(44 + numSamples * 2);
+  const view = new DataView(buffer);
+  const write = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+  write(0, "RIFF"); view.setUint32(4, 36 + numSamples * 2, true);
+  write(8, "WAVE"); write(12, "fmt ");
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, outputSampleRate, true); view.setUint32(28, outputSampleRate * 2, true);
+  view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  write(36, "data"); view.setUint32(40, numSamples * 2, true);
+  let off = 44;
+  for (let i = 0; i < numSamples; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    off += 2;
+  }
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
 const GIGATYPE_ASR_MODEL = "gigaam-v3-e2e-rnnt";
 const MIN_TRANSCRIBABLE_AUDIO_BYTES = 512;
 const MIN_TRANSCRIBABLE_DURATION_SECONDS = 0.2;
@@ -285,47 +325,25 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         this._localSpeechGateState = null;
       }
 
-      this.mediaRecorder = new MediaRecorder(micStream);
-      this.audioChunks = [];
+      // Reuse _silenceCtx (already running at native rate) for PCM capture.
+      // If it wasn't created (speech gate setup failed), create a fallback context.
+      const captureCtx = this._silenceCtx ?? new AudioContext();
+      this._recordCtx = captureCtx !== this._silenceCtx ? captureCtx : null;
+      this._pcmNativeRate = captureCtx.sampleRate;
+      this._pcmChunks = [];
+      this._micStream = micStream;
       this.recordingStartTime = Date.now();
-      this.recordingMimeType = this.mediaRecorder.mimeType || "audio/webm";
+      this.recordingMimeType = "audio/wav";
 
-      this.mediaRecorder.ondataavailable = (event) => {
-        this.audioChunks.push(event.data);
+      const srcChannels = micStream.getAudioTracks()[0]?.getSettings?.()?.channelCount || 1;
+      const recSource = captureCtx.createMediaStreamSource(micStream);
+      this._recordSource = recSource;
+      this._scriptProcessor = captureCtx.createScriptProcessor(4096, srcChannels, 1);
+      this._scriptProcessor.onaudioprocess = (event) => {
+        this._pcmChunks.push(new Float32Array(event.inputBuffer.getChannelData(0)));
       };
-
-      this.mediaRecorder.onstop = async () => {
-        this.stopAudioLevelMonitoring();
-
-        this.cleanupPreview({ showCleanup: this.shouldShowPreviewCleanupState() });
-
-        this.isRecording = false;
-        this.isProcessing = true;
-        this.onStateChange?.({ isRecording: false, isProcessing: true });
-
-        const audioBlob = new Blob(this.audioChunks, { type: this.recordingMimeType });
-        this.lastAudioBlob = audioBlob;
-
-        logger.info(
-          "Recording stopped",
-          {
-            blobSize: audioBlob.size,
-            blobType: audioBlob.type,
-            chunksCount: this.audioChunks.length,
-          },
-          "audio"
-        );
-
-        const durationSeconds = this.recordingStartTime
-          ? (Date.now() - this.recordingStartTime) / 1000
-          : null;
-        this.recordingStartTime = null;
-        await this.processAudio(audioBlob, { durationSeconds });
-
-        micStream.getTracks().forEach((track) => track.stop());
-      };
-
-      this.mediaRecorder.start();
+      recSource.connect(this._scriptProcessor);
+      this._scriptProcessor.connect(captureCtx.destination);
       this.isRecording = true;
       this.onStateChange?.({ isRecording: true, isProcessing: false });
 
@@ -356,34 +374,65 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   stopRecording() {
-    if (this.mediaRecorder?.state === "recording") {
-      this.mediaRecorder.stop();
-      return true;
-    }
-    return false;
+    if (!this.isRecording || !this._scriptProcessor) return false;
+
+    this._scriptProcessor.disconnect();
+    this._scriptProcessor = null;
+    this._recordSource?.disconnect();
+    this._recordSource = null;
+
+    const chunks = this._pcmChunks || [];
+    const nativeRate = this._pcmNativeRate || 48000;
+    this._pcmChunks = [];
+    this._pcmNativeRate = null;
+
+    // stopAudioLevelMonitoring closes _silenceCtx; _recordCtx is only set if we created a fallback
+    this.stopAudioLevelMonitoring();
+    this._recordCtx?.close().catch(() => {});
+    this._recordCtx = null;
+
+    this.cleanupPreview({ showCleanup: this.shouldShowPreviewCleanupState() });
+    this.isRecording = false;
+    this.isProcessing = true;
+    this.onStateChange?.({ isRecording: false, isProcessing: true });
+
+    const audioBlob = encodeWAVFromChunks(chunks, nativeRate);
+    this.lastAudioBlob = audioBlob;
+
+    logger.info("Recording stopped", { blobSize: audioBlob.size, blobType: audioBlob.type, chunksCount: chunks.length, nativeRate }, "audio");
+
+    const durationSeconds = this.recordingStartTime ? (Date.now() - this.recordingStartTime) / 1000 : null;
+    this.recordingStartTime = null;
+
+    this._micStream?.getTracks().forEach((t) => t.stop());
+    this._micStream = null;
+
+    void this.processAudio(audioBlob, { durationSeconds });
+    return true;
   }
 
   cancelRecording() {
-    if (this.mediaRecorder && this.mediaRecorder.state === "recording") {
-      this.mediaRecorder.onstop = () => {
-        this.stopAudioLevelMonitoring();
-        this.cleanupPreview({ dismiss: true });
-        this.isRecording = false;
-        this.isProcessing = false;
-        this.audioChunks = [];
-        this.recordingStartTime = null;
-        this.onStateChange?.({ isRecording: false, isProcessing: false });
-      };
+    if (!this.isRecording || !this._scriptProcessor) return false;
 
-      this.mediaRecorder.stop();
+    this._scriptProcessor.disconnect();
+    this._scriptProcessor = null;
+    this._recordSource?.disconnect();
+    this._recordSource = null;
+    this._pcmChunks = [];
+    this._pcmNativeRate = null;
 
-      if (this.mediaRecorder.stream) {
-        this.mediaRecorder.stream.getTracks().forEach((track) => track.stop());
-      }
+    this._micStream?.getTracks().forEach((t) => t.stop());
+    this._micStream = null;
+    this._recordCtx?.close().catch(() => {});
+    this._recordCtx = null;
 
-      return true;
-    }
-    return false;
+    this.stopAudioLevelMonitoring();
+    this.cleanupPreview({ dismiss: true });
+    this.isRecording = false;
+    this.isProcessing = false;
+    this.recordingStartTime = null;
+    this.onStateChange?.({ isRecording: false, isProcessing: false });
+    return true;
   }
 
   cancelProcessing() {
@@ -1108,7 +1157,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     if (this.isStreaming) {
       this.cleanupStreaming();
     }
-    if (this.mediaRecorder?.state === "recording") {
+    if (this.isRecording && this._scriptProcessor) {
       this.stopRecording();
     }
     if (this.persistentAudioContext && this.persistentAudioContext.state !== "closed") {

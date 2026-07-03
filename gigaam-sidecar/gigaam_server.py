@@ -141,7 +141,30 @@ def _normalize_result(result: Any) -> str:
     return str(result).strip()
 
 
+def _is_wav_16k_mono(path: Path) -> bool:
+    """Check WAV header: PCM, 1 channel, 16000 Hz, 16-bit — no external deps."""
+    try:
+        with open(path, "rb") as f:
+            h = f.read(44)
+        if len(h) < 44:
+            return False
+        if h[0:4] != b"RIFF" or h[8:12] != b"WAVE" or h[12:16] != b"fmt ":
+            return False
+        audio_fmt = int.from_bytes(h[20:22], "little")
+        channels = int.from_bytes(h[22:24], "little")
+        sample_rate = int.from_bytes(h[24:28], "little")
+        bits = int.from_bytes(h[34:36], "little")
+        return audio_fmt == 1 and channels == 1 and sample_rate == 16000 and bits == 16
+    except Exception:
+        return False
+
+
 def _to_wav_16k_mono(src: Path, dst: Path) -> None:
+    # Fast path: already 16 kHz mono PCM WAV — copy directly, no ffmpeg needed
+    if src.suffix.lower() == ".wav" and _is_wav_16k_mono(src):
+        shutil.copy2(str(src), str(dst))
+        return
+
     if FFMPEG_BIN is None:
         raise RuntimeError("ffmpeg is not configured; set FFMPEG_BIN or install ffmpeg for development")
 

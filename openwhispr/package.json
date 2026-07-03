@@ -48,6 +48,8 @@
     "pack": "npm run build:renderer && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
     "predist": "npm run compile:native && npm run download:llama-server && npm run download:sherpa-onnx && npm run download:qdrant && npm run download:speech-vad-model && npm run download:diarization-models -- --output-dir resources/bin/diarization-models",
     "dist": "npm run build:renderer && electron-builder",
+    "download:ffmpeg": "node scripts/download-ffmpeg.js --current",
+    "download:ffmpeg:all": "node scripts/download-ffmpeg.js --all",
     "download:llama-server": "node scripts/download-llama-server.js --current",
     "download:llama-server:all": "node scripts/download-llama-server.js --all",
     "download:sherpa-onnx": "node scripts/download-sherpa-onnx.js --current",
@@ -137,7 +139,7 @@
     "ffmpeg-static": "^5.2.0",
     "flatted": "^3.4.2",
     "i18next": "^26.0.4",
-    "kysely": "^0.28.14",
+
     "lucide-react": "^1.17.0",
     "motion": "^12.40.0",
     "object-assign": "^4.1.1",
