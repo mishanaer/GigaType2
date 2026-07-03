@@ -124,8 +124,6 @@
         "gigatype-sidecar-*",
         "ffmpeg*",
         "ffprobe*",
-        "llama-server-*",
-        "sherpa-onnx-diarize-*",
         "macos-audio-tap",
         "macos-globe-listener",
         "macos-fast-paste",
@@ -141,8 +139,6 @@
         "windows-text-monitor*",
         "windows-fast-paste*",
         "speech-vad/**/*",
-        "all-MiniLM-L6-v2/**/*",
-        "diarization-models/**/*",
         "*.dylib",
         "*.dll",
         "*.so*"
