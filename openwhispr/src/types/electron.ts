@@ -759,6 +759,11 @@ declare global {
         scope?: string;
         source?: string;
       }) => Promise<void>;
+      trackTelemetryEvent?: (
+        eventName: string,
+        properties?: Record<string, unknown>,
+        options?: Record<string, unknown>
+      ) => Promise<{ queued: boolean; reason?: string; event_id?: string }>;
       getDebugState: () => Promise<{
         enabled: boolean;
         logPath: string | null;

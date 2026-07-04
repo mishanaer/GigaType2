@@ -4,7 +4,7 @@ import tapUpUrl from "../assets/sounds/tap_01.wav";
 import { getSettings } from "../stores/settingsStore";
 
 const cueAudio = new Map();
-const CUE_VOLUME = 0.6;
+const CUE_VOLUME = 0.5;
 
 const getCueAudio = (url) => {
   if (typeof window === "undefined") {

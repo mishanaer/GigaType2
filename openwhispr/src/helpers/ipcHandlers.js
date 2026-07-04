@@ -276,6 +276,7 @@ class IPCHandlers {
     this.meetingDetectionEngine = managers.meetingDetectionEngine;
     this.audioTapManager = managers.audioTapManager;
     this.linuxPortalAudioManager = managers.linuxPortalAudioManager;
+    this.telemetryManager = managers.telemetryManager;
     this.sessionId = crypto.randomUUID();
     this._hotkeyCaptureMode = false;
     this._activeRecordingPipeline = null;
@@ -541,6 +542,15 @@ class IPCHandlers {
         return this.windowManager.controlPanelWindow.isMaximized();
       }
       return false;
+    });
+
+    handle("telemetry-capture", async (_event, eventName, properties = {}, options = {}) => {
+      return (
+        this.telemetryManager?.capture?.(eventName, properties, options) || {
+          queued: false,
+          reason: "telemetry-unavailable",
+        }
+      );
     });
 
     handle("app-quit", () => {

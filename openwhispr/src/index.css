@@ -1066,6 +1066,12 @@ body.material .appshots-permissions-no-drag .appshots-permissions-start-view {
   padding-right: 20px;
 }
 
+.appshots-gigaam-model-card [role="button"]:focus,
+.appshots-gigaam-model-card [role="button"]:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 body.apple .appshots-settings-window [class*="picker"] {
   padding-left: 14px;
   padding-right: 14px;

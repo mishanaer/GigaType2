@@ -333,6 +333,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   getLogLevel: () => ipcRenderer.invoke("get-log-level"),
   log: (entry) => ipcRenderer.invoke("app-log", entry),
+  trackTelemetryEvent: (eventName, properties, options) =>
+    ipcRenderer.invoke("telemetry-capture", eventName, properties, options),
 
   // ydotool status check
   getYdotoolStatus: () => ipcRenderer.invoke("get-ydotool-status"),

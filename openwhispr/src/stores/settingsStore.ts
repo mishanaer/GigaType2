@@ -33,7 +33,7 @@ const FIXED_ACTIVATION_MODE = "push" as const;
 const FIXED_AUDIO_CUES_ENABLED = true;
 const FIXED_PAUSE_MEDIA_ON_DICTATION = false;
 const FIXED_NOTIFICATIONS_ENABLED = false;
-const FIXED_START_MINIMIZED = true;
+const FIXED_START_MINIMIZED = false;
 const AUTH_BACKED_INFERENCE_MODE_KEYS = new Set([
   "cleanupMode",
   "noteFormattingMode",

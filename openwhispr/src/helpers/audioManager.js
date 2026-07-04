@@ -475,6 +475,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         text: "",
         silent: true,
         reason: "too-short-audio",
+        audioDurationMs: durationSeconds !== null ? Math.round(durationSeconds * 1000) : null,
       });
       return;
     }
@@ -493,7 +494,12 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       );
       this.isProcessing = false;
       this.onStateChange?.({ isRecording: false, isProcessing: false });
-      this.onTranscriptionComplete?.({ success: true, text: "" });
+      this.onTranscriptionComplete?.({
+        success: true,
+        text: "",
+        reason: "silence",
+        audioDurationMs: durationSeconds !== null ? Math.round(durationSeconds * 1000) : null,
+      });
       return;
     }
 
@@ -507,17 +513,25 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         return;
       }
 
+      const audioDurationMs = metadata?.durationSeconds
+        ? Math.round(metadata.durationSeconds * 1000)
+        : Math.round(performance.now() - pipelineStart);
+
+      const roundTripDurationMs = Math.round(performance.now() - pipelineStart);
+
       this.lastAudioMetadata = {
-        durationMs: metadata?.durationSeconds
-          ? Math.round(metadata.durationSeconds * 1000)
-          : Math.round(performance.now() - pipelineStart),
+        durationMs: audioDurationMs,
         provider: result?.source || "gigaam",
         model: activeModel || null,
       };
 
-      this.onTranscriptionComplete?.(result);
+      result.audioDurationMs = audioDurationMs;
+      result.timings = {
+        ...(result.timings || {}),
+        totalLatencyMs: roundTripDurationMs,
+      };
 
-      const roundTripDurationMs = Math.round(performance.now() - pipelineStart);
+      this.onTranscriptionComplete?.(result);
 
       const timingData = {
         mode: "gigaam",
@@ -916,8 +930,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
   async safePaste(text, options = {}) {
     try {
-      await window.electronAPI.pasteText(text, options);
-      return true;
+      return await window.electronAPI.pasteText(text, options);
     } catch (error) {
       const message =
         error?.message ??
