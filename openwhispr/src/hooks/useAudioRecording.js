@@ -19,7 +19,7 @@ const PEAK_NOISE_FLOOR = 0.024;
 const PEAK_ACTIVE_RANGE = 0.07;
 const AUDIO_LEVEL_ATTACK_SMOOTHING = 0.2;
 const AUDIO_LEVEL_RELEASE_SMOOTHING = 0.2;
-const MIN_TELEMETRY_SUCCESS_AUDIO_MS = 1000;
+const MIN_TELEMETRY_SUCCESS_AUDIO_MS = 500;
 
 const normalizeAudioLevel = ({ rms = 0, peak = 0 } = {}) => {
   const rmsLevel = clamp01((rms - RMS_NOISE_FLOOR) / RMS_ACTIVE_RANGE);
