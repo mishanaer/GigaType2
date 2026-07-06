@@ -413,6 +413,18 @@
     -webkit-app-region: no-drag;
   }
 
+  .appshots-loading-window :is(button, a, input, textarea, select, [role="button"]):focus,
+  .appshots-loading-window :is(button, a, input, textarea, select, [role="button"]):focus-visible,
+  .appshots-permissions-window :is(button, a, input, textarea, select, [role="button"]):focus,
+  .appshots-permissions-window :is(button, a, input, textarea, select, [role="button"]):focus-visible,
+  .appshots-settings-window :is(button, a, input, textarea, select, [role="button"]):focus,
+  .appshots-settings-window :is(button, a, input, textarea, select, [role="button"]):focus-visible,
+  .appshots-showcase-surface :is(button, a, input, textarea, select, [role="button"]):focus,
+  .appshots-showcase-surface :is(button, a, input, textarea, select, [role="button"]):focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+
   .appshots-permissions-window h1 {
     font-family: inherit;
     font-size: 32px;
