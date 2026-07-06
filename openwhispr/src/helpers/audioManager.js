@@ -476,6 +476,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         silent: true,
         reason: "too-short-audio",
         audioDurationMs: durationSeconds !== null ? Math.round(durationSeconds * 1000) : null,
+        audioSizeBytes: audioBlob.size,
+        speechDetected: false,
+        stopReason: "too_short",
+        transcriptionAttempted: false,
       });
       return;
     }
@@ -499,6 +503,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         text: "",
         reason: "silence",
         audioDurationMs: durationSeconds !== null ? Math.round(durationSeconds * 1000) : null,
+        audioSizeBytes: audioBlob.size,
+        speechDetected: false,
+        stopReason: "user_stopped",
+        transcriptionAttempted: false,
       });
       return;
     }
@@ -526,6 +534,11 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       };
 
       result.audioDurationMs = audioDurationMs;
+      result.audioSizeBytes = audioBlob.size;
+      result.speechDetected = true;
+      result.stopReason = "user_stopped";
+      result.transcriptionAttempted = true;
+      result.model = activeModel || GIGATYPE_ASR_MODEL;
       result.timings = {
         ...(result.timings || {}),
         totalLatencyMs: roundTripDurationMs,
@@ -551,6 +564,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       logger.info("Pipeline timing", timingData, "performance");
     } catch (error) {
       const errorAtMs = Math.round(performance.now() - pipelineStart);
+      const audioDurationMs = durationSeconds !== null ? Math.round(durationSeconds * 1000) : null;
 
       const shouldSkipFailureStatus = isNoTextTranscription(error);
 
@@ -566,7 +580,42 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         );
         this.lastAudioBlob = null;
         this.lastAudioMetadata = null;
-      } else if (error.message !== "No audio detected") {
+        this.onTranscriptionComplete?.({
+          success: false,
+          text: "",
+          reason: "no_text",
+          errorCode: error.code || null,
+          audioDurationMs,
+          audioSizeBytes: audioBlob.size,
+          speechDetected: true,
+          stopReason: "user_stopped",
+          transcriptionAttempted: true,
+          source: "gigaam",
+          model: activeModel || GIGATYPE_ASR_MODEL,
+          timings: {
+            totalLatencyMs: errorAtMs,
+            transcriptionProcessingDurationMs: errorAtMs,
+          },
+        });
+      } else if (error.message === "No audio detected") {
+        this.onTranscriptionComplete?.({
+          success: true,
+          text: "",
+          silent: true,
+          reason: "no-audio-detected",
+          audioDurationMs,
+          audioSizeBytes: audioBlob.size,
+          speechDetected: false,
+          stopReason: "user_stopped",
+          transcriptionAttempted: false,
+          source: "gigaam",
+          model: activeModel || GIGATYPE_ASR_MODEL,
+          timings: {
+            totalLatencyMs: errorAtMs,
+            transcriptionProcessingDurationMs: errorAtMs,
+          },
+        });
+      } else {
         logger.error(
           "Pipeline failed",
           {
@@ -581,6 +630,15 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           description: `Transcription failed: ${error.message}`,
           code: error.code,
           messageKey: error.messageKey,
+          audioDurationMs,
+          audioSizeBytes: audioBlob.size,
+          speechDetected: null,
+          stopReason: "user_stopped",
+          transcriptionAttempted: true,
+          source: "gigaam",
+          model: activeModel || GIGATYPE_ASR_MODEL,
+          transcriptionLatencyMs: errorAtMs,
+          totalLatencyMs: errorAtMs,
         });
 
         // Save failed transcription with audio so the user can retry later
