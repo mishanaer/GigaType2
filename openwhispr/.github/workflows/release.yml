@@ -169,6 +169,18 @@ jobs:
           echo "GOOGLE_CALENDAR_CLIENT_ID=${{ secrets.GOOGLE_CALENDAR_CLIENT_ID }}" >> .env
           echo "GOOGLE_CALENDAR_CLIENT_SECRET=${{ secrets.GOOGLE_CALENDAR_CLIENT_SECRET }}" >> .env
 
+      # DRAFT: build the local GigaAM ASR sidecar (PyInstaller onefile) before
+      # electron-builder so it gets bundled into resources/bin. Kept out of the
+      # prebuild:win npm hook on purpose because it needs a Python toolchain,
+      # mirroring how the macOS sidecar is built as a separate manual step.
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build GigaAM sidecar (win-x64)
+        run: npm run build:gigaam-sidecar:win
+
       - name: Build and Sign Application
         run: npm run build:win -- --publish always
         env:

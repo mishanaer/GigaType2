@@ -27,9 +27,15 @@ const MODEL_REQUIRED_FILES = [
   "v3_e2e_rnnt_vocab.txt",
 ];
 const BINARY_NAMES = {
-  arm64: "gigatype-sidecar-darwin-arm64",
-  x64: "gigatype-sidecar-darwin-x64",
+  darwin: {
+    arm64: "gigatype-sidecar-darwin-arm64",
+    x64: "gigatype-sidecar-darwin-x64",
+  },
+  win32: {
+    x64: "gigatype-sidecar-win-x64.exe",
+  },
 };
+const EXE_SUFFIX = process.platform === "win32" ? ".exe" : "";
 const STARTUP_TIMEOUT_MS = 30000;
 const STARTUP_POLL_INTERVAL_MS = 100;
 const HEALTH_CHECK_INTERVAL_MS = 5000;
@@ -55,14 +61,15 @@ class GigaamSidecarManager extends EventEmitter {
   }
 
   getBinaryPath() {
-    if (process.platform !== "darwin") return null;
-    const binaryName = BINARY_NAMES[process.arch];
+    const platformBinaries = BINARY_NAMES[process.platform];
+    if (!platformBinaries) return null;
+    const binaryName = platformBinaries[process.arch];
     if (!binaryName) return null;
     return resolveBinaryPath(binaryName);
   }
 
   getFfmpegPath() {
-    const fromBin = resolveBinaryPath("ffmpeg");
+    const fromBin = resolveBinaryPath(`ffmpeg${EXE_SUFFIX}`);
     if (fromBin) return fromBin;
     if (process.resourcesPath) {
       const unpacked = path.join(
@@ -70,7 +77,7 @@ class GigaamSidecarManager extends EventEmitter {
         "app.asar.unpacked",
         "node_modules",
         "ffmpeg-static",
-        "ffmpeg"
+        `ffmpeg${EXE_SUFFIX}`
       );
       if (fs.existsSync(unpacked)) return unpacked;
     }
@@ -78,7 +85,7 @@ class GigaamSidecarManager extends EventEmitter {
   }
 
   getFfprobePath() {
-    const fromBin = resolveBinaryPath("ffprobe");
+    const fromBin = resolveBinaryPath(`ffprobe${EXE_SUFFIX}`);
     if (fromBin) return fromBin;
     if (process.resourcesPath) {
       const platform = `${process.platform}-${process.arch}`;
@@ -88,7 +95,7 @@ class GigaamSidecarManager extends EventEmitter {
         "node_modules",
         `@ffprobe-installer`,
         platform,
-        "ffprobe"
+        `ffprobe${EXE_SUFFIX}`
       );
       if (fs.existsSync(unpacked)) return unpacked;
     }
