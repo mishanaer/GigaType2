@@ -875,6 +875,7 @@ class WindowManager {
       if (this.mainWindow.isMinimized()) {
         this.mainWindow.restore();
       }
+      this.enforceMainWindowOnTop();
       if (!this.mainWindow.isVisible()) {
         if (typeof this.mainWindow.showInactive === "function") {
           this.mainWindow.showInactive();
@@ -885,6 +886,7 @@ class WindowManager {
       if (focus) {
         this.mainWindow.focus();
       }
+      setTimeout(() => this.enforceMainWindowOnTop(), 0);
     }
   }
 

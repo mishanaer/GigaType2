@@ -58,7 +58,7 @@ const MAIN_WINDOW_CONFIG = {
   skipTaskbar: true,
   focusable: false,
   visibleOnAllWorkspaces: process.platform !== "win32",
-  fullScreenable: false,
+  fullscreenable: false,
   hasShadow: false,
   acceptsFirstMouse: true,
   type: MAIN_OVERLAY_TYPE,
