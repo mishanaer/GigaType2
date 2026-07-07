@@ -62,6 +62,9 @@ pyz = PYZ(a.pure)
 #   Windows build host, so it is disabled here.
 # - upx is disabled to avoid a hard dependency on the UPX packer and to keep
 #   antivirus false positives down for the shipped .exe.
+# - console=False builds a GUI-subsystem binary so no console window flashes
+#   when the Electron app spawns the sidecar. stdout/stderr are still delivered
+#   to the parent's pipes (the manager reads them), so logging is unaffected.
 # - target_arch / codesign_identity / entitlements_file are macOS-only and are
 #   intentionally omitted.
 exe = EXE(
@@ -77,7 +80,7 @@ exe = EXE(
     upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
 )

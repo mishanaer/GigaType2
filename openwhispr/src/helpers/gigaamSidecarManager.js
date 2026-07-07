@@ -270,6 +270,13 @@ class GigaamSidecarManager extends EventEmitter {
       ...(ffmpegPath ? { FFMPEG_BIN: ffmpegPath } : {}),
       ...(ffprobePath ? { FFPROBE_BIN: ffprobePath } : {}),
       HF_HOME: hfHome,
+      // First-run model download is ~892 MB. HuggingFace's default 10s per-read
+      // timeout trips on slow links (seen as "read operation timed out" /
+      // "peer closed connection" mid-download), so give it more headroom.
+      HF_HUB_DOWNLOAD_TIMEOUT: process.env.HF_HUB_DOWNLOAD_TIMEOUT || "60",
+      // Windows can't create HF cache symlinks without Developer Mode/admin; it
+      // falls back to copies. Silence the noisy warning about it.
+      HF_HUB_DISABLE_SYMLINKS_WARNING: "1",
     };
 
     debugLogger.info("Starting GigaAM sidecar", {
