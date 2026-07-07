@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Minus, X } from "lucide-react";
+
+import { Button } from "./ui/button";
 
 import PostMigrationOnboarding from "./PostMigrationOnboarding";
 import GigaamAsrStatusPanel from "./GigaamAsrStatusPanel";
@@ -142,6 +145,31 @@ export default function ControlPanel() {
   return (
     <div ref={contentRef} className={windowClassName}>
       <div className="appshots-window-drag-layer" aria-hidden="true" />
+
+      {platform !== "darwin" && (
+        <div className="appshots-window-no-drag fixed right-3 top-2 z-50 flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => window.electronAPI?.windowMinimize?.()}
+            title={t("windowControls.minimize")}
+            aria-label={t("windowControls.minimize")}
+          >
+            <Minus size={14} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => window.electronAPI?.windowClose?.()}
+            title={t("windowControls.close")}
+            aria-label={t("windowControls.close")}
+          >
+            <X size={14} />
+          </Button>
+        </div>
+      )}
 
       <PostMigrationOnboarding
         open={showPostMigration}

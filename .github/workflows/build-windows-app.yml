@@ -1,5 +1,5 @@
 name: Build Windows app (unsigned)
-# rebuild trigger: tray dictation item toggles recording (overlay has no idle state)
+# rebuild trigger: frameless control panel with custom close/minimize buttons
 
 # Builds the full GigaType desktop app for Windows x64 on a cloud runner
 # (windows-latest already has Node, Python and VS Build Tools), bundling the
