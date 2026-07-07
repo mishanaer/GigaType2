@@ -237,10 +237,14 @@ class TrayManager {
           : i18nMain.t("tray.toggleDictation.show"),
         click: () => {
           if (!this.windowManager) return;
+          // The dictation overlay has no idle state — it only renders while
+          // recording and auto-hides otherwise (see src/App.jsx). So "showing
+          // the panel" only makes sense as starting a dictation; toggle
+          // recording rather than just toggling an empty window's visibility.
           if (this.windowManager.isDictationPanelVisible()) {
-            this.windowManager.hideDictationPanel();
+            this.windowManager.sendStopDictation();
           } else {
-            this.windowManager.showDictationPanel({ focus: true });
+            this.windowManager.sendStartDictation();
           }
           this.updateTrayMenu();
         },
