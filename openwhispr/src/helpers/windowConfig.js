@@ -82,7 +82,11 @@ const CONTROL_PANEL_CONFIG = {
   title: "Type",
   resizable: false,
   show: false,
-  frame: false,
+  // macOS uses a frameless window with inset traffic-light buttons. On
+  // Windows/Linux the app renders no custom titlebar buttons for the control
+  // panel, so a frameless window would have no way to close/minimize — use the
+  // native window frame there instead.
+  frame: process.platform !== "darwin",
   ...(process.platform === "darwin" && {
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 8, y: 8 },
