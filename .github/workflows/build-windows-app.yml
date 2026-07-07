@@ -1,5 +1,5 @@
 name: Build Windows app (unsigned)
-# rebuild trigger: include HF_HUB_DISABLE_SYMLINKS model-download fix
+# rebuild trigger: include no-flash console fix (nircmd/powershell/ffmpeg)
 
 # Builds the full GigaType desktop app for Windows x64 on a cloud runner
 # (windows-latest already has Node, Python and VS Build Tools), bundling the
