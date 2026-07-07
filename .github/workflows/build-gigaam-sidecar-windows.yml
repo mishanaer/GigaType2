@@ -1,0 +1,64 @@
+name: Build GigaAM sidecar (Windows x64)
+
+# Builds the standalone Windows ASR sidecar (PyInstaller onefile) on a cloud
+# windows-latest runner and uploads it as an artifact. This lets the sidecar be
+# produced without owning a Windows machine — download the artifact afterwards.
+
+on:
+  workflow_dispatch: {} # manual "Run workflow" button
+  push:
+    branches:
+      - windows-gigaam-sidecar
+    paths:
+      - "gigaam-sidecar/**"
+      - "scripts/build-gigaam-sidecar-windows-x64.ps1"
+      - ".github/workflows/build-gigaam-sidecar-windows.yml"
+
+jobs:
+  build-sidecar:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: openwhispr
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: openwhispr/package-lock.json
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Installs app deps, including ffmpeg-static / @ffprobe-installer, whose
+      # postinstall scripts fetch the Windows ffmpeg.exe / ffprobe.exe binaries
+      # that the sidecar build script bundles next to the executable.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build GigaAM sidecar (win-x64)
+        run: npm run build:gigaam-sidecar:win
+
+      - name: Verify build output
+        shell: pwsh
+        run: |
+          $bin = "resources/bin"
+          foreach ($f in @("gigatype-sidecar-win-x64.exe", "ffmpeg.exe", "ffprobe.exe")) {
+            if (-not (Test-Path "$bin/$f")) { throw "Missing expected artifact: $bin/$f" }
+          }
+          Get-ChildItem $bin | Format-Table Name, Length
+
+      - name: Upload sidecar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gigatype-sidecar-win-x64
+          path: |
+            openwhispr/resources/bin/gigatype-sidecar-win-x64.exe
+            openwhispr/resources/bin/ffmpeg.exe
+            openwhispr/resources/bin/ffprobe.exe
+          if-no-files-found: error
