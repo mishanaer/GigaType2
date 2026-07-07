@@ -279,6 +279,7 @@ class IPCHandlers {
     this.telemetryManager = managers.telemetryManager;
     this.sessionId = crypto.randomUUID();
     this._hotkeyCaptureMode = false;
+    this._hotkeyCaptureRefocusWindow = null;
     this._activeRecordingPipeline = null;
     this.audioStorageManager = new AudioStorageManager();
     this._audioCleanupInterval = null;
@@ -1530,6 +1531,24 @@ class IPCHandlers {
       this.windowManager.setHotkeyListeningMode(enabled);
       ipcMain.emit("hotkey-listening-mode-changed", null, enabled);
       const hotkeyManager = this.windowManager.hotkeyManager;
+
+      // The dictation overlay window is created with focusable:false so it never
+      // steals focus during dictation. But that also means the OS never delivers
+      // keydown events to it, so hotkey capture (which reads keyboard events in
+      // the renderer) silently does nothing there. While capturing, make the
+      // capturing window temporarily focusable and focus it; restore on exit.
+      if (enabled) {
+        const captureWin = BrowserWindow.fromWebContents(event.sender);
+        if (captureWin && !captureWin.isDestroyed() && !captureWin.isFocusable()) {
+          this._hotkeyCaptureRefocusWindow = captureWin;
+          captureWin.setFocusable(true);
+          captureWin.focus();
+        }
+      } else if (this._hotkeyCaptureRefocusWindow) {
+        const captureWin = this._hotkeyCaptureRefocusWindow;
+        this._hotkeyCaptureRefocusWindow = null;
+        if (!captureWin.isDestroyed()) captureWin.setFocusable(false);
+      }
 
       // When exiting capture mode with a new hotkey, use that to avoid reading stale state
       const effectiveHotkey = !enabled && newHotkey ? newHotkey : hotkeyManager.getCurrentHotkey();
