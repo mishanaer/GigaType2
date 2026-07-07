@@ -10,6 +10,14 @@ name: Build Windows app (unsigned)
 
 on:
   workflow_dispatch: {}
+  # workflow_dispatch only works once this file is on the default branch, so
+  # until then allow triggering by pushing a change to this workflow file
+  # itself (scoped path keeps it from running on unrelated commits).
+  push:
+    branches:
+      - windows-gigaam-sidecar
+    paths:
+      - ".github/workflows/build-windows-app.yml"
 
 jobs:
   build-app:
