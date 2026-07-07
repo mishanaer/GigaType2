@@ -20,6 +20,11 @@ MODEL_PROVIDERS = ["CPUExecutionProvider"]
 FFMPEG_BIN = os.getenv("FFMPEG_BIN") or shutil.which("ffmpeg")
 FFPROBE_BIN = os.getenv("FFPROBE_BIN") or shutil.which("ffprobe")
 
+# The sidecar runs as a windowed (no-console) process on Windows. Spawning the
+# console-subsystem ffmpeg/ffprobe children without this flag makes Windows
+# allocate a console window that flashes on screen for every transcription.
+_SUBPROCESS_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 logger = logging.getLogger("uvicorn.error")
 
 _model: Any | None = None
@@ -183,7 +188,7 @@ def _to_wav_16k_mono(src: Path, dst: Path) -> None:
         "wav",
         str(dst),
     ]
-    subprocess.run(cmd, check=True, capture_output=True, text=True)
+    subprocess.run(cmd, check=True, capture_output=True, text=True, creationflags=_SUBPROCESS_NO_WINDOW)
 
 
 def _probe_audio(path: Path) -> dict[str, str | None]:
@@ -203,7 +208,9 @@ def _probe_audio(path: Path) -> dict[str, str | None]:
         str(path),
     ]
     try:
-        completed = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        completed = subprocess.run(
+            cmd, check=True, capture_output=True, text=True, creationflags=_SUBPROCESS_NO_WINDOW
+        )
         data = json.loads(completed.stdout or "{}")
     except Exception as exc:
         return {"error": f"ffprobe failed: {exc}"}

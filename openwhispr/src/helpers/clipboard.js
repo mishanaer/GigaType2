@@ -1195,7 +1195,9 @@ class ClipboardManager {
 
         this.safeLog(`⚡ nircmd paste starting (delay: ${pasteDelay}ms)`);
 
-        const pasteProcess = spawn(nircmdPath, ["sendkeypress", "ctrl+v"]);
+        const pasteProcess = spawn(nircmdPath, ["sendkeypress", "ctrl+v"], {
+          windowsHide: true,
+        });
 
         let errorOutput = "";
 
@@ -1272,7 +1274,9 @@ class ClipboardManager {
           "Bypass",
           "-Command",
           "[void][System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms');[System.Windows.Forms.SendKeys]::SendWait('^v')",
-        ]);
+        ], {
+          windowsHide: true,
+        });
 
         let errorOutput = "";
 
