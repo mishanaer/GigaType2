@@ -65,7 +65,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # always(): the NSIS installer + portable exe are written before the
+      # final update-metadata step, so publish them even if a late step fails.
       - name: Upload installer + portable
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: gigatype-windows-app
