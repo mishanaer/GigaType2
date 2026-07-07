@@ -274,8 +274,13 @@ class GigaamSidecarManager extends EventEmitter {
       // timeout trips on slow links (seen as "read operation timed out" /
       // "peer closed connection" mid-download), so give it more headroom.
       HF_HUB_DOWNLOAD_TIMEOUT: process.env.HF_HUB_DOWNLOAD_TIMEOUT || "60",
-      // Windows can't create HF cache symlinks without Developer Mode/admin; it
-      // falls back to copies. Silence the noisy warning about it.
+      // Creating a symlink on Windows needs SeCreateSymbolicLinkPrivilege
+      // (Developer Mode or admin). Without it the model download dies with
+      // "OSError: [WinError 1314]" at the final _create_symlink step. Force
+      // huggingface_hub to copy files into the snapshot dir instead of
+      // symlinking so a fresh install downloads the model with no special
+      // privileges. Costs a bit of extra disk; the model is stored once anyway.
+      HF_HUB_DISABLE_SYMLINKS: "1",
       HF_HUB_DISABLE_SYMLINKS_WARNING: "1",
     };
 
