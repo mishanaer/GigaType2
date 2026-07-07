@@ -55,8 +55,11 @@ jobs:
       # prebuild:win (auto pre-hook) downloads llama-server / qdrant / sherpa /
       # vad / diarization / nircmd / windows helper binaries, then
       # electron-builder packages the unsigned NSIS installer + portable exe.
+      # --publish never: electron-builder auto-publishes when it detects CI,
+      # which then fails trying to resolve a repository/token. We only want the
+      # local dist artifacts, so disable publishing explicitly.
       - name: Build Windows app (unsigned)
-        run: npm run build:win
+        run: npm run build:win -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
