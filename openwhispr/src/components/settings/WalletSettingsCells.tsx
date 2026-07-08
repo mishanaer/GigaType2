@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Cell from "../../vendor/wallet_animations/components/Cells";
 import MotionProvider from "../../vendor/wallet_animations/components/MotionProvider";
 import SectionList from "../../vendor/wallet_animations/components/SectionList";
@@ -45,8 +45,11 @@ export default function WalletSettingsCells({
   devicesOverride,
 }: WalletSettingsCellsProps) {
   const [captureKey, setCaptureKey] = useState(0);
+  const [invalidHotkeyShakeKey, setInvalidHotkeyShakeKey] = useState(0);
   const [isHotkeyArmed, setIsHotkeyArmed] = useState(false);
   const [devices, setDevices] = useState<AudioDevice[]>([]);
+  const invalidHotkeyReleaseRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInvalidHotkeyShakingRef = useRef(false);
 
   const loadDevices = useCallback(async () => {
     try {
@@ -123,6 +126,26 @@ export default function WalletSettingsCells({
     [onHotkeyChange]
   );
 
+  const handleHotkeyInvalid = useCallback(() => {
+    if (invalidHotkeyReleaseRef.current) {
+      clearTimeout(invalidHotkeyReleaseRef.current);
+    }
+
+    isInvalidHotkeyShakingRef.current = true;
+    setInvalidHotkeyShakeKey((value) => value + 1);
+    invalidHotkeyReleaseRef.current = setTimeout(() => {
+      isInvalidHotkeyShakingRef.current = false;
+      invalidHotkeyReleaseRef.current = null;
+      setIsHotkeyArmed(false);
+    }, 220);
+  }, []);
+
+  const handleHotkeyBlur = useCallback(() => {
+    if (!isInvalidHotkeyShakingRef.current) {
+      setIsHotkeyArmed(false);
+    }
+  }, []);
+
   const handleMicrophoneChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       const deviceId = event.target.value;
@@ -131,6 +154,14 @@ export default function WalletSettingsCells({
     },
     [onDeviceSelect, onPreferBuiltInChange]
   );
+
+  useEffect(() => {
+    return () => {
+      if (invalidHotkeyReleaseRef.current) {
+        clearTimeout(invalidHotkeyReleaseRef.current);
+      }
+    };
+  }, []);
 
   return (
     <MotionProvider>
@@ -144,9 +175,18 @@ export default function WalletSettingsCells({
               tabIndex={hotkeyDisabled ? undefined : 0}
               aria-disabled={hotkeyDisabled}
               end={
-                <Cell.Part type="Picker">
-                  {isHotkeyArmed ? "Нажмите клавиши" : getHotkeyLabel(dictationKey)}
-                </Cell.Part>
+                <div
+                  key={invalidHotkeyShakeKey}
+                  className={
+                    invalidHotkeyShakeKey > 0
+                      ? "wallet-settings-hotkey-shell wallet-settings-hotkey-shell--invalid"
+                      : "wallet-settings-hotkey-shell"
+                  }
+                >
+                  <Cell.Part type="Picker">
+                    {isHotkeyArmed ? "Нажмите клавиши" : getHotkeyLabel(dictationKey)}
+                  </Cell.Part>
+                </div>
               }
             >
               <Cell.Text title="Хоткей" />
@@ -186,6 +226,8 @@ export default function WalletSettingsCells({
               key={captureKey}
               value={dictationKey}
               onChange={handleHotkeyChange}
+              onInvalid={handleHotkeyInvalid}
+              onBlur={handleHotkeyBlur}
               disabled={hotkeyDisabled}
               autoFocus
               validate={validateHotkey}

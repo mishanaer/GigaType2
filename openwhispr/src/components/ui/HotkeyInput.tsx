@@ -143,6 +143,7 @@ const MODIFIER_CODES = new Set([
 export interface HotkeyInputProps {
   value: string;
   onChange: (hotkey: string) => void;
+  onInvalid?: (hotkey: string, errorMessage: string) => void;
   onBlur?: () => void;
   disabled?: boolean;
   autoFocus?: boolean;
@@ -183,6 +184,7 @@ export interface HotkeyInputVariant {
 export function HotkeyInput({
   value,
   onChange,
+  onInvalid,
   onBlur,
   disabled = false,
   autoFocus = false,
@@ -272,13 +274,20 @@ export function HotkeyInput({
       if (validate) {
         const errorMsg = validate(hotkey);
         if (errorMsg) {
-          setValidationWarning(errorMsg);
-          warningTimeoutRef.current = setTimeout(() => setValidationWarning(null), 4000);
           heldModifiersRef.current = { ctrl: false, meta: false, alt: false, shift: false };
           modifierCodesRef.current = {};
           setActiveModifiers(new Set());
           keyDownTimeRef.current = 0;
           clearFnHeld();
+          if (onInvalid) {
+            setValidationWarning(null);
+            onInvalid(hotkey, errorMsg);
+            setIsCapturing(false);
+            containerRef.current?.blur();
+            return;
+          }
+          setValidationWarning(errorMsg);
+          warningTimeoutRef.current = setTimeout(() => setValidationWarning(null), 4000);
           return;
         }
       }
@@ -291,7 +300,7 @@ export function HotkeyInput({
       clearFnHeld();
       containerRef.current?.blur();
     },
-    [validate, onChange, clearFnHeld]
+    [validate, onInvalid, onChange, clearFnHeld]
   );
 
   const handleKeyDown = useCallback(
