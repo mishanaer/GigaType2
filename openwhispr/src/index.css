@@ -487,6 +487,16 @@
     opacity: 0;
   }
 
+  .wallet-settings-hotkey-shell {
+    display: flex;
+    align-self: stretch;
+    justify-content: flex-end;
+  }
+
+  .wallet-settings-hotkey-shell--invalid {
+    animation: wallet-settings-hotkey-shake 220ms cubic-bezier(0.36, 0.07, 0.19, 0.97);
+  }
+
   .wallet-settings-native-select-wrap {
     position: relative;
     display: inline-flex;
@@ -499,6 +509,22 @@
     height: 100%;
     cursor: pointer;
     opacity: 0;
+  }
+}
+
+@keyframes wallet-settings-hotkey-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25%,
+  75% {
+    transform: translateX(-2px);
+  }
+
+  50% {
+    transform: translateX(2px);
   }
 }
 
