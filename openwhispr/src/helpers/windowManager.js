@@ -896,10 +896,6 @@ class WindowManager {
     }
 
     this.controlPanelWindow.hide();
-
-    if (process.platform === "darwin" && app.dock) {
-      app.dock.hide();
-    }
   }
 
   hideDictationPanel() {

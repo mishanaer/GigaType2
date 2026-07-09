@@ -687,7 +687,11 @@ async function startApp() {
   trayManager.setWindows(windowManager.mainWindow, windowManager.controlPanelWindow);
   trayManager.setWindowManager(windowManager);
   trayManager.setCreateControlPanelCallback(() => windowManager.createControlPanelWindow());
-  await trayManager.createTray();
+  if (process.platform !== "darwin") {
+    await trayManager.createTray();
+  } else {
+    debugLogger.info("Skipping tray icon on macOS", undefined, "tray");
+  }
 
   updateManager.setWindows(windowManager.mainWindow, windowManager.controlPanelWindow);
   updateManager.checkForUpdatesOnStartup();

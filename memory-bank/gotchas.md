@@ -13,3 +13,4 @@
 - The login keychain can contain duplicate `Developer ID Application: Mikhail Naer (SBHVKH5UUY)` identities. Signing by common name is ambiguous; use a concrete SHA-1 identity hash or an isolated keychain.
 - After custom macOS signing, verify the app inside the produced DMG, not only `dist-*/mac-arm64/Type.app`. A stale/unsigned app inside the DMG will pass local staged-app checks but fail notarization.
 - macOS paste restore must not depend on AX verification: Accessibility can fail to read the focused field (`unreadable-after-paste`) even after Cmd+V succeeds. Follow upstream OpenWhispr's model: restore after the paste delay only if clipboard still contains the dictated text, and serialize paste attempts until restore completes.
+- Type intentionally does not create a macOS menu-bar `Tray` item. Keep the Dock icon visible when hiding the control panel; otherwise the running app has no obvious way back to its UI.
