@@ -37,8 +37,6 @@ const { isAllowedIpcSenderUrl, isSafeExternalUrl } = require("./securityPolicy")
 
 const ALLOWED_MEETING_PROVIDERS = new Set(["gigaam"]);
 const GIGAAM_TRANSCRIPTION_MODEL = "gigaam-v3-e2e-rnnt";
-const MACOS_PASTE_SNAPSHOT_AX_TIMEOUT_MS = 120;
-const MACOS_PASTE_SNAPSHOT_QUERY_TIMEOUT_MS = 80;
 const MAX_LOG_COPY_BYTES_PER_FILE = 100 * 1024;
 const DEBUG_TRANSCRIPTION_LIMIT = 10;
 const DEBUG_TRANSCRIPTION_PREVIEW_CHARS = 300;
@@ -1284,30 +1282,10 @@ class IPCHandlers {
         pasteTimings.focusFallbackMs = Date.now() - focusFallbackStartedAt;
       }
 
-      const snapshotStartedAt = Date.now();
-      const pasteTargetSnapshot =
-        process.platform === "darwin" && targetPid && this.textEditMonitor
-          ? await this.textEditMonitor.capturePasteTargetSnapshot(targetPid, {
-              enableTimeoutMs: MACOS_PASTE_SNAPSHOT_AX_TIMEOUT_MS,
-              queryTimeoutMs: MACOS_PASTE_SNAPSHOT_QUERY_TIMEOUT_MS,
-            })
-          : null;
-      pasteTimings.captureSnapshotMs = Date.now() - snapshotStartedAt;
-
       const result = await this.clipboardManager.pasteText(text, {
         ...options,
         webContents: event.sender,
         targetPid,
-        verifyPaste:
-          process.platform === "darwin" && targetPid && this.textEditMonitor
-            ? ({ text: pastedText, ...verificationOptions }) =>
-                this.textEditMonitor.verifyPasteCompleted(
-                  targetPid,
-                  pastedText,
-                  pasteTargetSnapshot,
-                  verificationOptions
-                )
-            : undefined,
       });
       debugLogger.info(
         "Paste request completed",
@@ -1316,8 +1294,6 @@ class IPCHandlers {
           activated,
           elapsedMs: Date.now() - pasteRequestStartedAt,
           timings: pasteTimings,
-          snapshotReadable: pasteTargetSnapshot?.readable === true,
-          snapshotReason: pasteTargetSnapshot?.reason,
           result: result
             ? {
                 inserted: result.inserted === true,
