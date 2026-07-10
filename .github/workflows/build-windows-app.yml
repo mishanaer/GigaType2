@@ -1,5 +1,5 @@
 name: Build Windows app (unsigned)
-# rebuild trigger: fix key-listener restart race + tray labels + diagnostics report
+# rebuild trigger: drop diagnostics tooling, restore tray labels (keep race fix)
 
 # Builds the full GigaType desktop app for Windows x64 on a cloud runner
 # (windows-latest already has Node, Python and VS Build Tools), bundling the

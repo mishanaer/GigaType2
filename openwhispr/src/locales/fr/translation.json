@@ -34,10 +34,7 @@
     },
     "openControlPanel": "Ouvrir le panneau de contrôle",
     "quit": "Quitter Type",
-    "tooltip": "Type - Dictée vocale",
-    "startDictation": "Démarrer la dictée",
-    "stopDictation": "Arrêter la dictée",
-    "saveDiagnostics": "Enregistrer le rapport de diagnostic"
+    "tooltip": "Type - Dictée vocale"
   },
   "menu": {
     "appLabel": "Type",

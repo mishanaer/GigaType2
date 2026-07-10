@@ -34,10 +34,7 @@
     },
     "openControlPanel": "開啟控制面板",
     "quit": "結束 Type",
-    "tooltip": "Type - 語音輸入",
-    "startDictation": "開始聽寫",
-    "stopDictation": "停止聽寫",
-    "saveDiagnostics": "儲存診斷報告"
+    "tooltip": "Type - 語音輸入"
   },
   "menu": {
     "appLabel": "Type",

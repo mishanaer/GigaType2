@@ -19,45 +19,24 @@ class WindowsKeyManager extends EventEmitter {
     this.hasReportedError = false;
     this.currentKey = null;
     this.isReady = false;
-    this.lastKeyDownAt = null;
-    this.lastKeyUpAt = null;
-    this.lastReadyAt = null;
-  }
-
-  // Diagnostic snapshot for the tray "Save Diagnostic Report" action.
-  getState() {
-    return {
-      supported: this.isSupported,
-      running: Boolean(this.process),
-      pid: this.process?.pid ?? null,
-      currentKey: this.currentKey,
-      isReady: this.isReady,
-      lastKeyDownAt: this.lastKeyDownAt,
-      lastKeyUpAt: this.lastKeyUpAt,
-      lastReadyAt: this.lastReadyAt,
-      binaryFound: this.resolveListenerBinary() !== null,
-    };
   }
 
   handleOutputLine(line, key) {
     if (line === "READY") {
       debugLogger.debug("[WindowsKeyManager] Listener ready", { key });
       this.isReady = true;
-      this.lastReadyAt = new Date().toISOString();
       this.emit("ready");
       return;
     }
 
     if (line === "KEY_DOWN") {
       debugLogger.debug("[WindowsKeyManager] KEY_DOWN detected", { key });
-      this.lastKeyDownAt = new Date().toISOString();
       this.emit("key-down", key);
       return;
     }
 
     if (line === "KEY_UP") {
       debugLogger.debug("[WindowsKeyManager] KEY_UP detected", { key });
-      this.lastKeyUpAt = new Date().toISOString();
       this.emit("key-up", key);
       return;
     }

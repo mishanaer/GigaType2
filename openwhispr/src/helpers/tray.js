@@ -39,10 +39,6 @@ class TrayManager {
     this.createControlPanelCallback = callback;
   }
 
-  setDiagnosticsCallback(callback) {
-    this.diagnosticsCallback = callback;
-  }
-
   attachControlPanelListeners(window) {
     if (!window || this.attachedControlPanels.has(window)) {
       return;
@@ -237,13 +233,11 @@ class TrayManager {
     return [
       {
         // The dictation overlay has no idle state — it only renders while
-        // recording and auto-hides otherwise (see src/App.jsx). So this item
-        // starts/stops a dictation, and its label says exactly that (an
-        // earlier "show/hide panel" label silently started recordings, which
-        // read as a bug).
+        // recording and auto-hides otherwise (see src/App.jsx), so this item
+        // starts/stops a dictation rather than toggling an empty window.
         label: dictationVisible
-          ? i18nMain.t("tray.stopDictation")
-          : i18nMain.t("tray.startDictation"),
+          ? i18nMain.t("tray.toggleDictation.hide")
+          : i18nMain.t("tray.toggleDictation.show"),
         click: () => {
           if (!this.windowManager) return;
           if (this.windowManager.isDictationPanelVisible()) {
@@ -260,18 +254,6 @@ class TrayManager {
           await this.showControlPanelFromTray();
         },
       },
-      ...(this.diagnosticsCallback
-        ? [
-            {
-              label: i18nMain.t("tray.saveDiagnostics"),
-              click: () => {
-                Promise.resolve(this.diagnosticsCallback()).catch((error) => {
-                  debugLogger.error("Failed to save diagnostics", { error: error?.message }, "tray");
-                });
-              },
-            },
-          ]
-        : []),
       { type: "separator" },
       {
         label: i18nMain.t("tray.quit"),
