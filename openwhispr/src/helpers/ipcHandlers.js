@@ -1989,6 +1989,10 @@ class IPCHandlers {
       return this.windowManager?.hotkeyManager?.getEffectiveDefaultHotkey() ?? null;
     });
 
+    handle("is-fn-hotkey-available", async () => {
+      return this.windowManager?.hotkeyManager?.isFnHotkeyAvailable() ?? false;
+    });
+
     handle("get-activation-mode", async () => {
       return this.environmentManager.getActivationMode();
     });

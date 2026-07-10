@@ -118,14 +118,6 @@ export default function WalletSettingsCells({
     [beginHotkeyCapture]
   );
 
-  const handleHotkeyChange = useCallback(
-    async (newHotkey: string) => {
-      await onHotkeyChange(newHotkey);
-      setIsHotkeyArmed(false);
-    },
-    [onHotkeyChange]
-  );
-
   const handleHotkeyInvalid = useCallback(() => {
     if (invalidHotkeyReleaseRef.current) {
       clearTimeout(invalidHotkeyReleaseRef.current);
@@ -139,6 +131,33 @@ export default function WalletSettingsCells({
       setIsHotkeyArmed(false);
     }, 220);
   }, []);
+
+  const handleHotkeyChange = useCallback(
+    async (newHotkey: string) => {
+      if (isGlobeLikeHotkey(newHotkey)) {
+        const checkFnAvailability = window.electronAPI?.isFnHotkeyAvailable;
+        if (!checkFnAvailability) {
+          handleHotkeyInvalid();
+          return;
+        }
+
+        try {
+          const isAvailable = await checkFnAvailability();
+          if (!isAvailable) {
+            handleHotkeyInvalid();
+            return;
+          }
+        } catch {
+          handleHotkeyInvalid();
+          return;
+        }
+      }
+
+      await onHotkeyChange(newHotkey);
+      setIsHotkeyArmed(false);
+    },
+    [handleHotkeyInvalid, onHotkeyChange]
+  );
 
   const handleHotkeyBlur = useCallback(() => {
     if (!isInvalidHotkeyShakingRef.current) {

@@ -286,6 +286,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getDictationKey: () => ipcRenderer.invoke("get-dictation-key"),
   getActiveDictationKey: () => ipcRenderer.invoke("get-active-dictation-key"),
   getEffectiveDefaultHotkey: () => ipcRenderer.invoke("get-effective-default-hotkey"),
+  isFnHotkeyAvailable: () => ipcRenderer.invoke("is-fn-hotkey-available"),
   saveDictationKey: (key) => ipcRenderer.invoke("save-dictation-key", key),
 
   // Activation mode persistence (file-based for reliable startup)
