@@ -2,6 +2,8 @@ import type { ImgHTMLAttributes } from "react";
 
 import typeLogo from "../../assets/typelogo-176.webp";
 
+const buildVersion = __APP_VERSION__.replace(/\.0$/, "");
+
 type AppshotsLogoHeaderProps = Pick<ImgHTMLAttributes<HTMLImageElement>, "alt"> & {
   showBuildLabel?: boolean;
 };
@@ -18,7 +20,7 @@ export default function AppshotsLogoHeader({
       <img src={typeLogo} alt={alt} className="h-[88px] w-[88px] select-none" draggable={false} />
       {showBuildLabel && (
         <div className="mt-[24px] font-mono text-[13px] leading-none text-muted-foreground">
-          BETA BUILD 1.2
+          BETA BUILD {buildVersion}
         </div>
       )}
     </div>
