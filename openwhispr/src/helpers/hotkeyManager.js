@@ -5,6 +5,11 @@ const GnomeShortcutManager = require("./gnomeShortcut");
 const HyprlandShortcutManager = require("./hyprlandShortcut");
 const KDEShortcutManager = require("./kdeShortcut");
 const { i18nMain } = require("./i18nMain");
+const {
+  getMacosDefaultHotkey,
+  isFnUsageAvailable,
+  readAppleFnUsageType,
+} = require("./macosFnUsage");
 
 // Delay to ensure localStorage is accessible after window load
 const HOTKEY_REGISTRATION_DELAY_MS = 1000;
@@ -937,7 +942,16 @@ class HotkeyManager extends EventEmitter {
    * GNOME gsettings requires a regular key), returns the first fallback (F8).
    */
   getEffectiveDefaultHotkey() {
-    if (process.platform === "darwin") return "GLOBE";
+    if (process.platform === "darwin") {
+      const usageType = readAppleFnUsageType();
+      const defaultHotkey = getMacosDefaultHotkey(usageType);
+      debugLogger.info(
+        "Resolved macOS default hotkey",
+        { appleFnUsageType: usageType, defaultHotkey },
+        "hotkey"
+      );
+      return defaultHotkey;
+    }
     if (process.platform !== "linux") return DEFAULT_HOTKEY;
 
     const isX11 = !GnomeShortcutManager.isWayland();
@@ -950,6 +964,19 @@ class HotkeyManager extends EventEmitter {
     }
 
     return DEFAULT_HOTKEY;
+  }
+
+  isFnHotkeyAvailable() {
+    if (process.platform !== "darwin") return false;
+
+    const usageType = readAppleFnUsageType();
+    const available = isFnUsageAvailable(usageType);
+    debugLogger.debug(
+      "Checked macOS Fn hotkey availability",
+      { appleFnUsageType: usageType, available },
+      "hotkey"
+    );
+    return available;
   }
 
   /**

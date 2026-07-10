@@ -18,7 +18,7 @@ export default function AppshotsLogoHeader({
       <img src={typeLogo} alt={alt} className="h-[88px] w-[88px] select-none" draggable={false} />
       {showBuildLabel && (
         <div className="mt-[24px] font-mono text-[13px] leading-none text-muted-foreground">
-          BETA BUILD 1.0
+          BETA BUILD 1.2
         </div>
       )}
     </div>

@@ -37,11 +37,11 @@ const { isAllowedIpcSenderUrl, isSafeExternalUrl } = require("./securityPolicy")
 
 const ALLOWED_MEETING_PROVIDERS = new Set(["gigaam"]);
 const GIGAAM_TRANSCRIPTION_MODEL = "gigaam-v3-e2e-rnnt";
-const MACOS_PASTE_SNAPSHOT_AX_TIMEOUT_MS = 120;
-const MACOS_PASTE_SNAPSHOT_QUERY_TIMEOUT_MS = 80;
 const MAX_LOG_COPY_BYTES_PER_FILE = 100 * 1024;
 const DEBUG_TRANSCRIPTION_LIMIT = 10;
 const DEBUG_TRANSCRIPTION_PREVIEW_CHARS = 300;
+const MACOS_PASTE_SNAPSHOT_AX_TIMEOUT_MS = 120;
+const MACOS_PASTE_SNAPSHOT_QUERY_TIMEOUT_MS = 80;
 
 async function readLogFileTail(filePath) {
   try {
@@ -2030,6 +2030,10 @@ class IPCHandlers {
 
     handle("get-effective-default-hotkey", async () => {
       return this.windowManager?.hotkeyManager?.getEffectiveDefaultHotkey() ?? null;
+    });
+
+    handle("is-fn-hotkey-available", async () => {
+      return this.windowManager?.hotkeyManager?.isFnHotkeyAvailable() ?? false;
     });
 
     handle("get-activation-mode", async () => {

@@ -9,7 +9,7 @@ import { useClipboard } from "../hooks/useClipboard";
 import { useSettings } from "../hooks/useSettings";
 import { useGigaamSidecarStatus } from "../hooks/useGigaamSidecarStatus";
 import { setAgentName as saveAgentName } from "../utils/agentName";
-import { getDefaultHotkey, isGlobeLikeHotkey } from "../utils/hotkeys";
+import { getDefaultHotkey } from "../utils/hotkeys";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { useAppshotsAppleSkin } from "../hooks/useAppshotsAppleSkin";
 import { getPlatform } from "../utils/platform";
@@ -128,18 +128,11 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         // X11 modifier-only and GNOME gsettings limitations)
         const defaultHotkey =
           (await window.electronAPI?.getEffectiveDefaultHotkey?.()) || getDefaultHotkey();
-        const platform = window.electronAPI?.getPlatform?.() ?? "darwin";
 
-        // Only auto-register if no hotkey is currently set
-        const shouldAutoRegister =
-          !hotkey || hotkey.trim() === "" || (platform !== "darwin" && isGlobeLikeHotkey(hotkey));
-
-        if (shouldAutoRegister) {
-          // Try to register the default hotkey silently
-          const success = await registerHotkey(defaultHotkey);
-          if (success) {
-            setHotkey(defaultHotkey);
-          }
+        // No persisted preference exists, so apply the backend-resolved default.
+        const success = await registerHotkey(defaultHotkey);
+        if (success) {
+          setHotkey(defaultHotkey);
         }
       } catch (error) {
         logger.error("Failed to auto-register default hotkey", { error }, "onboarding");
@@ -149,7 +142,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     };
 
     void autoRegisterDefaultHotkey();
-  }, [currentStep, hotkey, registerHotkey, modelStepIndex, setDictationKey]);
+  }, [currentStep, registerHotkey, modelStepIndex, setDictationKey]);
 
   useEffect(() => {
     if (currentStep !== modelStepIndex) return;

@@ -744,6 +744,7 @@ declare global {
       getDictationKey?: () => Promise<string | null>;
       getActiveDictationKey?: () => Promise<string>;
       getEffectiveDefaultHotkey?: () => Promise<string>;
+      isFnHotkeyAvailable?: () => Promise<boolean>;
       saveDictationKey?: (key: string) => Promise<void>;
 
       // Activation mode persistence (file-based for reliable startup)
