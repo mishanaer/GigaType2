@@ -23,6 +23,7 @@ const {
   BrowserWindow,
   dialog,
   ipcMain,
+  nativeTheme,
   session,
   systemPreferences,
 } = require("electron");
@@ -114,6 +115,14 @@ function setMacDockIcon() {
   } catch (error) {
     console.warn("Failed to set Dock icon; continuing startup", error);
   }
+}
+
+// Windows always uses the light theme (#11): forcing themeSource makes
+// prefers-color-scheme resolve to "light" in every renderer, so the fixed
+// "auto" theme setting lands on light regardless of the OS dark mode. Set
+// before any window is created so the first paint is already light.
+if (process.platform === "win32") {
+  nativeTheme.themeSource = "light";
 }
 
 // Load userData .env (contains hotkeys and runtime config) early — before

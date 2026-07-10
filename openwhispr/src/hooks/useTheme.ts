@@ -1,5 +1,11 @@
 import { useEffect } from "react";
 import { useSettings } from "./useSettings";
+import { getCachedPlatform } from "../utils/platform";
+
+// Windows always uses the light theme (#11). The main process already forces
+// nativeTheme.themeSource = "light" there; this guard keeps the renderer light
+// even if nativeTheme gets re-flipped later.
+const FORCE_LIGHT = getCachedPlatform() === "win32";
 
 export function useTheme() {
   const { theme, setTheme } = useSettings();
@@ -8,8 +14,9 @@ export function useTheme() {
     const htmlElement = document.documentElement;
 
     // Determine effective theme
-    const effectiveTheme: "light" | "dark" =
-      theme === "auto"
+    const effectiveTheme: "light" | "dark" = FORCE_LIGHT
+      ? "light"
+      : theme === "auto"
         ? window.matchMedia("(prefers-color-scheme: dark)").matches
           ? "dark"
           : "light"
@@ -25,7 +32,7 @@ export function useTheme() {
     }
 
     // Listen for system preference changes (only when auto)
-    if (theme === "auto") {
+    if (theme === "auto" && !FORCE_LIGHT) {
       const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
       const handler = (e: MediaQueryListEvent) => {
         if (e.matches) {

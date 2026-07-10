@@ -69,7 +69,15 @@ const CONTROL_PANEL_CONFIG = {
   width: 500,
   height: 560,
   minHeight: 360,
-  backgroundColor: process.platform === "darwin" ? "#00000000" : "#1c1c2e",
+  // Windows is forced to the light theme (#11), so give the window an explicit
+  // light backdrop — matches --background: oklch(1 0 0) and avoids a dark
+  // flash before the renderer paints. macOS is transparent (vibrancy).
+  backgroundColor:
+    process.platform === "darwin"
+      ? "#00000000"
+      : process.platform === "win32"
+        ? "#ffffff"
+        : "#1c1c2e",
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
