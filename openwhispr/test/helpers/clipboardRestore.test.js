@@ -102,6 +102,16 @@ function resetClipboard({
   fakeClipboard.writes = [];
 }
 
+async function withPlatform(platform, callback) {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(process, "platform");
+  Object.defineProperty(process, "platform", { ...originalDescriptor, value: platform });
+  try {
+    return await callback();
+  } finally {
+    Object.defineProperty(process, "platform", originalDescriptor);
+  }
+}
+
 const ClipboardManager = loadClipboardManager();
 
 test("restore preserves rich text clipboard formats atomically", () => {
@@ -122,7 +132,7 @@ test("restore preserves rich text clipboard formats atomically", () => {
   assert.equal(fakeClipboard.writes.at(-1)[0], "write");
 });
 
-test("restore runs when clipboard still contains the pasted text", async () => {
+test("guarded restore runs after a verified paste while clipboard is unchanged", async () => {
   resetClipboard({ text: "dictated text" });
   const manager = new ClipboardManager();
 
@@ -144,6 +154,133 @@ test("restore is skipped when another clipboard write wins the race", async () =
   );
 
   assert.equal(fakeClipboard.text, "user copied something else");
+});
+
+test("macOS restores the previous clipboard only after a verified paste", async () => {
+  await withPlatform("darwin", async () => {
+    resetClipboard({ text: "previous clipboard" });
+    const manager = new ClipboardManager();
+    let pasteOriginal;
+    let restoreCall;
+
+    manager.resolveFastPasteBinary = () => "/tmp/openwhispr-fast-paste";
+    manager.checkAccessibilityPermissions = async () => true;
+    manager.pasteMacOS = async (originalClipboard) => {
+      pasteOriginal = originalClipboard;
+      return { restoreComplete: Promise.resolve() };
+    };
+    manager._restoreClipboardAfterDelay = async (originalClipboard, options) => {
+      restoreCall = { originalClipboard, options };
+      manager._restoreClipboard(originalClipboard);
+    };
+
+    const result = await manager.pasteText("dictated text", {
+      restoreClipboard: true,
+      allowClipboardFallback: true,
+      verifyPaste: async () => ({ inserted: true, reason: "verified" }),
+      verificationIntervalMs: 1,
+      verificationTimeoutMs: 1,
+    });
+
+    assert.equal(pasteOriginal, null);
+    assert.deepEqual(restoreCall, {
+      originalClipboard: { type: "text", data: "previous clipboard" },
+      options: { delayMs: 450, expectedText: "dictated text" },
+    });
+    assert.equal(fakeClipboard.text, "previous clipboard");
+    assert.equal(result.inserted, true);
+    assert.equal(result.verified, true);
+    assert.equal(result.fallback, false);
+  });
+});
+
+test("macOS keeps dictated text when the paste cannot be verified", async () => {
+  await withPlatform("darwin", async () => {
+    resetClipboard({ text: "previous clipboard" });
+    const manager = new ClipboardManager();
+    let restoreCalled = false;
+
+    manager.resolveFastPasteBinary = () => "/tmp/openwhispr-fast-paste";
+    manager.checkAccessibilityPermissions = async () => true;
+    manager.pasteMacOS = async (originalClipboard) => {
+      assert.equal(originalClipboard, null);
+      return { restoreComplete: Promise.resolve() };
+    };
+    manager._restoreClipboardAfterDelay = async () => {
+      restoreCalled = true;
+    };
+
+    const result = await manager.pasteText("dictated text", {
+      restoreClipboard: true,
+      allowClipboardFallback: true,
+      verifyPaste: async () => ({
+        inserted: false,
+        retryable: false,
+        reason: "unreadable-after-paste",
+      }),
+      verificationIntervalMs: 1,
+      verificationTimeoutMs: 1,
+    });
+
+    assert.equal(restoreCalled, false);
+    assert.equal(fakeClipboard.text, "dictated text");
+    assert.equal(result.inserted, false);
+    assert.equal(result.verified, false);
+    assert.equal(result.fallback, true);
+    assert.equal(result.reason, "unreadable-after-paste");
+  });
+});
+
+test("macOS keeps dictated text when paste verification is unavailable", async () => {
+  await withPlatform("darwin", async () => {
+    resetClipboard({ text: "previous clipboard" });
+    const manager = new ClipboardManager();
+
+    manager.resolveFastPasteBinary = () => "/tmp/openwhispr-fast-paste";
+    manager.checkAccessibilityPermissions = async () => true;
+    manager.pasteMacOS = async (originalClipboard) => {
+      assert.equal(originalClipboard, null);
+      return { restoreComplete: Promise.resolve() };
+    };
+
+    const result = await manager.pasteText("dictated text", {
+      restoreClipboard: true,
+      allowClipboardFallback: true,
+    });
+
+    assert.equal(fakeClipboard.text, "dictated text");
+    assert.equal(result.inserted, false);
+    assert.equal(result.verified, false);
+    assert.equal(result.fallback, true);
+    assert.equal(result.reason, "verification-unavailable");
+  });
+});
+
+test("macOS rewrites dictated text to the clipboard when paste fails", async () => {
+  await withPlatform("darwin", async () => {
+    resetClipboard({ text: "previous clipboard" });
+    const manager = new ClipboardManager();
+    let pasteAttempts = 0;
+
+    manager.resolveFastPasteBinary = () => "/tmp/openwhispr-fast-paste";
+    manager.checkAccessibilityPermissions = async () => true;
+    manager.pasteMacOS = async () => {
+      pasteAttempts += 1;
+      fakeClipboard.writeText("clipboard changed during paste");
+      throw new Error("paste failed");
+    };
+
+    await assert.rejects(
+      manager.pasteText("dictated text", {
+        restoreClipboard: true,
+        allowClipboardFallback: true,
+      }),
+      /paste failed/
+    );
+
+    assert.equal(pasteAttempts, 2);
+    assert.equal(fakeClipboard.text, "dictated text");
+  });
 });
 
 test("pasteText waits for prior clipboard restoration before starting the next paste", async () => {

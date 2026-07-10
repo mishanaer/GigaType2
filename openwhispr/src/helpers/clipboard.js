@@ -61,6 +61,10 @@ const RESTORE_DELAYS = {
   linux_kde_wayland: 600,
 };
 
+const MACOS_PASTE_VERIFICATION_INTERVAL_MS = 100;
+const MACOS_PASTE_VERIFICATION_TIMEOUT_MS = 500;
+const MACOS_PASTE_VERIFICATION_QUERY_TIMEOUT_MS = 80;
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -707,6 +711,119 @@ class ClipboardManager {
     this._restoreClipboard(originalClipboard);
   }
 
+  async _verifyMacOSPaste(text, verifyPaste, verificationOptions = {}) {
+    try {
+      const result = await verifyPaste({ text, ...verificationOptions });
+      return result && typeof result === "object"
+        ? result
+        : { inserted: false, retryable: false, reason: "invalid-verification-result" };
+    } catch (error) {
+      debugLogger.warn(
+        "macOS paste verification failed",
+        { error: error?.message || String(error) },
+        "clipboard"
+      );
+      return { inserted: false, retryable: false, reason: "verification-error" };
+    }
+  }
+
+  async _verifyMacOSPasteWithPolling(text, verifyPaste, options = {}) {
+    const intervalMs = Math.max(1, options.intervalMs ?? MACOS_PASTE_VERIFICATION_INTERVAL_MS);
+    const timeoutMs = Math.max(
+      intervalMs,
+      options.timeoutMs ?? MACOS_PASTE_VERIFICATION_TIMEOUT_MS
+    );
+    const baseQueryTimeoutMs = Math.max(
+      1,
+      options.queryTimeoutMs ?? MACOS_PASTE_VERIFICATION_QUERY_TIMEOUT_MS
+    );
+    const startedAt = Date.now();
+    const deadlineAt = startedAt + timeoutMs;
+    const attempts = [];
+    let lastVerification = null;
+    let attempt = 0;
+
+    for (
+      let scheduledElapsedMs = 0;
+      scheduledElapsedMs < timeoutMs;
+      scheduledElapsedMs += intervalMs
+    ) {
+      const waitMs = startedAt + scheduledElapsedMs - Date.now();
+      if (waitMs > 0) {
+        await sleep(waitMs);
+      }
+
+      const remainingMs = deadlineAt - Date.now();
+      if (remainingMs <= 0) {
+        break;
+      }
+
+      attempt += 1;
+      const queryTimeoutMs = Math.max(1, Math.min(baseQueryTimeoutMs, remainingMs));
+      const attemptStartedAt = Date.now();
+      const verification = await this._verifyMacOSPaste(text, verifyPaste, {
+        attempts: 1,
+        delayMs: 0,
+        queryTimeoutMs,
+        verificationAttempt: attempt,
+        verificationElapsedMs: attemptStartedAt - startedAt,
+      });
+      lastVerification = verification;
+
+      attempts.push({
+        attempt,
+        elapsedMs: Date.now() - startedAt,
+        durationMs: Date.now() - attemptStartedAt,
+        inserted: verification.inserted === true,
+        reason: verification.reason || "unknown",
+        retryable: verification.retryable === true,
+        queryMs: verification.queryMs,
+        queryTimeoutMs,
+        length: verification.length,
+      });
+
+      if (verification.inserted) {
+        return {
+          ...verification,
+          retryable: false,
+          attempts: attempt,
+          verificationAttempts: attempts,
+          verificationElapsedMs: Date.now() - startedAt,
+          verificationIntervalMs: intervalMs,
+          verificationTimeoutMs: timeoutMs,
+        };
+      }
+    }
+
+    return {
+      inserted: false,
+      retryable: false,
+      reason: lastVerification?.reason || "verification-timeout",
+      lastReason: lastVerification?.reason || null,
+      attempts: attempt,
+      verificationAttempts: attempts,
+      verificationElapsedMs: Date.now() - startedAt,
+      verificationIntervalMs: intervalMs,
+      verificationTimeoutMs: timeoutMs,
+      length: lastVerification?.length ?? 0,
+    };
+  }
+
+  _leaveFallbackTextInClipboard(text, verification) {
+    clipboard.writeText(text);
+    debugLogger.warn(
+      "macOS paste was not verified; leaving transcription in clipboard",
+      {
+        reason: verification?.reason || "unknown",
+        retryable: verification?.retryable === true,
+        attempts: verification?.attempts,
+        verificationElapsedMs: verification?.verificationElapsedMs,
+        verificationTimeoutMs: verification?.verificationTimeoutMs,
+      },
+      "clipboard"
+    );
+  }
+
   async pasteText(text, options = {}) {
     const previousPaste = this.pasteQueue.catch(() => {});
     let markRestoreComplete;
@@ -748,6 +865,10 @@ class ClipboardManager {
     };
     const webContents = options.webContents;
     const allowClipboardFallback = options.allowClipboardFallback === true;
+    const verifyPaste =
+      platform === "darwin" && typeof options.verifyPaste === "function"
+        ? options.verifyPaste
+        : null;
 
     try {
       const shouldRestore = options.restoreClipboard !== false;
@@ -797,7 +918,7 @@ class ClipboardManager {
         const pasteCommandStartedAt = Date.now();
         let pasteResult;
         try {
-          pasteResult = await this.pasteMacOS(originalClipboard, {
+          pasteResult = await this.pasteMacOS(null, {
             ...options,
             expectedClipboardText: text,
           });
@@ -805,16 +926,52 @@ class ClipboardManager {
           this.safeLog("⚠️ First paste attempt failed, retrying...", firstError?.message);
           clipboard.writeText(text);
           await sleep(200);
-          pasteResult = await this.pasteMacOS(originalClipboard, {
+          pasteResult = await this.pasteMacOS(null, {
             ...options,
             expectedClipboardText: text,
           });
         }
         timings.pasteCommandMs = Date.now() - pasteCommandStartedAt;
-        outcome.restoreComplete = pasteResult?.restoreComplete;
-        outcome.inserted = true;
-        outcome.verified = false;
-        outcome.reason = "sent-unverified";
+
+        if (shouldRestore && verifyPaste) {
+          const verificationStartedAt = Date.now();
+          const verification = await this._verifyMacOSPasteWithPolling(text, verifyPaste, {
+            intervalMs: options.verificationIntervalMs,
+            timeoutMs: options.verificationTimeoutMs,
+            queryTimeoutMs: options.verificationQueryTimeoutMs,
+          });
+          timings.verificationMs = Date.now() - verificationStartedAt;
+          outcome.verification = verification;
+
+          if (verification.inserted) {
+            outcome.restoreComplete = this._restoreClipboardAfterDelay(originalClipboard, {
+              delayMs: RESTORE_DELAYS.darwin,
+              expectedText: text,
+            });
+            outcome.inserted = true;
+            outcome.verified = true;
+            outcome.reason = verification.reason || "verified";
+          } else {
+            this._leaveFallbackTextInClipboard(text, verification);
+            outcome.restoreComplete = Promise.resolve();
+            outcome.fallback = true;
+            outcome.reason = verification.reason || "verification-timeout";
+          }
+        } else if (shouldRestore) {
+          const verification = {
+            inserted: false,
+            retryable: false,
+            reason: "verification-unavailable",
+          };
+          this._leaveFallbackTextInClipboard(text, verification);
+          outcome.restoreComplete = Promise.resolve();
+          outcome.fallback = true;
+          outcome.reason = verification.reason;
+        } else {
+          outcome.restoreComplete = pasteResult?.restoreComplete;
+          outcome.inserted = true;
+          outcome.reason = "sent-unverified";
+        }
       } else if (platform === "win32") {
         const winFastPaste = this.resolveWindowsFastPasteBinary();
         if (winFastPaste) {
@@ -871,6 +1028,17 @@ class ClipboardManager {
       });
       return outcome;
     } catch (error) {
+      if (platform === "darwin") {
+        try {
+          clipboard.writeText(text);
+        } catch (clipboardError) {
+          debugLogger.error(
+            "Unable to preserve transcription in clipboard after paste failure",
+            { error: clipboardError?.message || String(clipboardError) },
+            "clipboard"
+          );
+        }
+      }
       this.safeLog("❌ Paste operation failed", {
         platform,
         method,
