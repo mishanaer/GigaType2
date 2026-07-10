@@ -191,6 +191,47 @@ def _to_wav_16k_mono(src: Path, dst: Path) -> None:
     subprocess.run(cmd, check=True, capture_output=True, text=True, creationflags=_SUBPROCESS_NO_WINDOW)
 
 
+# GigaAM's encoder positional embedding caps at 5000 frames (25 fps ≈ 200 s of
+# audio); longer input fails inside onnxruntime with a broadcast error
+# ("Attempting to broadcast an axis ... 5000 by N"). Recordings can be up to
+# 300 s (push-to-talk safety timeout), so split long audio into windows below
+# the cap and join the per-chunk texts.
+MAX_CHUNK_SECONDS = 150
+
+
+def _wav_duration_seconds(path: Path) -> float:
+    # _to_wav_16k_mono always yields 16 kHz mono s16le → 32000 bytes/second.
+    try:
+        return max(0, path.stat().st_size - 44) / 32000.0
+    except OSError:
+        return 0.0
+
+
+def _split_wav(src: Path, out_dir: Path) -> list[Path]:
+    if FFMPEG_BIN is None:
+        raise RuntimeError("ffmpeg is required to split recordings longer than "
+                           f"{MAX_CHUNK_SECONDS}s; set FFMPEG_BIN")
+
+    pattern = out_dir / "chunk_%03d.wav"
+    cmd = [
+        FFMPEG_BIN,
+        "-y",
+        "-loglevel",
+        "error",
+        "-i",
+        str(src),
+        "-f",
+        "segment",
+        "-segment_time",
+        str(MAX_CHUNK_SECONDS),
+        "-c",
+        "copy",
+        str(pattern),
+    ]
+    subprocess.run(cmd, check=True, capture_output=True, text=True, creationflags=_SUBPROCESS_NO_WINDOW)
+    return sorted(out_dir.glob("chunk_*.wav"))
+
+
 def _probe_audio(path: Path) -> dict[str, str | None]:
     if FFPROBE_BIN is None:
         return {"error": "ffprobe is not configured; set FFPROBE_BIN or install ffprobe for development"}
@@ -277,8 +318,21 @@ async def transcribe(
             _to_wav_16k_mono(raw_path, wav_path)
             output_probe = _probe_audio(wav_path)
             logger.info("audio input=%s normalized=%s", input_probe, output_probe)
-            result = ready_model.recognize(str(wav_path))
-            text = _normalize_result(result)
+            duration_s = _wav_duration_seconds(wav_path)
+            if duration_s > MAX_CHUNK_SECONDS:
+                chunks_dir = Path(tmpdir) / "chunks"
+                chunks_dir.mkdir()
+                chunks = _split_wav(wav_path, chunks_dir)
+                logger.info(
+                    "long audio: splitting duration=%.1fs chunks=%d", duration_s, len(chunks)
+                )
+                chunk_texts = [
+                    _normalize_result(ready_model.recognize(str(chunk))) for chunk in chunks
+                ]
+                text = " ".join(part for part in chunk_texts if part)
+            else:
+                result = ready_model.recognize(str(wav_path))
+                text = _normalize_result(result)
         except subprocess.CalledProcessError as exc:
             detail = exc.stderr.strip() if exc.stderr else str(exc)
             logger.warning("audio conversion failed detail=%s", detail)

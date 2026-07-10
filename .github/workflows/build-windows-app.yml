@@ -1,5 +1,5 @@
 name: Build Windows app (unsigned)
-# rebuild trigger: force light theme + light window background on Windows (#11)
+# rebuild trigger: tree-kill sidecar on Windows + chunk long audio in sidecar
 
 # Builds the full GigaType desktop app for Windows x64 on a cloud runner
 # (windows-latest already has Node, Python and VS Build Tools), bundling the

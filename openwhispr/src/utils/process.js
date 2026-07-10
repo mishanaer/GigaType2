@@ -11,15 +11,18 @@ function killProcess(proc, signal = "SIGTERM") {
 
   try {
     if (process.platform === "win32") {
-      if (signal === "SIGKILL") {
-        const taskkill = spawn("taskkill", ["/pid", proc.pid.toString(), "/f", "/t"], {
-          stdio: "ignore",
-          windowsHide: true,
-        });
-        taskkill.on("error", () => {});
-      } else {
-        proc.kill();
-      }
+      // Always kill the whole tree. proc.kill() only terminates the direct
+      // child, which orphans grandchildren — e.g. the GigaAM sidecar is a
+      // PyInstaller onefile bootloader whose actual server runs as a child
+      // process, so a non-tree kill left the server alive holding its port
+      // across app restarts. Windows has no graceful SIGTERM anyway
+      // (proc.kill() already meant TerminateProcess), so /f /t for both
+      // signals keeps the semantics while covering the tree.
+      const taskkill = spawn("taskkill", ["/pid", proc.pid.toString(), "/f", "/t"], {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      taskkill.on("error", () => {});
     } else {
       proc.kill(signal);
     }
