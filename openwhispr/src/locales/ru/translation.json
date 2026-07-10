@@ -34,7 +34,10 @@
     },
     "openControlPanel": "Открыть панель управления",
     "quit": "Закрыть Type",
-    "tooltip": "Type — голосовая диктовка"
+    "tooltip": "Type — голосовая диктовка",
+    "startDictation": "Начать диктовку",
+    "stopDictation": "Остановить диктовку",
+    "saveDiagnostics": "Сохранить отчёт диагностики"
   },
   "menu": {
     "appLabel": "Type",

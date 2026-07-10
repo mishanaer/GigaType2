@@ -696,6 +696,15 @@ async function startApp() {
   trayManager.setWindows(windowManager.mainWindow, windowManager.controlPanelWindow);
   trayManager.setWindowManager(windowManager);
   trayManager.setCreateControlPanelCallback(() => windowManager.createControlPanelWindow());
+  trayManager.setDiagnosticsCallback(() => {
+    const { saveDiagnosticsReport } = require("./src/helpers/diagnostics");
+    return saveDiagnosticsReport({
+      windowManager,
+      windowsKeyManager,
+      gigaamSidecarManager,
+      clipboardManager,
+    });
+  });
   await trayManager.createTray();
 
   updateManager.setWindows(windowManager.mainWindow, windowManager.controlPanelWindow);

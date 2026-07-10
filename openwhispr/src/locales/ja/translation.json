@@ -34,7 +34,10 @@
     },
     "openControlPanel": "コントロールパネルを開く",
     "quit": "Type を終了",
-    "tooltip": "Type - 音声ディクテーション"
+    "tooltip": "Type - 音声ディクテーション",
+    "startDictation": "ディクテーションを開始",
+    "stopDictation": "ディクテーションを停止",
+    "saveDiagnostics": "診断レポートを保存"
   },
   "menu": {
     "appLabel": "Type",

@@ -34,7 +34,10 @@
     },
     "openControlPanel": "打开控制面板",
     "quit": "退出 Type",
-    "tooltip": "Type - 语音听写"
+    "tooltip": "Type - 语音听写",
+    "startDictation": "开始听写",
+    "stopDictation": "停止听写",
+    "saveDiagnostics": "保存诊断报告"
   },
   "menu": {
     "appLabel": "Type",

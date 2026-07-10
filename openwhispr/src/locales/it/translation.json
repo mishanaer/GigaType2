@@ -34,7 +34,10 @@
     },
     "openControlPanel": "Apri pannello di controllo",
     "quit": "Esci da Type",
-    "tooltip": "Type - Dettatura vocale"
+    "tooltip": "Type - Dettatura vocale",
+    "startDictation": "Avvia dettatura",
+    "stopDictation": "Ferma dettatura",
+    "saveDiagnostics": "Salva rapporto diagnostico"
   },
   "menu": {
     "appLabel": "Type",

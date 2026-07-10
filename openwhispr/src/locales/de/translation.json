@@ -34,7 +34,10 @@
     },
     "openControlPanel": "Kontrollzentrum öffnen",
     "quit": "Type beenden",
-    "tooltip": "Type – Sprachdiktat"
+    "tooltip": "Type – Sprachdiktat",
+    "startDictation": "Diktat starten",
+    "stopDictation": "Diktat stoppen",
+    "saveDiagnostics": "Diagnosebericht speichern"
   },
   "menu": {
     "appLabel": "Type",

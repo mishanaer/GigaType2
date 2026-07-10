@@ -34,7 +34,10 @@
     },
     "openControlPanel": "Open Control Panel",
     "quit": "Quit Type",
-    "tooltip": "Type - Voice Dictation"
+    "tooltip": "Type - Voice Dictation",
+    "startDictation": "Start Dictation",
+    "stopDictation": "Stop Dictation",
+    "saveDiagnostics": "Save Diagnostic Report"
   },
   "menu": {
     "appLabel": "Type",
