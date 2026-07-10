@@ -1,5 +1,5 @@
 name: Build Windows app (unsigned)
-# rebuild trigger: fix hotkey-capture armed-state deadlock + capture logging
+# rebuild trigger: post-merge build (main merged: beta 1.2, upstream hotkey fixes)
 
 # Builds the full GigaType desktop app for Windows x64 on a cloud runner
 # (windows-latest already has Node, Python and VS Build Tools), bundling the
