@@ -186,6 +186,12 @@ export default function WalletSettingsCells({
               key={captureKey}
               value={dictationKey}
               onChange={handleHotkeyChange}
+              // Blur without a captured key (the Win key opened the Start
+              // menu, a click landed elsewhere, …) ends the capture inside
+              // HotkeyInput — reset the armed state too, otherwise the cell
+              // is stuck on "press keys" forever: keydowns go nowhere and
+              // beginHotkeyCapture early-returns while isHotkeyArmed is true.
+              onBlur={() => setIsHotkeyArmed(false)}
               disabled={hotkeyDisabled}
               autoFocus
               validate={validateHotkey}

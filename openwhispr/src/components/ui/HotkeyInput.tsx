@@ -3,6 +3,11 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "lucide-react";
 import { formatHotkeyLabel, isGlobeLikeHotkey } from "../../utils/hotkeys";
 import { getPlatform } from "../../utils/platform";
+import logger from "../../utils/logger";
+
+// Every step of hotkey capture is logged at debug level so a single log file
+// answers "did the keypress even reach the field" without extra instrumenting.
+const CAPTURE_LOG_SCOPE = "hotkey-capture";
 
 const CODE_TO_KEY: Record<string, string> = {
   Backquote: "`",
@@ -272,6 +277,7 @@ export function HotkeyInput({
       if (validate) {
         const errorMsg = validate(hotkey);
         if (errorMsg) {
+          logger.debug("capture rejected by validation", { hotkey, errorMsg }, CAPTURE_LOG_SCOPE);
           setValidationWarning(errorMsg);
           warningTimeoutRef.current = setTimeout(() => setValidationWarning(null), 4000);
           heldModifiersRef.current = { ctrl: false, meta: false, alt: false, shift: false };
@@ -284,6 +290,7 @@ export function HotkeyInput({
       }
 
       setValidationWarning(null);
+      logger.debug("captured", { hotkey }, CAPTURE_LOG_SCOPE);
       lastCapturedHotkeyRef.current = hotkey;
       onChange(hotkey);
       setIsCapturing(false);
@@ -299,6 +306,18 @@ export function HotkeyInput({
       if (disabled) return;
       e.preventDefault();
       e.stopPropagation();
+
+      logger.debug(
+        "keydown",
+        {
+          code: e.nativeEvent.code,
+          ctrl: e.ctrlKey,
+          meta: e.metaKey,
+          alt: e.altKey,
+          shift: e.shiftKey,
+        },
+        CAPTURE_LOG_SCOPE
+      );
 
       // Track held modifiers for modifier-only capture
       heldModifiersRef.current = {
@@ -413,14 +432,20 @@ export function HotkeyInput({
 
   const handleFocus = useCallback(() => {
     if (!disabled) {
+      logger.debug("capture armed", { currentValue: value }, CAPTURE_LOG_SCOPE);
       setIsCapturing(true);
       setValidationWarning(null);
       clearFnHeld();
       window.electronAPI?.setHotkeyListeningMode?.(true);
     }
-  }, [disabled, clearFnHeld]);
+  }, [disabled, clearFnHeld, value]);
 
   const handleBlur = useCallback(() => {
+    logger.debug(
+      "capture blurred",
+      { capturedHotkey: lastCapturedHotkeyRef.current },
+      CAPTURE_LOG_SCOPE
+    );
     setIsCapturing(false);
     setActiveModifiers(new Set());
     setValidationWarning(null);
