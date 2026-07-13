@@ -1,6 +1,7 @@
 {
   "appId": "ai.gigatype.app",
   "afterPack": "scripts/afterPack.js",
+  "afterAllArtifactBuild": "scripts/afterAllArtifactBuild.js",
   "productName": "Type",
   "protocols": {
     "name": "Type Protocol",
@@ -23,6 +24,7 @@
     "src/locales/**/*",
     "src/hooks/**/*",
     "src/models/**/*",
+    "src/workers/**/*",
     "src/services/localReasoningBridge.js",
     "src/types/**/*",
     "src/utils.js",
@@ -83,7 +85,6 @@
     "!**/node_modules/zod/**",
     "!**/node_modules/@tiptap/**",
     "!**/node_modules/@ffprobe-installer/**",
-    "!**/node_modules/onnxruntime-node/**",
     "!**/node_modules/@qdrant/**",
     "!**/node_modules/@aws-sdk/**",
     "!**/node_modules/@smithy/**",
@@ -104,6 +105,13 @@
     "!**/node_modules/cross-env/**",
     "!**/node_modules/@electron/notarize/**",
 
+    "!**/node_modules/node-gyp/**",
+    "!**/node_modules/nan/**",
+    "!**/node_modules/psl/**",
+    "!**/node_modules/ajv/**",
+    "!**/node_modules/npmlog/**",
+    "!**/node_modules/prebuild-install/**",
+
     "!**/node_modules/**/test/**",
     "!**/node_modules/**/tests/**",
     "!**/node_modules/**/*.ts",
@@ -113,17 +121,28 @@
   ],
   "asarUnpack": [
     "**/node_modules/better-sqlite3/build/**",
-    "**/node_modules/@napi-rs/keyring/**/*"
+    "**/node_modules/@napi-rs/keyring/**/*",
+    "**/node_modules/onnxruntime-node/bin/**"
   ],
   "extraResources": [
-    "src/assets/**/*",
+    {
+      "from": "src/assets",
+      "to": "src/assets",
+      "filter": [
+        "**/*",
+        "!Assets.car",
+        "!icon.icns",
+        "!icon.ico",
+        "!openwhispr.icon/**",
+        "!fonts/**",
+        "!README.md"
+      ]
+    },
     {
       "from": "resources/bin/",
       "to": "bin/",
       "filter": [
-        "gigatype-sidecar-*",
         "ffmpeg*",
-        "ffprobe*",
         "macos-audio-tap",
         "macos-globe-listener",
         "macos-fast-paste",
@@ -141,7 +160,13 @@
         "speech-vad/**/*",
         "*.dylib",
         "*.dll",
-        "*.so*"
+        "*.so*",
+        "!libllama*",
+        "!libggml*",
+        "!libmtmd*",
+        "!llama*",
+        "!ggml*",
+        "!mtmd*"
       ]
     }
   ],
@@ -243,6 +268,7 @@
   },
   "dmg": {
     "title": "Type",
+    "format": "UDBZ",
     "icon": "src/assets/icon.icns",
     "window": {
       "width": 540,

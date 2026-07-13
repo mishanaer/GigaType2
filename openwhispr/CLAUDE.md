@@ -13,7 +13,7 @@ Type is an Electron-based desktop dictation application that uses GigaAM for spe
 - **Desktop Framework**: Electron 41 with context isolation
 - **Database**: better-sqlite3 for local transcription history
 - **UI Components**: shadcn/ui with Radix primitives
-- **Speech Processing**: GigaAM sidecar / OpenAI-compatible transcription endpoint
+- **Speech Processing**: GigaAM v3 RNN-T in-process (onnxruntime-node in the ONNX utility process) / OpenAI-compatible transcription endpoint
 - **Audio Processing**: FFmpeg (bundled via ffmpeg-static)
 - **Node.js**: 24 (pinned in `.nvmrc` — CI uses Node 24, do NOT regenerate `package-lock.json` with a different major version)
 
@@ -102,7 +102,7 @@ Type is an Electron-based desktop dictation application that uses GigaAM for spe
   - Reset to normal interval on success
 - **menuManager.js**: Application menu management
 - **tray.js**: System tray icon and menu
-- **gigaamSidecarManager.js**: GigaAM sidecar lifecycle and status
+- **gigaamLocalAsr.js**: local GigaAM ASR — in-process HTTP server (ports 8765–8775, `/v1/audio/transcriptions` + `/health`), model download/cache management, inference via the ONNX utility process. Same status-object shape the old Python sidecar had
 - **qdrantManager.js**: Qdrant vector DB sidecar process lifecycle (spawn, health check, shutdown)
 - **localEmbeddings.js**: Local text embedding via ONNX Runtime + all-MiniLM-L6-v2 (384-dim vectors)
 - **vectorIndex.js**: Qdrant collection management — upsert, delete, search, batch reindex
@@ -143,9 +143,12 @@ Type is an Electron-based desktop dictation application that uses GigaAM for spe
 
 ### GigaAM Integration
 
-- **GigaAM sidecar**: `main.js` starts `GigaamSidecarManager` when available
-- **ASR model**: `gigaam-v3-e2e-rnnt`
-- **Endpoint config**: renderer uses `gigaamBaseUrl` / `remoteTranscriptionUrl`
+- **Local ASR engine (no Python)**: `main.js` starts `GigaamLocalAsrManager` (`src/helpers/gigaamLocalAsr.js`). It serves the same OpenAI-compatible HTTP API the old PyInstaller sidecar did (`http://127.0.0.1:8765-8775/v1/audio/transcriptions`, `/health`), but inference runs in the shared ONNX utility process (`src/workers/onnxWorker.js`, handlers `gigaam.load` / `gigaam.transcribe`) via onnxruntime-node
+- **ASR model**: `gigaam-v3-e2e-rnnt` (fp32, `istupakov/gigaam-v3-onnx`). Reuses the legacy HF snapshot cache under `userData/model-cache/huggingface/...`; fresh installs download 4 files (~892 MB) to `userData/model-cache/gigaam/gigaam-v3-e2e-rnnt/`
+- **Featurizer**: exact port of onnx-asr's GigaamPreprocessor v3 (n_fft=win=320, hop=160, 64 mels); precomputed window/mel-fbank embedded in `src/workers/gigaamFbankAssets.js`
+- **onnxruntime version lock**: onnxruntime-node is pinned to the exact version sherpa-onnx links (`libonnxruntime.1.23.2.dylib`); afterPack replaces the bin copy with a symlink into app.asar.unpacked. Do not bump one without the other
+- **Audio decode**: WAV parsed natively in `gigaamLocalAsr.js`; other formats fall back to the slim custom ffmpeg in `resources/bin` (audio-only build, ~2 MB)
+- **Endpoint config**: renderer uses `gigaamBaseUrl` / `remoteTranscriptionUrl` (unchanged)
 - **Endpoint normalization**: `src/utils/gigaamTranscription.js` appends `/audio/transcriptions` when needed
 - **Auth**: no renderer BYOK API key path for transcription
 
@@ -502,11 +505,11 @@ const { t } = useTranslation();
 
 ### Testing Checklist
 
-- [ ] Test GigaAM transcription with the bundled sidecar
+- [ ] Test GigaAM transcription with the local in-process engine
 - [ ] Verify hotkey works globally
 - [ ] Check clipboard pasting on all platforms
 - [ ] Test with different audio input devices
-- [ ] Verify GigaAM sidecar status and restart flow
+- [ ] Verify GigaAM local ASR status and restart flow
 - [ ] Check agent naming functionality
 - [ ] Verify Windows Push-to-Talk with compound hotkeys
 - [ ] Test GNOME Wayland hotkeys (if on GNOME + Wayland)
@@ -527,7 +530,7 @@ const { t } = useTranslation();
    - Check audio levels in debug logs
 
 2. **Transcription Fails**:
-   - Check GigaAM sidecar status
+   - Check GigaAM local ASR status (`/health` on ports 8765-8775)
    - Verify `gigaamBaseUrl` / `remoteTranscriptionUrl`
    - Verify FFmpeg is executable if audio conversion was involved
 
@@ -620,7 +623,7 @@ const { t } = useTranslation();
 
 ## Performance Considerations
 
-- GigaAM sidecar startup and endpoint health
+- GigaAM local ASR startup (model load ~1-2 s from cache) and endpoint health
 - Audio blob size before multipart upload
 - Memory usage with local LLM, embedding, and diarization models
 - Process timeout protection (5 minutes)
