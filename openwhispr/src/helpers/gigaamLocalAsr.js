@@ -33,6 +33,18 @@ const TRANSCRIBE_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_REQUEST_BYTES = 512 * 1024 * 1024;
 const STATUS_EMIT_THROTTLE_MS = 500;
 const TARGET_SAMPLE_RATE = 16000;
+const LOOPBACK_CORS_ORIGIN_PATTERN = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/;
+
+function applyLoopbackCors(req, res) {
+  const origin = req.headers.origin;
+  if (!origin || !LOOPBACK_CORS_ORIGIN_PATTERN.test(origin)) return false;
+
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Vary", "Origin");
+  return true;
+}
 
 class GigaamLocalAsrManager extends EventEmitter {
   constructor() {
@@ -252,6 +264,13 @@ class GigaamLocalAsrManager extends EventEmitter {
 
   async _handleRequest(req, res) {
     const url = req.url || "/";
+    const corsAllowed = applyLoopbackCors(req, res);
+
+    if (req.method === "OPTIONS") {
+      res.writeHead(corsAllowed ? 204 : 403);
+      res.end();
+      return;
+    }
 
     if (req.method === "GET" && url.startsWith("/health")) {
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -270,7 +289,9 @@ class GigaamLocalAsrManager extends EventEmitter {
         res.writeHead(503, { "Content-Type": "application/json" });
         res.end(
           JSON.stringify({
-            error: { message: `model not ready (${this.healthStatus}: ${this.healthDetail || ""})` },
+            error: {
+              message: `model not ready (${this.healthStatus}: ${this.healthDetail || ""})`,
+            },
           })
         );
         return;
@@ -300,12 +321,9 @@ class GigaamLocalAsrManager extends EventEmitter {
         pcm.byteOffset === 0 && pcm.buffer.byteLength === pcm.length * 4
           ? pcm.buffer
           : pcm.slice().buffer;
-      const { text } = await onnxWorkerClient.request(
-        "gigaam.transcribe",
-        { pcmBuffer },
-        [],
-        { timeoutMs: TRANSCRIBE_TIMEOUT_MS }
-      );
+      const { text } = await onnxWorkerClient.request("gigaam.transcribe", { pcmBuffer }, [], {
+        timeoutMs: TRANSCRIBE_TIMEOUT_MS,
+      });
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ text }));

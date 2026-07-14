@@ -15,7 +15,10 @@ function encodeWAVFromChunks(chunks, inputSampleRate = 48000, outputSampleRate =
   const inputLen = chunks.reduce((n, c) => n + c.length, 0);
   const flat = new Float32Array(inputLen);
   let flatOff = 0;
-  for (const chunk of chunks) { flat.set(chunk, flatOff); flatOff += chunk.length; }
+  for (const chunk of chunks) {
+    flat.set(chunk, flatOff);
+    flatOff += chunk.length;
+  }
 
   let samples;
   if (inputSampleRate === outputSampleRate) {
@@ -35,13 +38,22 @@ function encodeWAVFromChunks(chunks, inputSampleRate = 48000, outputSampleRate =
   const numSamples = samples.length;
   const buffer = new ArrayBuffer(44 + numSamples * 2);
   const view = new DataView(buffer);
-  const write = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
-  write(0, "RIFF"); view.setUint32(4, 36 + numSamples * 2, true);
-  write(8, "WAVE"); write(12, "fmt ");
-  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
-  view.setUint32(24, outputSampleRate, true); view.setUint32(28, outputSampleRate * 2, true);
-  view.setUint16(32, 2, true); view.setUint16(34, 16, true);
-  write(36, "data"); view.setUint32(40, numSamples * 2, true);
+  const write = (off, s) => {
+    for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i));
+  };
+  write(0, "RIFF");
+  view.setUint32(4, 36 + numSamples * 2, true);
+  write(8, "WAVE");
+  write(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, outputSampleRate, true);
+  view.setUint32(28, outputSampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  write(36, "data");
+  view.setUint32(40, numSamples * 2, true);
   let off = 44;
   for (let i = 0; i < numSamples; i++) {
     const s = Math.max(-1, Math.min(1, samples[i]));
@@ -399,9 +411,20 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     const audioBlob = encodeWAVFromChunks(chunks, nativeRate);
     this.lastAudioBlob = audioBlob;
 
-    logger.info("Recording stopped", { blobSize: audioBlob.size, blobType: audioBlob.type, chunksCount: chunks.length, nativeRate }, "audio");
+    logger.info(
+      "Recording stopped",
+      {
+        blobSize: audioBlob.size,
+        blobType: audioBlob.type,
+        chunksCount: chunks.length,
+        nativeRate,
+      },
+      "audio"
+    );
 
-    const durationSeconds = this.recordingStartTime ? (Date.now() - this.recordingStartTime) / 1000 : null;
+    const durationSeconds = this.recordingStartTime
+      ? (Date.now() - this.recordingStartTime) / 1000
+      : null;
     this.recordingStartTime = null;
 
     this._micStream?.getTracks().forEach((t) => t.stop());
@@ -511,10 +534,11 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       return;
     }
 
+    const activeModel = this.getTranscriptionModel();
+
     try {
       logger.debug("Transcription routing", { provider: "gigaam" }, "transcription");
 
-      const activeModel = this.getTranscriptionModel();
       const result = await this.processWithGigaam(audioBlob, metadata);
 
       if (!this.isProcessing) {
@@ -637,6 +661,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           transcriptionAttempted: true,
           source: "gigaam",
           model: activeModel || GIGATYPE_ASR_MODEL,
+          silent: true,
           transcriptionLatencyMs: errorAtMs,
           totalLatencyMs: errorAtMs,
         });
@@ -658,17 +683,25 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     const normalizedText = typeof text === "string" ? text.trim() : "";
 
     if (!normalizedText) {
-      logger.debug("Transcription text empty after normalization", {
-        source,
-      }, "transcription");
+      logger.debug(
+        "Transcription text empty after normalization",
+        {
+          source,
+        },
+        "transcription"
+      );
       return normalizedText;
     }
 
-    logger.debug("Transcription text normalized", {
-      source,
-      textLength: normalizedText.length,
-      textPreview: normalizedText.substring(0, 100) + (normalizedText.length > 100 ? "..." : ""),
-    }, "transcription");
+    logger.debug(
+      "Transcription text normalized",
+      {
+        source,
+        textLength: normalizedText.length,
+        textPreview: normalizedText.substring(0, 100) + (normalizedText.length > 100 ? "..." : ""),
+      },
+      "transcription"
+    );
     return normalizedText;
   }
 
