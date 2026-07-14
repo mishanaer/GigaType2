@@ -1,0 +1,73 @@
+name: Build Windows app (unsigned)
+# rebuild trigger: post-merge build (main merged: beta 1.2, upstream hotkey fixes)
+
+# Builds the full GigaType desktop app for Windows x64 on a cloud runner
+# (windows-latest already has Node and VS Build Tools). Local ASR now runs
+# in-process (gigaamLocalAsr.js via onnxruntime-node), so no Python sidecar is
+# built or bundled. Produces an unsigned NSIS installer + portable .exe as a
+# downloadable artifact — no local Windows toolchain required.
+#
+# Manual only: it's a heavy build (downloads several hundred MB of model/runtime
+# binaries and takes ~15-25 min), so it does not run on every push.
+
+on:
+  workflow_dispatch: {}
+  # workflow_dispatch only works once this file is on the default branch, so
+  # until then allow triggering by pushing a change to this workflow file
+  # itself (scoped path keeps it from running on unrelated commits).
+  push:
+    branches:
+      - windows-gigaam-sidecar
+    paths:
+      - ".github/workflows/build-windows-app.yml"
+
+jobs:
+  build-app:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: openwhispr
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: openwhispr/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Vite needs the win32 native optional deps that npm ci may skip on a
+      # different host arch; --no-save keeps package-lock.json untouched.
+      - name: Install platform-specific native binaries
+        run: npm install @rollup/rollup-win32-x64-msvc lightningcss-win32-x64-msvc @tailwindcss/oxide-win32-x64-msvc --no-save
+
+      # prebuild:win (auto pre-hook) downloads llama-server / qdrant / sherpa /
+      # vad / diarization / nircmd / windows helper binaries, then
+      # electron-builder packages the unsigned NSIS installer + portable exe.
+      # --publish never: electron-builder auto-publishes when it detects CI,
+      # which then fails trying to resolve a repository/token. We only want the
+      # local dist artifacts, so disable publishing explicitly.
+      - name: Build Windows app (unsigned)
+        run: npm run build:win -- --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # always(): the NSIS installer + portable exe are written before the
+      # final update-metadata step, so publish them even if a late step fails.
+      - name: Upload installer + portable
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gigatype-windows-app
+          path: |
+            openwhispr/dist/*.exe
+            openwhispr/dist/*.blockmap
+            openwhispr/dist/latest.yml
+          if-no-files-found: error

@@ -114,7 +114,7 @@ class WindowsKeyManager extends EventEmitter {
 
     proc.on("error", (error) => {
       if (this.process === proc) this.process = null;
-      this.reportError(error);
+      this.reportError(error, proc);
     });
 
     proc.on("exit", (code, signal) => {
@@ -128,11 +128,20 @@ class WindowsKeyManager extends EventEmitter {
         this.process = null;
         this.isReady = false;
       }
+      // stop() kills the child asynchronously; its exit event (code null,
+      // SIGTERM) arrives later and must not be treated as a failure —
+      // reportError would kill this.process, which by then can already be a
+      // freshly started listener for the NEW hotkey (the exact race that made
+      // hotkeys dead after changing them until an app restart).
+      if (proc.__intentionallyStopped) {
+        return;
+      }
       if (code !== 0) {
         this.reportError(
           new Error(
             `Windows key listener exited with code ${code ?? "null"} signal ${signal ?? "null"}`
-          )
+          ),
+          proc
         );
       }
     });
@@ -145,6 +154,9 @@ class WindowsKeyManager extends EventEmitter {
     if (this.process) {
       debugLogger.debug("[WindowsKeyManager] Stopping key listener");
       try {
+        // Flag checked in the exit handler so this deliberate kill is not
+        // reported as an error (see the race note there).
+        this.process.__intentionallyStopped = true;
         this.process.kill();
       } catch {
         // Ignore kill errors
@@ -165,13 +177,16 @@ class WindowsKeyManager extends EventEmitter {
   /**
    * Report an error (only once per session to avoid log spam)
    */
-  reportError(error) {
+  reportError(error, failedProc = null) {
     if (this.hasReportedError) {
       return;
     }
     this.hasReportedError = true;
 
-    if (this.process) {
+    // Only tear down the live listener if IT is the process that failed. A
+    // stale error from an already-replaced process must never kill the
+    // current listener.
+    if (this.process && (failedProc === null || this.process === failedProc)) {
       try {
         this.process.kill();
       } catch {

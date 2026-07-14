@@ -45,7 +45,16 @@ function reapStaleSidecars() {
     if (fragment && isProcessAlive(pid) && processCommand(pid).includes(fragment)) {
       debugLogger.warn("Reaping stale sidecar", { name, pid });
       try {
-        process.kill(pid, "SIGTERM");
+        if (process.platform === "win32") {
+          // Tree-kill: the recorded pid may be a launcher whose actual server
+          // runs as a child process, so /t covers the whole tree.
+          execFileSync("taskkill", ["/pid", String(pid), "/f", "/t"], {
+            stdio: "ignore",
+            windowsHide: true,
+          });
+        } else {
+          process.kill(pid, "SIGTERM");
+        }
       } catch {
         // Already dead.
       }

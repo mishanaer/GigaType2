@@ -4,6 +4,7 @@ import MotionProvider from "../../vendor/wallet_animations/components/MotionProv
 import SectionList from "../../vendor/wallet_animations/components/SectionList";
 import { formatHotkeyLabel, isGlobeLikeHotkey } from "../../utils/hotkeys";
 import { isBuiltInMicrophone } from "../../utils/audioDeviceUtils";
+import { getCachedPlatform } from "../../utils/platform";
 import { HotkeyInput } from "../ui/HotkeyInput";
 
 interface AudioDevice {
@@ -14,7 +15,7 @@ interface AudioDevice {
 
 interface WalletSettingsCellsProps {
   dictationKey: string;
-  onHotkeyChange: (hotkey: string) => Promise<void> | void;
+  onHotkeyChange: (hotkey: string) => Promise<boolean | void> | boolean | void;
   hotkeyDisabled?: boolean;
   validateHotkey?: (hotkey: string) => string | null | undefined;
   preferBuiltInMic: boolean;
@@ -96,6 +97,9 @@ export default function WalletSettingsCells({
     () => [{ deviceId: "default", label: "Системный" }, ...selectDevices],
     [selectDevices]
   );
+  const activeMicrophoneLabel =
+    microphoneOptions.find((device) => device.deviceId === activeDeviceId)?.label ?? "Системный";
+  const isWindowsOrLinux = getCachedPlatform() !== "darwin";
 
   const beginHotkeyCapture = useCallback(() => {
     if (hotkeyDisabled || isHotkeyArmed) {
@@ -153,7 +157,11 @@ export default function WalletSettingsCells({
         }
       }
 
-      await onHotkeyChange(newHotkey);
+      const registered = await onHotkeyChange(newHotkey);
+      if (registered === false) {
+        handleHotkeyInvalid();
+        return;
+      }
       setIsHotkeyArmed(false);
     },
     [handleHotkeyInvalid, onHotkeyChange]
@@ -215,12 +223,21 @@ export default function WalletSettingsCells({
               end={
                 <div className="wallet-settings-native-select-wrap appshots-window-no-drag appshots-settings-no-drag">
                   <Cell.Part type="Dropdown">
-                    {microphoneOptions.find((device) => device.deviceId === activeDeviceId)?.label ??
-                      "Системный"}
+                    {isWindowsOrLinux ? (
+                      <span
+                        className="wallet-settings-native-select-label"
+                        title={activeMicrophoneLabel}
+                      >
+                        {activeMicrophoneLabel}
+                      </span>
+                    ) : (
+                      activeMicrophoneLabel
+                    )}
                   </Cell.Part>
                   <select
                     className="wallet-settings-native-select appshots-settings-no-drag"
                     aria-label="Микрофон"
+                    title={isWindowsOrLinux ? activeMicrophoneLabel : undefined}
                     value={activeDeviceId}
                     onChange={handleMicrophoneChange}
                   >
@@ -246,6 +263,10 @@ export default function WalletSettingsCells({
               value={dictationKey}
               onChange={handleHotkeyChange}
               onInvalid={handleHotkeyInvalid}
+              // Blur without a captured key (the Win key opened the Start
+              // menu, a click landed elsewhere, …) ends the capture inside
+              // HotkeyInput — handleHotkeyBlur disarms the cell so it doesn't
+              // stay stuck on "press keys" with clicks early-returning.
               onBlur={handleHotkeyBlur}
               disabled={hotkeyDisabled}
               autoFocus

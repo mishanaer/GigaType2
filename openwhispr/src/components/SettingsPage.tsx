@@ -53,9 +53,7 @@ export default function SettingsPage() {
 
       <WalletSettingsCells
         dictationKey={dictationKey}
-        onHotkeyChange={async (newHotkey) => {
-          await registerHotkey(newHotkey);
-        }}
+        onHotkeyChange={registerHotkey}
         hotkeyDisabled={isHotkeyRegistering}
         validateHotkey={validateDictationHotkey}
         preferBuiltInMic={preferBuiltInMic}

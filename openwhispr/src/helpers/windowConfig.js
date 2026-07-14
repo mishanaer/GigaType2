@@ -30,6 +30,18 @@ const FLOATING_OVERLAY_TYPE =
 
 const DICTATION_PILL_WINDOW = { width: 120, height: 120 };
 const MAIN_WINDOW_BOTTOM_OFFSET = 115;
+// Exact sRGB mirrors of the renderer's light/dark --muted surfaces.
+const LIGHT_CONTROL_PANEL_BACKGROUND = "#f5f5f5";
+const DARK_CONTROL_PANEL_BACKGROUND = "#262626";
+
+function getControlPanelBackgroundColor(platform, isDark = false) {
+  if (platform === "darwin") return "#00000000";
+  if (platform === "win32") return LIGHT_CONTROL_PANEL_BACKGROUND;
+  if (platform === "linux") {
+    return isDark ? DARK_CONTROL_PANEL_BACKGROUND : LIGHT_CONTROL_PANEL_BACKGROUND;
+  }
+  return "#1c1c2e";
+}
 
 const WINDOW_SIZES = {
   BASE: { ...DICTATION_PILL_WINDOW },
@@ -69,7 +81,9 @@ const CONTROL_PANEL_CONFIG = {
   width: 500,
   height: 560,
   minHeight: 360,
-  backgroundColor: process.platform === "darwin" ? "#00000000" : "#1c1c2e",
+  // WindowManager resolves Linux dark mode at creation time. macOS remains
+  // transparent for vibrancy; Windows is forced to light mode in main.js.
+  backgroundColor: getControlPanelBackgroundColor(process.platform),
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
@@ -82,6 +96,8 @@ const CONTROL_PANEL_CONFIG = {
   title: "Type",
   resizable: false,
   show: false,
+  // Frameless on all platforms: macOS uses inset traffic-light buttons,
+  // Windows/Linux render custom WindowControls in the control panel header.
   frame: false,
   ...(process.platform === "darwin" && {
     titleBarStyle: "hiddenInset",
@@ -222,6 +238,7 @@ class WindowPositionUtil {
 }
 
 module.exports = {
+  getControlPanelBackgroundColor,
   MAIN_WINDOW_CONFIG,
   CONTROL_PANEL_CONFIG,
   NOTIFICATION_WINDOW_CONFIG,

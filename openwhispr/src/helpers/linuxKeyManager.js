@@ -4,6 +4,13 @@ const EventEmitter = require("events");
 const fs = require("fs");
 const debugLogger = require("./debugLogger");
 
+function hasFnOrGlobeToken(key) {
+  return String(key || "")
+    .split("+")
+    .map((part) => part.trim().toLowerCase())
+    .some((part) => part === "fn" || part === "globe");
+}
+
 class LinuxKeyManager extends EventEmitter {
   constructor() {
     super();
@@ -56,6 +63,10 @@ class LinuxKeyManager extends EventEmitter {
 
   start(key = "`") {
     if (!this.isSupported) return;
+    if (hasFnOrGlobeToken(key)) {
+      debugLogger.warn("[LinuxKeyManager] Fn/Globe shortcut rejected", { key });
+      return;
+    }
     if (this.process && this.currentKey === key) return;
 
     this.stop();

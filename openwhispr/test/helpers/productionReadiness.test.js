@@ -10,12 +10,20 @@ function read(relativePath) {
 }
 
 test("control panel keeps Electron web security enabled", () => {
-  const { CONTROL_PANEL_CONFIG } = require("../../src/helpers/windowConfig");
+  const {
+    CONTROL_PANEL_CONFIG,
+    getControlPanelBackgroundColor,
+  } = require("../../src/helpers/windowConfig");
 
   assert.equal(CONTROL_PANEL_CONFIG.webPreferences.nodeIntegration, false);
   assert.equal(CONTROL_PANEL_CONFIG.webPreferences.contextIsolation, true);
   assert.equal(CONTROL_PANEL_CONFIG.webPreferences.sandbox, true);
   assert.equal(CONTROL_PANEL_CONFIG.webPreferences.webSecurity, true);
+  assert.equal(getControlPanelBackgroundColor("win32", false), "#f5f5f5");
+  assert.equal(getControlPanelBackgroundColor("win32", true), "#f5f5f5");
+  assert.equal(getControlPanelBackgroundColor("linux", false), "#f5f5f5");
+  assert.equal(getControlPanelBackgroundColor("linux", true), "#262626");
+  assert.equal(getControlPanelBackgroundColor("darwin", true), "#00000000");
 });
 
 test("renderer entrypoint declares Type branding and CSP", () => {

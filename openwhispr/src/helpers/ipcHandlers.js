@@ -279,6 +279,7 @@ class IPCHandlers {
     this.telemetryManager = managers.telemetryManager;
     this.sessionId = crypto.randomUUID();
     this._hotkeyCaptureMode = false;
+    this._hotkeyCaptureRefocusWindow = null;
     this._activeRecordingPipeline = null;
     this.audioStorageManager = new AudioStorageManager();
     this._audioCleanupInterval = null;
@@ -1531,11 +1532,30 @@ class IPCHandlers {
       ipcMain.emit("hotkey-listening-mode-changed", null, enabled);
       const hotkeyManager = this.windowManager.hotkeyManager;
 
+      // The dictation overlay window is created with focusable:false so it never
+      // steals focus during dictation. But that also means the OS never delivers
+      // keydown events to it, so hotkey capture (which reads keyboard events in
+      // the renderer) silently does nothing there. While capturing, make the
+      // capturing window temporarily focusable and focus it; restore on exit.
+      if (enabled) {
+        const captureWin = BrowserWindow.fromWebContents(event.sender);
+        if (captureWin && !captureWin.isDestroyed() && !captureWin.isFocusable()) {
+          this._hotkeyCaptureRefocusWindow = captureWin;
+          captureWin.setFocusable(true);
+          captureWin.focus();
+        }
+      } else if (this._hotkeyCaptureRefocusWindow) {
+        const captureWin = this._hotkeyCaptureRefocusWindow;
+        this._hotkeyCaptureRefocusWindow = null;
+        if (!captureWin.isDestroyed()) captureWin.setFocusable(false);
+      }
+
       // When exiting capture mode with a new hotkey, use that to avoid reading stale state
       const effectiveHotkey = !enabled && newHotkey ? newHotkey : hotkeyManager.getCurrentHotkey();
 
       const {
         isGlobeLikeHotkey,
+        hasFnOrGlobeToken,
         isModifierOnlyHotkey,
         isRightSideModifier,
         isMouseButtonHotkey,
@@ -1599,15 +1619,23 @@ class IPCHandlers {
       } else {
         // Exiting capture mode - re-register globalShortcut if not already registered
         // Skip for KDE/GNOME/Hyprland — updateHotkey handles re-registration via native path
+        const hasUnsupportedFnToken =
+          process.platform !== "darwin" && hasFnOrGlobeToken(effectiveHotkey);
         const usesNativePath =
           hotkeyManager.isUsingKDE() ||
           hotkeyManager.isUsingGnome() ||
           hotkeyManager.isUsingHyprland();
-        if (effectiveHotkey && !usesNativeListener(effectiveHotkey) && !usesNativePath) {
+        if (
+          effectiveHotkey &&
+          !hasUnsupportedFnToken &&
+          !usesNativeListener(effectiveHotkey) &&
+          !usesNativePath
+        ) {
           const { globalShortcut } = require("electron");
-          const accelerator = effectiveHotkey.startsWith("Fn+")
-            ? effectiveHotkey.slice(3)
-            : effectiveHotkey;
+          const accelerator =
+            process.platform === "darwin" && effectiveHotkey.startsWith("Fn+")
+              ? effectiveHotkey.slice(3)
+              : effectiveHotkey;
           if (!globalShortcut.isRegistered(accelerator)) {
             debugLogger.log(
               `[IPC] Re-registering globalShortcut "${accelerator}" after capture mode`
@@ -1629,6 +1657,7 @@ class IPCHandlers {
           );
           const needsListener =
             effectiveHotkey &&
+            !hasUnsupportedFnToken &&
             !isGlobeLikeHotkey(effectiveHotkey) &&
             (activationMode === "push" ||
               isModifierOnlyHotkey(effectiveHotkey) ||
@@ -1645,6 +1674,7 @@ class IPCHandlers {
           const activationMode = this.windowManager.getActivationMode();
           const needsListener =
             effectiveHotkey &&
+            !hasUnsupportedFnToken &&
             !isGlobeLikeHotkey(effectiveHotkey) &&
             (activationMode === "push" ||
               isModifierOnlyHotkey(effectiveHotkey) ||
@@ -1658,7 +1688,12 @@ class IPCHandlers {
         }
 
         // On GNOME, re-register the keybinding with the effective hotkey
-        if (hotkeyManager.isUsingGnome() && hotkeyManager.gnomeManager && effectiveHotkey) {
+        if (
+          hotkeyManager.isUsingGnome() &&
+          hotkeyManager.gnomeManager &&
+          effectiveHotkey &&
+          !hasUnsupportedFnToken
+        ) {
           const gnomeHotkey = GnomeShortcutManager.convertToGnomeFormat(effectiveHotkey);
           debugLogger.log(
             `[IPC] Re-registering GNOME keybinding "${gnomeHotkey}" after capture mode`
@@ -1670,7 +1705,12 @@ class IPCHandlers {
         }
 
         // On Hyprland Wayland, re-register the keybinding with the effective hotkey
-        if (hotkeyManager.isUsingHyprland() && hotkeyManager.hyprlandManager && effectiveHotkey) {
+        if (
+          hotkeyManager.isUsingHyprland() &&
+          hotkeyManager.hyprlandManager &&
+          effectiveHotkey &&
+          !hasUnsupportedFnToken
+        ) {
           debugLogger.log(
             `[IPC] Re-registering Hyprland keybinding "${effectiveHotkey}" after capture mode`
           );
@@ -1681,7 +1721,12 @@ class IPCHandlers {
         }
 
         // On KDE (X11 or Wayland), re-register the keybinding with the effective hotkey
-        if (hotkeyManager.isUsingKDE() && hotkeyManager.kdeManager && effectiveHotkey) {
+        if (
+          hotkeyManager.isUsingKDE() &&
+          hotkeyManager.kdeManager &&
+          effectiveHotkey &&
+          !hasUnsupportedFnToken
+        ) {
           debugLogger.log(
             `[IPC] Re-registering KDE keybinding "${effectiveHotkey}" after capture mode`
           );

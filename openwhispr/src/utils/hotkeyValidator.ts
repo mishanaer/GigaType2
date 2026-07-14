@@ -39,6 +39,13 @@ function isRightSideModifier(part: string): boolean {
   return RIGHT_SIDE_MODIFIERS.has(normalized);
 }
 
+function hasFnOrGlobeToken(hotkey: string): boolean {
+  return hotkey
+    .split("+")
+    .map((part) => part.trim().toLowerCase())
+    .some((part) => part === "fn" || part === "globe");
+}
+
 const SPECIAL_KEYS = new Set(
   [
     "GLOBE",
@@ -517,6 +524,17 @@ export function validateHotkey(
 ): ValidationResult {
   if (!hotkey || hotkey.trim() === "") {
     return { valid: false, error: "Please enter a valid shortcut." };
+  }
+
+  // Fn/Globe is a macOS-only input source. On Windows and Linux the Fn key is
+  // handled by keyboard firmware and is not exposed as a standard key, so a
+  // shortcut such as Fn+F9 cannot be registered or detected reliably.
+  if (platform !== "darwin" && hasFnOrGlobeToken(hotkey)) {
+    return {
+      valid: false,
+      error: "Fn/Globe shortcuts are only available on macOS.",
+      errorCode: "INVALID_GLOBE",
+    };
   }
 
   if (isGlobeLikeHotkey(hotkey)) {
