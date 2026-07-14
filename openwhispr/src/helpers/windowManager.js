@@ -1,4 +1,4 @@
-const { app, screen, BrowserWindow, shell, dialog } = require("electron");
+const { app, screen, BrowserWindow, shell, dialog, nativeTheme } = require("electron");
 const debugLogger = require("./debugLogger");
 const HotkeyManager = require("./hotkeyManager");
 const { isGlobeLikeHotkey, isModifierOnlyHotkey } = HotkeyManager;
@@ -16,6 +16,7 @@ const {
   TRANSCRIPTION_PREVIEW_SIZE_LIMITS,
   WINDOW_SIZES,
   WindowPositionUtil,
+  getControlPanelBackgroundColor,
 } = require("./windowConfig");
 
 class WindowManager {
@@ -607,7 +608,13 @@ class WindowManager {
       return;
     }
 
-    this.controlPanelWindow = new BrowserWindow(CONTROL_PANEL_CONFIG);
+    this.controlPanelWindow = new BrowserWindow({
+      ...CONTROL_PANEL_CONFIG,
+      backgroundColor: getControlPanelBackgroundColor(
+        process.platform,
+        nativeTheme.shouldUseDarkColors
+      ),
+    });
 
     this.controlPanelWindow.webContents.on("will-navigate", (event, url) => {
       const appUrl = DevServerManager.getAppUrl(true);

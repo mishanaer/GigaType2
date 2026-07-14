@@ -320,6 +320,7 @@ export function HotkeyInput({
         "keydown",
         {
           code: e.nativeEvent.code,
+          key: e.key,
           ctrl: e.ctrlKey,
           meta: e.metaKey,
           alt: e.altKey,
@@ -327,6 +328,15 @@ export function HotkeyInput({
         },
         CAPTURE_LOG_SCOPE
       );
+
+      // Most Windows/Linux keyboards consume Fn in firmware, so no event
+      // reaches the app. A few devices expose Fn/FnLock; reject those events
+      // explicitly so the settings capsule can provide invalid-input feedback.
+      const code = e.nativeEvent.code;
+      if (!isMac && (code === "Fn" || code === "FnLock" || e.key === "Fn" || e.key === "FnLock")) {
+        finalizeCapture("Fn");
+        return;
+      }
 
       // Track held modifiers for modifier-only capture
       heldModifiersRef.current = {
@@ -337,7 +347,6 @@ export function HotkeyInput({
       };
 
       // Track which specific keys are pressed (for left/right detection)
-      const code = e.nativeEvent.code;
       if (code === "ControlLeft" || code === "ControlRight") {
         modifierCodesRef.current.ctrl = code;
       } else if (code === "MetaLeft" || code === "MetaRight") {
@@ -376,6 +385,12 @@ export function HotkeyInput({
         } else {
           finalizeCapture(hotkey);
         }
+      } else if (!isMac && !MODIFIER_CODES.has(code)) {
+        // Fn combinations can surface as an OEM/media key rather than Fn.
+        // Treat any observed, unmapped non-modifier as unsupported so capture
+        // ends with the same invalid-input feedback instead of appearing stuck.
+        keyDownTimeRef.current = 0;
+        finalizeCapture(e.key || code || "Unsupported");
       }
       // If no base key, modifiers are held - don't finalize yet
     },

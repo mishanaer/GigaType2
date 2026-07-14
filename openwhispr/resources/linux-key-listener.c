@@ -34,6 +34,7 @@ static int require_shift = 0;
 static int require_super = 0;
 static int use_modifiers_only = 0;
 static int target_key = 0;
+static int has_unsupported_fn_token = 0;
 
 static unsigned char held_keys[KEY_BITS_SIZE];
 
@@ -199,6 +200,7 @@ static void parse_hotkey(const char *hotkey) {
     require_super = 0;
     use_modifiers_only = 0;
     target_key = 0;
+    has_unsupported_fn_token = 0;
 
     char *token = strtok(buf, "+");
     while (token) {
@@ -222,6 +224,9 @@ static void parse_hotkey(const char *hotkey) {
                    strcasecmp(token, "Command") == 0 ||
                    strcasecmp(token, "Cmd") == 0) {
             require_super = 1;
+        } else if (strcasecmp(token, "Fn") == 0 ||
+                   strcasecmp(token, "Globe") == 0) {
+            has_unsupported_fn_token = 1;
         } else {
             int code = map_key_name(token);
             if (code >= 0)
@@ -379,6 +384,11 @@ int main(int argc, char *argv[]) {
     }
 
     parse_hotkey(argv[1]);
+
+    if (has_unsupported_fn_token) {
+        fprintf(stderr, "Error: Fn/Globe is not a supported Linux hotkey modifier\n");
+        return 1;
+    }
 
     if (target_key == 0 && !use_modifiers_only) {
         fprintf(stderr, "Error: unrecognized key in '%s'\n", argv[1]);

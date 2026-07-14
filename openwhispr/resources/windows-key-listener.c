@@ -30,6 +30,7 @@ static BOOL g_altDown = FALSE;
 static BOOL g_shiftDown = FALSE;
 static BOOL g_leftWinDown = FALSE;
 static BOOL g_rightWinDown = FALSE;
+static BOOL g_hasUnsupportedFnToken = FALSE;
 
 static BOOL IsCtrlVk(DWORD vkCode) {
     return vkCode == VK_CONTROL || vkCode == VK_LCONTROL || vkCode == VK_RCONTROL;
@@ -281,6 +282,7 @@ DWORD ParseCompoundHotkey(const char* hotkey) {
     g_requireShift = FALSE;
     g_requireWin = FALSE;
     g_useModifiersOnly = FALSE;
+    g_hasUnsupportedFnToken = FALSE;
 
     DWORD mainKeyVk = 0;
     char* token = strtok(buffer, "+");
@@ -309,6 +311,11 @@ DWORD ParseCompoundHotkey(const char* hotkey) {
                    _stricmp(token, "Cmd") == 0) {
             // Windows key
             g_requireWin = TRUE;
+        } else if (_stricmp(token, "Fn") == 0 ||
+                   _stricmp(token, "Globe") == 0) {
+            // Windows has no standard Fn virtual key. Reject the shortcut
+            // instead of silently treating Fn+F8 as bare F8.
+            g_hasUnsupportedFnToken = TRUE;
         } else {
             // This should be the main key
             mainKeyVk = ParseKeyCode(token);
@@ -333,6 +340,10 @@ int main(int argc, char* argv[]) {
     }
 
     g_targetVk = ParseCompoundHotkey(argv[1]);
+    if (g_hasUnsupportedFnToken) {
+        fprintf(stderr, "Error: Fn/Globe is not a supported Windows hotkey modifier\n");
+        return 1;
+    }
     if (g_targetVk == 0 && (g_requireCtrl || g_requireAlt || g_requireShift || g_requireWin)) {
         g_useModifiersOnly = TRUE;
     }

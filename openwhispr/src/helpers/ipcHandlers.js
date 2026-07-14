@@ -1555,6 +1555,7 @@ class IPCHandlers {
 
       const {
         isGlobeLikeHotkey,
+        hasFnOrGlobeToken,
         isModifierOnlyHotkey,
         isRightSideModifier,
         isMouseButtonHotkey,
@@ -1618,15 +1619,23 @@ class IPCHandlers {
       } else {
         // Exiting capture mode - re-register globalShortcut if not already registered
         // Skip for KDE/GNOME/Hyprland — updateHotkey handles re-registration via native path
+        const hasUnsupportedFnToken =
+          process.platform !== "darwin" && hasFnOrGlobeToken(effectiveHotkey);
         const usesNativePath =
           hotkeyManager.isUsingKDE() ||
           hotkeyManager.isUsingGnome() ||
           hotkeyManager.isUsingHyprland();
-        if (effectiveHotkey && !usesNativeListener(effectiveHotkey) && !usesNativePath) {
+        if (
+          effectiveHotkey &&
+          !hasUnsupportedFnToken &&
+          !usesNativeListener(effectiveHotkey) &&
+          !usesNativePath
+        ) {
           const { globalShortcut } = require("electron");
-          const accelerator = effectiveHotkey.startsWith("Fn+")
-            ? effectiveHotkey.slice(3)
-            : effectiveHotkey;
+          const accelerator =
+            process.platform === "darwin" && effectiveHotkey.startsWith("Fn+")
+              ? effectiveHotkey.slice(3)
+              : effectiveHotkey;
           if (!globalShortcut.isRegistered(accelerator)) {
             debugLogger.log(
               `[IPC] Re-registering globalShortcut "${accelerator}" after capture mode`
@@ -1648,6 +1657,7 @@ class IPCHandlers {
           );
           const needsListener =
             effectiveHotkey &&
+            !hasUnsupportedFnToken &&
             !isGlobeLikeHotkey(effectiveHotkey) &&
             (activationMode === "push" ||
               isModifierOnlyHotkey(effectiveHotkey) ||
@@ -1664,6 +1674,7 @@ class IPCHandlers {
           const activationMode = this.windowManager.getActivationMode();
           const needsListener =
             effectiveHotkey &&
+            !hasUnsupportedFnToken &&
             !isGlobeLikeHotkey(effectiveHotkey) &&
             (activationMode === "push" ||
               isModifierOnlyHotkey(effectiveHotkey) ||
@@ -1677,7 +1688,12 @@ class IPCHandlers {
         }
 
         // On GNOME, re-register the keybinding with the effective hotkey
-        if (hotkeyManager.isUsingGnome() && hotkeyManager.gnomeManager && effectiveHotkey) {
+        if (
+          hotkeyManager.isUsingGnome() &&
+          hotkeyManager.gnomeManager &&
+          effectiveHotkey &&
+          !hasUnsupportedFnToken
+        ) {
           const gnomeHotkey = GnomeShortcutManager.convertToGnomeFormat(effectiveHotkey);
           debugLogger.log(
             `[IPC] Re-registering GNOME keybinding "${gnomeHotkey}" after capture mode`
@@ -1689,7 +1705,12 @@ class IPCHandlers {
         }
 
         // On Hyprland Wayland, re-register the keybinding with the effective hotkey
-        if (hotkeyManager.isUsingHyprland() && hotkeyManager.hyprlandManager && effectiveHotkey) {
+        if (
+          hotkeyManager.isUsingHyprland() &&
+          hotkeyManager.hyprlandManager &&
+          effectiveHotkey &&
+          !hasUnsupportedFnToken
+        ) {
           debugLogger.log(
             `[IPC] Re-registering Hyprland keybinding "${effectiveHotkey}" after capture mode`
           );
@@ -1700,7 +1721,12 @@ class IPCHandlers {
         }
 
         // On KDE (X11 or Wayland), re-register the keybinding with the effective hotkey
-        if (hotkeyManager.isUsingKDE() && hotkeyManager.kdeManager && effectiveHotkey) {
+        if (
+          hotkeyManager.isUsingKDE() &&
+          hotkeyManager.kdeManager &&
+          effectiveHotkey &&
+          !hasUnsupportedFnToken
+        ) {
           debugLogger.log(
             `[IPC] Re-registering KDE keybinding "${effectiveHotkey}" after capture mode`
           );

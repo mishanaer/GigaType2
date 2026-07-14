@@ -64,12 +64,20 @@ function isGlobeLikeHotkey(hotkey) {
   return hotkey === "GLOBE" || hotkey === "Fn";
 }
 
+function hasFnOrGlobeToken(hotkey) {
+  return String(hotkey || "")
+    .split("+")
+    .map((part) => part.trim().toLowerCase())
+    .some((part) => part === "fn" || part === "globe");
+}
+
 function isMouseButtonHotkey(hotkey) {
   return /^MouseButton[45]$/i.test(hotkey || "");
 }
 
 function normalizeToAccelerator(hotkey) {
-  let accelerator = hotkey.startsWith("Fn+") ? hotkey.slice(3) : hotkey;
+  let accelerator =
+    process.platform === "darwin" && hotkey.startsWith("Fn+") ? hotkey.slice(3) : hotkey;
   accelerator = accelerator
     .replace(/\bRight(Command|Cmd)\b/g, "Command")
     .replace(/\bRight(Control|Ctrl)\b/g, "Control")
@@ -173,6 +181,14 @@ class HotkeyManager extends EventEmitter {
   }
 
   async registerSlot(slotName, hotkey, callback) {
+    if (process.platform !== "darwin" && hasFnOrGlobeToken(hotkey)) {
+      return {
+        success: false,
+        error: i18nMain.t("hotkey.errors.globeOnlyMac"),
+        reason: "unsupported_fn_key",
+      };
+    }
+
     this.unregisterSlot(slotName);
 
     // On GNOME (X11 or Wayland), route named slots through native gsettings
@@ -311,6 +327,18 @@ class HotkeyManager extends EventEmitter {
   setupShortcuts(hotkey = "Control+Super", callback, slotName = "dictation") {
     if (!callback) {
       throw new Error(i18nMain.t("hotkey.errors.callbackRequired"));
+    }
+
+    // Windows and Linux do not expose the hardware Fn key as a standard key.
+    // Reject it before unregistering the active shortcut instead of silently
+    // dropping the Fn prefix and registering the remaining key.
+    if (process.platform !== "darwin" && hasFnOrGlobeToken(hotkey)) {
+      debugLogger.log(`[HotkeyManager] Fn/Globe shortcut rejected on ${process.platform}`);
+      return {
+        success: false,
+        error: i18nMain.t("hotkey.errors.globeOnlyMac"),
+        reason: "unsupported_fn_key",
+      };
     }
 
     const slot = this.slots.get(slotName) || { hotkey: null, callback: null, accelerator: null };
@@ -1239,6 +1267,7 @@ class HotkeyManager extends EventEmitter {
 
 module.exports = HotkeyManager;
 module.exports.isGlobeLikeHotkey = isGlobeLikeHotkey;
+module.exports.hasFnOrGlobeToken = hasFnOrGlobeToken;
 module.exports.isModifierOnlyHotkey = isModifierOnlyHotkey;
 module.exports.isRightSideModifier = isRightSideModifier;
 module.exports.isMouseButtonHotkey = isMouseButtonHotkey;

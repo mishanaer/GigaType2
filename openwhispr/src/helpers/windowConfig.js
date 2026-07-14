@@ -30,6 +30,18 @@ const FLOATING_OVERLAY_TYPE =
 
 const DICTATION_PILL_WINDOW = { width: 120, height: 120 };
 const MAIN_WINDOW_BOTTOM_OFFSET = 115;
+// Exact sRGB mirrors of the renderer's light/dark --muted surfaces.
+const LIGHT_CONTROL_PANEL_BACKGROUND = "#f5f5f5";
+const DARK_CONTROL_PANEL_BACKGROUND = "#262626";
+
+function getControlPanelBackgroundColor(platform, isDark = false) {
+  if (platform === "darwin") return "#00000000";
+  if (platform === "win32") return LIGHT_CONTROL_PANEL_BACKGROUND;
+  if (platform === "linux") {
+    return isDark ? DARK_CONTROL_PANEL_BACKGROUND : LIGHT_CONTROL_PANEL_BACKGROUND;
+  }
+  return "#1c1c2e";
+}
 
 const WINDOW_SIZES = {
   BASE: { ...DICTATION_PILL_WINDOW },
@@ -69,15 +81,9 @@ const CONTROL_PANEL_CONFIG = {
   width: 500,
   height: 560,
   minHeight: 360,
-  // Windows is forced to the light theme (#11), so give the window an explicit
-  // light backdrop — matches --background: oklch(1 0 0) and avoids a dark
-  // flash before the renderer paints. macOS is transparent (vibrancy).
-  backgroundColor:
-    process.platform === "darwin"
-      ? "#00000000"
-      : process.platform === "win32"
-        ? "#ffffff"
-        : "#1c1c2e",
+  // WindowManager resolves Linux dark mode at creation time. macOS remains
+  // transparent for vibrancy; Windows is forced to light mode in main.js.
+  backgroundColor: getControlPanelBackgroundColor(process.platform),
   webPreferences: {
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
@@ -232,6 +238,7 @@ class WindowPositionUtil {
 }
 
 module.exports = {
+  getControlPanelBackgroundColor,
   MAIN_WINDOW_CONFIG,
   CONTROL_PANEL_CONFIG,
   NOTIFICATION_WINDOW_CONFIG,

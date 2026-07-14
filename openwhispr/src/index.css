@@ -270,6 +270,27 @@
     background: transparent;
   }
 
+  /* Windows and Linux use the muted canvas behind white app surfaces. Keep
+     this scoped to app windows so dialogs and the transparent dictation
+     overlay retain their existing semantic backgrounds. */
+  html:is([data-platform="win32"], [data-platform="linux"])
+    body:has(.appshots-loading-window),
+  html:is([data-platform="win32"], [data-platform="linux"])
+    body:has(.appshots-permissions-window),
+  html:is([data-platform="win32"], [data-platform="linux"])
+    body:has(.appshots-settings-window),
+  html:is([data-platform="win32"], [data-platform="linux"])
+    body:has(.appshots-loading-window)
+    #root,
+  html:is([data-platform="win32"], [data-platform="linux"])
+    body:has(.appshots-permissions-window)
+    #root,
+  html:is([data-platform="win32"], [data-platform="linux"])
+    body:has(.appshots-settings-window)
+    #root {
+    background: var(--muted);
+  }
+
   .dictation-orb-shadow {
     position: absolute;
     left: 50%;
@@ -500,6 +521,37 @@
   .wallet-settings-native-select-wrap {
     position: relative;
     display: inline-flex;
+  }
+
+  html:is([data-platform="win32"], [data-platform="linux"])
+    .wallet-settings-native-select-wrap {
+    min-width: 0;
+    max-width: 280px;
+  }
+
+  html:is([data-platform="win32"], [data-platform="linux"])
+    .wallet-settings-native-select-wrap
+    > div {
+    display: flex;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+  }
+
+  html:is([data-platform="win32"], [data-platform="linux"])
+    .wallet-settings-native-select-label {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    flex: 1 1 auto;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  html:is([data-platform="win32"], [data-platform="linux"])
+    .wallet-settings-native-select-wrap
+    > div::after {
+    flex: 0 0 auto;
   }
 
   .wallet-settings-native-select {
