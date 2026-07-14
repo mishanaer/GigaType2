@@ -228,6 +228,27 @@ function stripOnnxruntimeBinaries(context) {
       `  afterPack: stripped ${totalRemoved} non-target onnxruntime-node directories (keeping ${platform}/${keepArchs.join(",")})`
     );
   }
+
+  // The app only uses the CPU execution provider (see SESSION_OPTIONS in
+  // onnxWorker.js), so onnxruntime-node's DirectML provider payload (~36 MB)
+  // is dead weight on Windows. onnxruntime.dll loads these lazily and only
+  // when the DML EP is requested.
+  if (platform === "win32") {
+    const dmlFiles = ["DirectML.dll", "dxcompiler.dll", "dxil.dll"];
+    let dmlRemoved = 0;
+    for (const arch of keepArchs) {
+      for (const name of dmlFiles) {
+        const dmlPath = path.join(onnxBinDir, platform, arch, name);
+        if (fs.existsSync(dmlPath)) {
+          fs.rmSync(dmlPath, { force: true });
+          dmlRemoved++;
+        }
+      }
+    }
+    if (dmlRemoved > 0) {
+      console.log(`  afterPack: removed ${dmlRemoved} DirectML provider DLLs (CPU EP only)`);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -247,9 +268,30 @@ function stripResourceBinaries(context) {
   let totalRemoved = 0;
 
   for (const entry of fs.readdirSync(binDir, { withFileTypes: true })) {
-    if (!entry.isFile()) continue;
+    if (!entry.isFile() && !entry.isSymbolicLink()) continue;
     const name = entry.name;
     const fullPath = path.join(binDir, name);
+
+    // Wrong-platform artifacts by file type — protects cross-builds when the
+    // shared resources/bin holds binaries from another target platform.
+    if (
+      platform !== "darwin" &&
+      (name.endsWith(".dylib") || (entry.isFile() && isMachOBinary(fullPath)))
+    ) {
+      fs.rmSync(fullPath, { force: true });
+      totalRemoved++;
+      continue;
+    }
+    if (platform !== "win32" && (name.endsWith(".dll") || name.endsWith(".exe"))) {
+      fs.rmSync(fullPath, { force: true });
+      totalRemoved++;
+      continue;
+    }
+    if (platform !== "linux" && /\.so(\.|$)/.test(name)) {
+      fs.rmSync(fullPath, { force: true });
+      totalRemoved++;
+      continue;
+    }
 
     // OS-prefixed binaries: windows-*, linux-*, macos-*
     if (name.startsWith("windows-") && platform !== "win32") {
@@ -297,6 +339,105 @@ function stripResourceBinaries(context) {
   if (totalRemoved > 0) {
     console.log(
       `  afterPack: stripped ${totalRemoved} non-target resource binaries from bin/ (keeping ${platform}/${keepArchs.join(",")})`
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fat Mach-O thinning
+// ---------------------------------------------------------------------------
+
+// lipo arch names differ from electron-builder's: x64 -> x86_64.
+const LIPO_ARCH = { arm64: "arm64", x64: "x86_64" };
+
+function thinFatBinaries(context) {
+  if (context.electronPlatformName !== "darwin") return;
+
+  const archName = Arch[context.arch];
+  if (archName === "universal") return;
+
+  const lipoArch = LIPO_ARCH[archName];
+  if (!lipoArch) return;
+
+  const binDir = path.join(resolveResourcesDir(context), "bin");
+  let thinned = 0;
+  let savedBytes = 0;
+
+  for (const filePath of collectFiles(binDir)) {
+    let archs;
+    try {
+      archs = execFileSync("lipo", ["-archs", filePath], {
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      })
+        .trim()
+        .split(/\s+/);
+    } catch {
+      continue; // not a Mach-O file
+    }
+
+    if (archs.length < 2 || !archs.includes(lipoArch)) continue;
+
+    const before = fs.statSync(filePath).size;
+    execFileSync("lipo", ["-thin", lipoArch, "-output", filePath, filePath]);
+    savedBytes += before - fs.statSync(filePath).size;
+    thinned++;
+  }
+
+  if (thinned > 0) {
+    console.log(
+      `  afterPack: thinned ${thinned} fat binaries to ${lipoArch} (saved ${(savedBytes / 1024 / 1024).toFixed(1)} MB)`
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// onnxruntime dylib dedupe (macOS)
+// ---------------------------------------------------------------------------
+
+// sherpa-onnx dylibs in Resources/bin link @rpath/libonnxruntime.<ver>.dylib,
+// and onnxruntime-node ships the identical official ORT dylib inside
+// app.asar.unpacked. When the versioned filenames match exactly, replace the
+// bin copy with a relative symlink so only one ~34 MB runtime ships. On a
+// version mismatch both copies are kept (safe fallback).
+function dedupeOnnxruntimeDylib(context) {
+  if (context.electronPlatformName !== "darwin") return;
+
+  const archName = Arch[context.arch];
+  if (archName !== "arm64" && archName !== "x64") return;
+
+  const resourcesDir = resolveResourcesDir(context);
+  const binDir = path.join(resourcesDir, "bin");
+  if (!fs.existsSync(binDir)) return;
+
+  const ortDir = path.join(
+    resourcesDir,
+    "app.asar.unpacked",
+    "node_modules",
+    "onnxruntime-node",
+    "bin",
+    "napi-v6",
+    "darwin",
+    archName
+  );
+  if (!fs.existsSync(ortDir)) return;
+
+  for (const entry of fs.readdirSync(binDir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    if (!/^libonnxruntime\.[\d.]+\.dylib$/.test(entry.name)) continue;
+
+    const target = path.join(ortDir, entry.name);
+    if (!fs.existsSync(target)) {
+      console.log(`  afterPack: keeping ${entry.name} (no matching dylib in onnxruntime-node)`);
+      continue;
+    }
+
+    const binPath = path.join(binDir, entry.name);
+    const saved = fs.statSync(binPath).size;
+    fs.rmSync(binPath);
+    fs.symlinkSync(path.relative(binDir, target), binPath);
+    console.log(
+      `  afterPack: symlinked bin/${entry.name} -> onnxruntime-node copy (saved ${(saved / 1024 / 1024).toFixed(1)} MB)`
     );
   }
 }
@@ -386,6 +527,8 @@ function stripElectronLocales(context) {
 exports.default = async function (context) {
   stripOnnxruntimeBinaries(context);
   stripResourceBinaries(context);
+  thinFatBinaries(context);
+  dedupeOnnxruntimeDylib(context);
   stripElectronLocales(context);
   clearMacExtendedAttributes(context);
   wrapLinuxBinary(context);

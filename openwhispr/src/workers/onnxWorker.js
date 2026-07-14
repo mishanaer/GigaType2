@@ -338,12 +338,244 @@ async function textEmbed({ text }) {
   return { embeddingBuffer: embedding.buffer };
 }
 
+// ---------------------------------------------------------------------------
+// GigaAM v3 e2e-RNN-T ASR (Russian). Featurizer is an exact port of onnx-asr's
+// GigaamPreprocessorNumpy v3 (via meetily's Rust port): 16 kHz, n_fft=win=320,
+// hop=160, no centering, precomputed window + mel filterbank, power spectrum,
+// log(clip(mel, 1e-9, 1e9)), no CMVN. Features shape [1, 64, T].
+//
+// RNN-T greedy decode (onnx-asr GigaamV2Rnnt semantics):
+//   encoder: IN audio_signal f32[1,64,T], length i64[1]
+//            OUT encoded f32[1,D,T'], encoded_len i32[1]
+//   decoder: IN x i64[1,1], h.1 f32[1,1,320], c.1 f32[1,1,320]
+//            OUT dec f32[1,1,320], h, c
+//   joiner : IN enc f32[1,D,1], dec f32[1,320,1] → joint f32[1,1,1,V]
+// ---------------------------------------------------------------------------
+
+const GIGAAM_N_FFT = 320;
+const GIGAAM_HOP = 160;
+const GIGAAM_N_MELS = 64;
+const GIGAAM_N_FREQ = GIGAAM_N_FFT / 2 + 1; // 161
+const GIGAAM_CLAMP_MIN = 1e-9;
+const GIGAAM_CLAMP_MAX = 1e9;
+const GIGAAM_PRED_HIDDEN = 320;
+const GIGAAM_MAX_TOKENS_PER_STEP = 3;
+
+let gigaamSessions = null; // { encoder, decoder, joiner }
+let gigaamVocab = null;
+let gigaamBlank = 0;
+let _gigaamDft = null;
+
+// Precomputed real-DFT twiddle tables for N=320 (not a power of two, so the
+// radix-2 realFFT above cannot be reused). Direct DFT: ~103k MACs per 10 ms
+// frame — far cheaper than the encoder inference that follows.
+function getGigaamDft() {
+  if (_gigaamDft) return _gigaamDft;
+  const cos = new Float32Array(GIGAAM_N_FREQ * GIGAAM_N_FFT);
+  const sin = new Float32Array(GIGAAM_N_FREQ * GIGAAM_N_FFT);
+  for (let f = 0; f < GIGAAM_N_FREQ; f++) {
+    for (let i = 0; i < GIGAAM_N_FFT; i++) {
+      const angle = (2 * Math.PI * f * i) / GIGAAM_N_FFT;
+      cos[f * GIGAAM_N_FFT + i] = Math.cos(angle);
+      sin[f * GIGAAM_N_FFT + i] = Math.sin(angle);
+    }
+  }
+  _gigaamDft = { cos, sin };
+  return _gigaamDft;
+}
+
+// Log-mel features for a 16 kHz mono waveform. Returns { features, numFrames }
+// where features is row-major [N_MELS, numFrames] (features[mel * T + t]).
+function computeGigaamFeatures(waveform) {
+  const { gigaamWindow, gigaamMelFbank } = require("./gigaamFbankAssets");
+  const n = waveform.length;
+  const numFrames = n < GIGAAM_N_FFT ? 0 : Math.floor((n - GIGAAM_N_FFT) / GIGAAM_HOP) + 1;
+  if (numFrames === 0) return { features: new Float32Array(0), numFrames: 0 };
+
+  const { cos, sin } = getGigaamDft();
+  const features = new Float32Array(GIGAAM_N_MELS * numFrames);
+  const frame = new Float32Array(GIGAAM_N_FFT);
+  const power = new Float32Array(GIGAAM_N_FREQ);
+
+  for (let t = 0; t < numFrames; t++) {
+    const start = t * GIGAAM_HOP;
+    for (let i = 0; i < GIGAAM_N_FFT; i++) {
+      frame[i] = waveform[start + i] * gigaamWindow[i];
+    }
+    for (let f = 0; f < GIGAAM_N_FREQ; f++) {
+      const base = f * GIGAAM_N_FFT;
+      let re = 0;
+      let im = 0;
+      for (let i = 0; i < GIGAAM_N_FFT; i++) {
+        re += frame[i] * cos[base + i];
+        im += frame[i] * sin[base + i];
+      }
+      power[f] = re * re + im * im;
+    }
+    // mel[m] = Σ_f power[f] * fbank[f * N_MELS + m]; then log(clip).
+    for (let m = 0; m < GIGAAM_N_MELS; m++) {
+      let acc = 0;
+      for (let f = 0; f < GIGAAM_N_FREQ; f++) {
+        acc += power[f] * gigaamMelFbank[f * GIGAAM_N_MELS + m];
+      }
+      features[m * numFrames + t] = Math.log(
+        Math.min(Math.max(acc, GIGAAM_CLAMP_MIN), GIGAAM_CLAMP_MAX)
+      );
+    }
+  }
+  return { features, numFrames };
+}
+
+// Parse a "token id" per-line vocab (id is the last whitespace-separated field).
+function loadGigaamVocab(vocabPath) {
+  const content = fs.readFileSync(vocabPath, "utf-8");
+  const entries = [];
+  let maxId = 0;
+  for (const rawLine of content.split("\n")) {
+    const line = rawLine.replace(/[\r\s]+$/, "");
+    if (!line) continue;
+    const match = line.match(/^(.*)[ \t](\d+)$/);
+    if (!match) throw new Error(`bad vocab line: ${JSON.stringify(line)}`);
+    const id = parseInt(match[2], 10);
+    maxId = Math.max(maxId, id);
+    entries.push([id, match[1]]);
+  }
+  const vocab = new Array(maxId + 1).fill("");
+  for (const [id, tok] of entries) vocab[id] = tok;
+  return vocab;
+}
+
+function gigaamArgmax(data) {
+  let best = 0;
+  let bestV = -Infinity;
+  for (let i = 0; i < data.length; i++) {
+    if (data[i] > bestV) {
+      bestV = data[i];
+      best = i;
+    }
+  }
+  return best;
+}
+
+async function gigaamLoad({ encoderPath, decoderPath, joinerPath, vocabPath }) {
+  if (gigaamSessions) return { ok: true };
+  loadOrt();
+
+  const vocab = loadGigaamVocab(vocabPath);
+  const blkIdx = vocab.indexOf("<blk>");
+  gigaamBlank = blkIdx >= 0 ? blkIdx : vocab.length - 1;
+  gigaamVocab = vocab;
+
+  const [encoder, decoder, joiner] = await Promise.all([
+    ort.InferenceSession.create(encoderPath, SESSION_OPTIONS),
+    ort.InferenceSession.create(decoderPath, SESSION_OPTIONS),
+    ort.InferenceSession.create(joinerPath, SESSION_OPTIONS),
+  ]);
+  gigaamSessions = { encoder, decoder, joiner };
+  log("info", "gigaam sessions loaded", { encoderPath, vocabSize: vocab.length, blank: gigaamBlank });
+  return { ok: true };
+}
+
+function gigaamUnload() {
+  gigaamSessions = null;
+  gigaamVocab = null;
+  return { ok: true };
+}
+
+// pcmBuffer: ArrayBuffer of little-endian f32 samples, 16 kHz mono.
+async function gigaamTranscribe({ pcmBuffer }) {
+  if (!gigaamSessions) throw new Error("gigaam sessions not loaded");
+
+  const waveform = new Float32Array(pcmBuffer);
+  const startedAt = Date.now();
+  const { features, numFrames } = computeGigaamFeatures(waveform);
+  if (numFrames === 0) return { text: "" };
+  const featureMs = Date.now() - startedAt;
+
+  const { encoder, decoder, joiner } = gigaamSessions;
+
+  const encOut = await encoder.run({
+    audio_signal: new ort.Tensor("float32", features, [1, GIGAAM_N_MELS, numFrames]),
+    length: new ort.Tensor("int64", BigInt64Array.from([BigInt(numFrames)]), [1]),
+  });
+  const encoded = encOut.encoded;
+  const encDim = encoded.dims[1];
+  const encTp = encoded.dims[2];
+  const encData = encoded.data;
+  let encLen = Number(encOut.encoded_len.data[0]);
+  if (!Number.isFinite(encLen) || encLen < 0) encLen = encTp;
+  encLen = Math.min(encLen, encTp);
+
+  // Greedy transducer decode. The prediction-network state (h, c) is committed
+  // only when a real token is emitted; the frame advances on blank or after
+  // MAX_TOKENS_PER_STEP emissions.
+  let h = new ort.Tensor("float32", new Float32Array(GIGAAM_PRED_HIDDEN), [1, 1, GIGAAM_PRED_HIDDEN]);
+  let c = new ort.Tensor("float32", new Float32Array(GIGAAM_PRED_HIDDEN), [1, 1, GIGAAM_PRED_HIDDEN]);
+  const tokens = [];
+  const encFrame = new Float32Array(encDim);
+  let tIdx = 0;
+  let emitted = 0;
+
+  while (tIdx < encLen) {
+    const lastToken = tokens.length > 0 ? tokens[tokens.length - 1] : gigaamBlank;
+    for (let d = 0; d < encDim; d++) {
+      encFrame[d] = encData[d * encTp + tIdx];
+    }
+
+    const decOut = await decoder.run({
+      x: new ort.Tensor("int64", BigInt64Array.from([BigInt(lastToken)]), [1, 1]),
+      "h.1": h,
+      "c.1": c,
+    });
+
+    const jointOut = await joiner.run({
+      enc: new ort.Tensor("float32", encFrame.slice(), [1, encDim, 1]),
+      dec: new ort.Tensor("float32", decOut.dec.data, [1, GIGAAM_PRED_HIDDEN, 1]),
+    });
+    const token = gigaamArgmax(jointOut.joint.data);
+
+    if (token !== gigaamBlank) {
+      h = decOut.h;
+      c = decOut.c;
+      tokens.push(token);
+      emitted += 1;
+    }
+    if (token === gigaamBlank || emitted >= GIGAAM_MAX_TOKENS_PER_STEP) {
+      tIdx += 1;
+      emitted = 0;
+    }
+  }
+
+  // Token ids → text: concat vocab entries, SentencePiece ▁ → space, trim.
+  let text = "";
+  for (const id of tokens) {
+    if (id < gigaamVocab.length) text += gigaamVocab[id];
+  }
+  text = text.replace(/▁/g, " ").trim();
+
+  log("info", "gigaam transcribe done", {
+    samples: waveform.length,
+    numFrames,
+    encLen,
+    tokens: tokens.length,
+    featureMs,
+    totalMs: Date.now() - startedAt,
+  });
+  return { text };
+}
+
 const handlers = {
-  ping: () => ({ ok: true, sessions: { speaker: !!speakerSession, text: !!textSession } }),
+  ping: () => ({
+    ok: true,
+    sessions: { speaker: !!speakerSession, text: !!textSession, gigaam: !!gigaamSessions },
+  }),
   "speaker.load": speakerLoad,
   "speaker.extract": speakerExtract,
   "text.load": textLoad,
   "text.embed": textEmbed,
+  "gigaam.load": gigaamLoad,
+  "gigaam.unload": gigaamUnload,
+  "gigaam.transcribe": gigaamTranscribe,
   shutdown: () => {
     log("info", "shutdown requested");
     setImmediate(() => process.exit(0));
@@ -358,9 +590,9 @@ async function dispatch({ id, method, payload }) {
   }
   try {
     const result = await handler(payload || {});
-    const transferList = [];
-    if (result?.embeddingBuffer) transferList.push(result.embeddingBuffer);
-    return { reply: { id, result }, transferList };
+    // MessagePortMain transfer lists only accept MessagePorts; ArrayBuffers in
+    // the message are structured-cloned instead.
+    return { reply: { id, result }, transferList: [] };
   } catch (err) {
     log("error", "handler threw", { method, error: err?.message, stack: err?.stack });
     return { reply: { id, error: { message: err?.message || String(err) } }, transferList: [] };
