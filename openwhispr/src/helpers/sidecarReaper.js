@@ -46,8 +46,8 @@ function reapStaleSidecars() {
       debugLogger.warn("Reaping stale sidecar", { name, pid });
       try {
         if (process.platform === "win32") {
-          // Tree-kill: the recorded pid may be a launcher (e.g. the PyInstaller
-          // onefile bootloader) whose actual server runs as a child process.
+          // Tree-kill: the recorded pid may be a launcher whose actual server
+          // runs as a child process, so /t covers the whole tree.
           execFileSync("taskkill", ["/pid", String(pid), "/f", "/t"], {
             stdio: "ignore",
             windowsHide: true,

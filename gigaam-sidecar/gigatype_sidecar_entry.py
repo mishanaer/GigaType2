@@ -1,20 +1,8 @@
 import os
-import sys
 
-# When packaged as a windowed (console=False) Windows binary, Python attaches no
-# console. If the process is also launched without piped stdio (e.g. the user
-# double-clicks the .exe, or it is spawned detached), sys.stdout/sys.stderr are
-# None. uvicorn's logging setup calls sys.stderr.isatty() during startup and
-# crashes with "NoneType has no attribute 'isatty'". Give it real streams; when
-# the Electron app spawns us with pipes these are already set and untouched.
-if sys.stdout is None:
-    sys.stdout = open(os.devnull, "w")  # noqa: SIM115
-if sys.stderr is None:
-    sys.stderr = open(os.devnull, "w")  # noqa: SIM115
+import uvicorn
 
-import uvicorn  # noqa: E402
-
-from gigaam_server import app  # noqa: E402
+from gigaam_server import app
 
 
 def _port_from_env() -> int:

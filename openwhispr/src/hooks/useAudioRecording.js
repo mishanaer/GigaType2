@@ -287,12 +287,14 @@ export const useAudioRecording = (toast, options = {}) => {
         if (error?.title !== "Paste Error") {
           window.electronAPI?.hideDictationPreview?.();
         }
-        notify({
-          title,
-          description,
-          variant: "destructive",
-          duration: error.code === "AUTH_EXPIRED" ? 8000 : undefined,
-        });
+        if (!error?.silent) {
+          notify({
+            title,
+            description,
+            variant: "destructive",
+            duration: error.code === "AUTH_EXPIRED" ? 8000 : undefined,
+          });
+        }
         if (getSettings().pauseMediaOnDictation) {
           window.electronAPI?.resumeMediaPlayback?.();
         }

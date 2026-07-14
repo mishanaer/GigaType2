@@ -2,9 +2,10 @@ name: Build Windows app (unsigned)
 # rebuild trigger: post-merge build (main merged: beta 1.2, upstream hotkey fixes)
 
 # Builds the full GigaType desktop app for Windows x64 on a cloud runner
-# (windows-latest already has Node, Python and VS Build Tools), bundling the
-# locally-built GigaAM sidecar. Produces an unsigned NSIS installer + portable
-# .exe as a downloadable artifact — no local Windows toolchain required.
+# (windows-latest already has Node and VS Build Tools). Local ASR now runs
+# in-process (gigaamLocalAsr.js via onnxruntime-node), so no Python sidecar is
+# built or bundled. Produces an unsigned NSIS installer + portable .exe as a
+# downloadable artifact — no local Windows toolchain required.
 #
 # Manual only: it's a heavy build (downloads several hundred MB of model/runtime
 # binaries and takes ~15-25 min), so it does not run on every push.
@@ -37,11 +38,6 @@ jobs:
           cache: "npm"
           cache-dependency-path: openwhispr/package-lock.json
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Install dependencies
         run: npm ci
 
@@ -49,9 +45,6 @@ jobs:
       # different host arch; --no-save keeps package-lock.json untouched.
       - name: Install platform-specific native binaries
         run: npm install @rollup/rollup-win32-x64-msvc lightningcss-win32-x64-msvc @tailwindcss/oxide-win32-x64-msvc --no-save
-
-      - name: Build GigaAM sidecar (win-x64)
-        run: npm run build:gigaam-sidecar:win
 
       # prebuild:win (auto pre-hook) downloads llama-server / qdrant / sherpa /
       # vad / diarization / nircmd / windows helper binaries, then

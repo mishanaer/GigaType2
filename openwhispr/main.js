@@ -215,7 +215,7 @@ const AudioActivityDetector = require("./src/helpers/audioActivityDetector");
 const AudioTapManager = require("./src/helpers/audioTapManager");
 const LinuxPortalAudioManager = require("./src/helpers/linuxPortalAudioManager");
 const MeetingDetectionEngine = require("./src/helpers/meetingDetectionEngine");
-const GigaamSidecarManager = require("./src/helpers/gigaamSidecarManager");
+const GigaamLocalAsrManager = require("./src/helpers/gigaamLocalAsr");
 const TelemetryService = require("./src/helpers/telemetryService");
 const { i18nMain, changeLanguage } = require("./src/helpers/i18nMain");
 const { ensureYdotool } = require("./src/helpers/ensureYdotool");
@@ -303,7 +303,7 @@ function initializeCoreManagers() {
   textEditMonitor = new TextEditMonitor();
   audioTapManager = new AudioTapManager();
   linuxPortalAudioManager = new LinuxPortalAudioManager();
-  gigaamSidecarManager = new GigaamSidecarManager();
+  gigaamSidecarManager = new GigaamLocalAsrManager();
   windowManager.textEditMonitor = textEditMonitor;
 
   // IPC handlers must be registered before window content loads

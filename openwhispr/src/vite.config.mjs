@@ -9,6 +9,9 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DEFAULT_DEV_SERVER_PORT = 5183;
+const appVersion = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf8")
+).version;
 
 const parseDevServerPort = (rawPort) => {
   const normalizedPort = rawPort || String(DEFAULT_DEV_SERVER_PORT);
@@ -49,6 +52,9 @@ export default defineConfig(({ mode }) => {
     ],
     base: "./", // Use relative paths for file:// protocol in Electron
     envDir, // Load .env from project root
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion),
+    },
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "."),
