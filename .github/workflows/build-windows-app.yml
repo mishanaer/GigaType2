@@ -103,3 +103,8 @@ jobs:
             openwhispr/dist/*.blockmap
             openwhispr/dist/latest.yml
           if-no-files-found: warn
+          # Each build is ~230 MB and the private-repo artifact quota is small;
+          # without a short retention the quota refills within a couple of
+          # builds (exactly what broke the Jul 14 runs). The Release above is
+          # the durable delivery — this artifact only needs to survive a day.
+          retention-days: 1
