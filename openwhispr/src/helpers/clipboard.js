@@ -61,6 +61,12 @@ const RESTORE_DELAYS = {
   linux_kde_wayland: 600,
 };
 
+// How long to wait for the Windows UI-Automation edit-field probe before we
+// decide what to do with the clipboard. The probe is sampled in parallel with
+// the Ctrl+V keystroke, so this only bounds the post-paste restore decision —
+// it never delays the paste itself.
+const WIN32_EDIT_FIELD_PROBE_TIMEOUT_MS = 600;
+
 const MACOS_PASTE_VERIFICATION_INTERVAL_MS = 100;
 const MACOS_PASTE_VERIFICATION_TIMEOUT_MS = 500;
 const MACOS_PASTE_VERIFICATION_QUERY_TIMEOUT_MS = 80;
@@ -337,6 +343,15 @@ class ClipboardManager {
       "win32",
       "winFastPasteChecked",
       "winFastPastePath"
+    );
+  }
+
+  resolveWindowsTextMonitorBinary() {
+    return this._resolveNativeBinary(
+      "windows-text-monitor.exe",
+      "win32",
+      "winTextMonitorChecked",
+      "winTextMonitorPath"
     );
   }
 
@@ -981,9 +996,40 @@ class ClipboardManager {
           method = nircmdPath ? "nircmd" : "powershell";
         }
         outcome.method = method;
-        await this.pasteWindows(originalClipboard);
-        outcome.inserted = true;
-        outcome.reason = "sent-unverified";
+
+        if (!shouldRestore) {
+          // Nothing to restore, so the transcription just stays on the
+          // clipboard regardless of where the paste lands. No probe needed.
+          await this.pasteWindows(originalClipboard, {
+            text,
+            editableProbe: Promise.resolve(null),
+          });
+          outcome.inserted = true;
+          outcome.reason = "sent-unverified";
+        } else {
+          // Sample whether an editable field is focused *before* the paste can
+          // change it. Runs in parallel with the keystroke so it never delays
+          // the paste — it only gates whether we restore the previous clipboard.
+          const editableProbe = this.detectWindowsEditableTarget(text);
+          const pasteResult = await this.pasteWindows(originalClipboard, {
+            text,
+            editableProbe,
+          });
+          const editable = pasteResult ? pasteResult.editable : null;
+
+          if (editable === true) {
+            // Confirmed edit field: the paste landed and the original clipboard
+            // was politely restored inside pasteWindows.
+            outcome.inserted = true;
+            outcome.reason = "sent-unverified";
+          } else {
+            // No editable field (or detection unavailable): the transcription
+            // was left on the clipboard for the user to paste manually.
+            outcome.inserted = false;
+            outcome.fallback = true;
+            outcome.reason = editable === false ? "no-edit-field" : "edit-field-unknown";
+          }
+        }
       } else {
         method =
           (await this.pasteLinux(originalClipboard, { ...options, originalPrimary })) ||
@@ -1185,17 +1231,136 @@ class ClipboardManager {
     });
   }
 
-  async pasteWindows(originalClipboard) {
+  /**
+   * One-shot probe of whether the currently-focused element accepts text,
+   * using the bundled windows-text-monitor.exe (UI Automation). That binary is
+   * normally a 30s value-change monitor, but its very first stdout line already
+   * reports editability, so we read that line and kill the process.
+   *
+   * Resolves to `true` (editable field focused), `false` (no editable element),
+   * or `null` (unknown — binary missing, spawn failed, or timed out). Callers
+   * treat anything other than an explicit `true` as "don't restore the previous
+   * clipboard; leave the transcription so the user can paste it manually".
+   */
+  async detectWindowsEditableTarget(originalText) {
+    const binaryPath = this.resolveWindowsTextMonitorBinary();
+    if (!binaryPath) {
+      this.safeLog("⚠️ windows-text-monitor.exe not found; cannot detect edit field");
+      return null;
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+      let proc = null;
+      let timeoutId = null;
+
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        if (timeoutId) clearTimeout(timeoutId);
+        if (proc) {
+          killProcess(proc, "SIGKILL");
+          proc.removeAllListeners();
+        }
+        resolve(value);
+      };
+
+      try {
+        proc = spawn(binaryPath, [], {
+          stdio: ["pipe", "pipe", "ignore"],
+          windowsHide: true,
+        });
+      } catch (error) {
+        this.safeLog("❌ windows-text-monitor spawn failed", error?.message);
+        return resolve(null);
+      }
+
+      let buffer = "";
+      proc.stdout.on("data", (data) => {
+        buffer += data.toString();
+        const newlineIndex = buffer.indexOf("\n");
+        if (newlineIndex === -1) return;
+        const line = buffer.slice(0, newlineIndex).trim();
+        if (line.startsWith("INITIAL_VALUE")) {
+          finish(true);
+        } else if (line === "NO_ELEMENT" || line === "NO_VALUE") {
+          finish(false);
+        } else {
+          // Unrecognized first line — treat as unknown rather than guessing.
+          finish(null);
+        }
+      });
+
+      proc.on("error", (error) => {
+        this.safeLog("❌ windows-text-monitor error", error?.message);
+        finish(null);
+      });
+      // Process exited before emitting a usable line.
+      proc.on("close", () => finish(null));
+
+      // The binary reads (and ignores) one informational line from stdin before
+      // it probes the focused element.
+      try {
+        const infoLine = (originalText || "").slice(0, 200).replace(/\r?\n/g, " ");
+        proc.stdin.write(infoLine + "\n");
+        proc.stdin.end();
+      } catch {}
+
+      timeoutId = setTimeout(() => {
+        this.safeLog("⏱️ windows-text-monitor probe timed out");
+        finish(null);
+      }, WIN32_EDIT_FIELD_PROBE_TIMEOUT_MS);
+    });
+  }
+
+  /**
+   * Decide what to do with the clipboard after a Windows Ctrl+V, based on the
+   * edit-field probe. Restore the user's previous clipboard only when an
+   * editable field was confirmed; otherwise leave the transcription in place so
+   * it can still be pasted manually. Resolves to `{ editable, restored }`.
+   */
+  async _finishWindowsPaste(originalClipboard, pasteOptions, restoreDelayMs) {
+    const editableProbe = pasteOptions?.editableProbe;
+    let editable = null;
+    if (editableProbe) {
+      try {
+        editable = await editableProbe;
+      } catch {
+        editable = null;
+      }
+    }
+
+    if (originalClipboard == null) {
+      // Caller opted out of restore; the transcription simply stays put.
+      return { editable, restored: false };
+    }
+
+    if (editable === true) {
+      setTimeout(() => {
+        this._restoreClipboard(originalClipboard);
+      }, restoreDelayMs);
+      return { editable, restored: true };
+    }
+
+    this.safeLog(
+      editable === false
+        ? "📋 No editable field focused — leaving transcription on clipboard"
+        : "📋 Edit field undetected — leaving transcription on clipboard"
+    );
+    return { editable, restored: false };
+  }
+
+  async pasteWindows(originalClipboard, pasteOptions = {}) {
     const fastPastePath = this.resolveWindowsFastPasteBinary();
 
     if (fastPastePath) {
-      return this.pasteWithFastPaste(fastPastePath, originalClipboard);
+      return this.pasteWithFastPaste(fastPastePath, originalClipboard, pasteOptions);
     }
 
-    return this.pasteWithNircmdOrPowerShell(originalClipboard);
+    return this.pasteWithNircmdOrPowerShell(originalClipboard, pasteOptions);
   }
 
-  async pasteWithFastPaste(fastPastePath, originalClipboard) {
+  async pasteWithFastPaste(fastPastePath, originalClipboard, pasteOptions = {}) {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         let hasTimedOut = false;
@@ -1231,18 +1396,19 @@ class ClipboardManager {
               elapsedMs: elapsed,
               output,
             });
-            if (originalClipboard != null) {
-              setTimeout(() => {
-                this._restoreClipboard(originalClipboard);
-              }, RESTORE_DELAYS.win32_nircmd);
-            }
-            resolve();
+            this._finishWindowsPaste(
+              originalClipboard,
+              pasteOptions,
+              RESTORE_DELAYS.win32_nircmd
+            ).then(resolve, reject);
           } else {
             this.safeLog(
               `❌ Windows fast-paste failed (code ${code}), falling back to nircmd/PowerShell`,
               { elapsedMs: elapsed, stderr: stderrData.trim() }
             );
-            this.pasteWithNircmdOrPowerShell(originalClipboard).then(resolve).catch(reject);
+            this.pasteWithNircmdOrPowerShell(originalClipboard, pasteOptions)
+              .then(resolve)
+              .catch(reject);
           }
         });
 
@@ -1253,7 +1419,9 @@ class ClipboardManager {
             elapsedMs: Date.now() - startTime,
             error: error.message,
           });
-          this.pasteWithNircmdOrPowerShell(originalClipboard).then(resolve).catch(reject);
+          this.pasteWithNircmdOrPowerShell(originalClipboard, pasteOptions)
+            .then(resolve)
+            .catch(reject);
         });
 
         const timeoutId = setTimeout(() => {
@@ -1261,21 +1429,23 @@ class ClipboardManager {
           this.safeLog("⏱️ Windows fast-paste timeout, falling back to nircmd/PowerShell");
           killProcess(pasteProcess, "SIGKILL");
           pasteProcess.removeAllListeners();
-          this.pasteWithNircmdOrPowerShell(originalClipboard).then(resolve).catch(reject);
+          this.pasteWithNircmdOrPowerShell(originalClipboard, pasteOptions)
+            .then(resolve)
+            .catch(reject);
         }, 2000);
       }, PASTE_DELAYS.win32_fast);
     });
   }
 
-  async pasteWithNircmdOrPowerShell(originalClipboard) {
+  async pasteWithNircmdOrPowerShell(originalClipboard, pasteOptions = {}) {
     const nircmdPath = this.getNircmdPath();
     if (nircmdPath) {
-      return this.pasteWithNircmd(nircmdPath, originalClipboard);
+      return this.pasteWithNircmd(nircmdPath, originalClipboard, pasteOptions);
     }
-    return this.pasteWithPowerShell(originalClipboard);
+    return this.pasteWithPowerShell(originalClipboard, pasteOptions);
   }
 
-  async pasteWithNircmd(nircmdPath, originalClipboard) {
+  async pasteWithNircmd(nircmdPath, originalClipboard, pasteOptions = {}) {
     return new Promise((resolve, reject) => {
       const pasteDelay = PASTE_DELAYS.win32_nircmd;
       const restoreDelay = RESTORE_DELAYS.win32_nircmd;
@@ -1307,18 +1477,16 @@ class ClipboardManager {
               elapsedMs: elapsed,
               restoreDelayMs: restoreDelay,
             });
-            if (originalClipboard != null) {
-              setTimeout(() => {
-                this._restoreClipboard(originalClipboard);
-              }, restoreDelay);
-            }
-            resolve();
+            this._finishWindowsPaste(originalClipboard, pasteOptions, restoreDelay).then(
+              resolve,
+              reject
+            );
           } else {
             this.safeLog(`❌ nircmd failed (code ${code}), falling back to PowerShell`, {
               elapsedMs: elapsed,
               stderr: errorOutput,
             });
-            this.pasteWithPowerShell(originalClipboard).then(resolve).catch(reject);
+            this.pasteWithPowerShell(originalClipboard, pasteOptions).then(resolve).catch(reject);
           }
         });
 
@@ -1330,7 +1498,7 @@ class ClipboardManager {
             elapsedMs: elapsed,
             error: error.message,
           });
-          this.pasteWithPowerShell(originalClipboard).then(resolve).catch(reject);
+          this.pasteWithPowerShell(originalClipboard, pasteOptions).then(resolve).catch(reject);
         });
 
         const timeoutId = setTimeout(() => {
@@ -1339,13 +1507,13 @@ class ClipboardManager {
           this.safeLog(`⏱️ nircmd timeout, falling back to PowerShell`, { elapsedMs: elapsed });
           killProcess(pasteProcess, "SIGKILL");
           pasteProcess.removeAllListeners();
-          this.pasteWithPowerShell(originalClipboard).then(resolve).catch(reject);
+          this.pasteWithPowerShell(originalClipboard, pasteOptions).then(resolve).catch(reject);
         }, 2000);
       }, pasteDelay);
     });
   }
 
-  async pasteWithPowerShell(originalClipboard) {
+  async pasteWithPowerShell(originalClipboard, pasteOptions = {}) {
     return new Promise((resolve, reject) => {
       const pasteDelay = PASTE_DELAYS.win32_pwsh;
       const restoreDelay = RESTORE_DELAYS.win32_pwsh;
@@ -1386,12 +1554,10 @@ class ClipboardManager {
               elapsedMs: elapsed,
               restoreDelayMs: restoreDelay,
             });
-            if (originalClipboard != null) {
-              setTimeout(() => {
-                this._restoreClipboard(originalClipboard);
-              }, restoreDelay);
-            }
-            resolve();
+            this._finishWindowsPaste(originalClipboard, pasteOptions, restoreDelay).then(
+              resolve,
+              reject
+            );
           } else {
             this.safeLog(`❌ PowerShell paste failed`, {
               code,

@@ -342,6 +342,88 @@ test("pasteMacOS returns a restore gate with expected pasted text", async () => 
   });
 });
 
+test("Windows restores the previous clipboard when an editable field is detected", async () => {
+  const spawnCalls = [];
+  const TestClipboardManager = loadClipboardManager({
+    spawn: createSuccessfulSpawn(spawnCalls),
+  });
+  await withPlatform("win32", async () => {
+    resetClipboard({ text: "previous clipboard" });
+    const manager = new TestClipboardManager();
+
+    manager.resolveWindowsFastPasteBinary = () => "/tmp/windows-fast-paste.exe";
+    manager.detectWindowsEditableTarget = async () => true;
+
+    const result = await manager.pasteText("dictated text", {
+      restoreClipboard: true,
+      allowClipboardFallback: true,
+    });
+
+    // Restore is scheduled after RESTORE_DELAYS.win32_nircmd (80ms).
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    assert.equal(spawnCalls[0].command, "/tmp/windows-fast-paste.exe");
+    assert.equal(fakeClipboard.text, "previous clipboard");
+    assert.equal(result.inserted, true);
+    assert.equal(result.fallback, false);
+    assert.equal(result.reason, "sent-unverified");
+  });
+});
+
+test("Windows keeps dictated text when no editable field is detected", async () => {
+  const spawnCalls = [];
+  const TestClipboardManager = loadClipboardManager({
+    spawn: createSuccessfulSpawn(spawnCalls),
+  });
+  await withPlatform("win32", async () => {
+    resetClipboard({ text: "previous clipboard" });
+    const manager = new TestClipboardManager();
+
+    manager.resolveWindowsFastPasteBinary = () => "/tmp/windows-fast-paste.exe";
+    manager.detectWindowsEditableTarget = async () => false;
+
+    const result = await manager.pasteText("dictated text", {
+      restoreClipboard: true,
+      allowClipboardFallback: true,
+    });
+
+    // Give any (erroneous) restore timer a chance to fire before asserting.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    assert.equal(fakeClipboard.text, "dictated text");
+    assert.equal(result.inserted, false);
+    assert.equal(result.fallback, true);
+    assert.equal(result.reason, "no-edit-field");
+  });
+});
+
+test("Windows keeps dictated text when edit-field detection is unavailable", async () => {
+  const spawnCalls = [];
+  const TestClipboardManager = loadClipboardManager({
+    spawn: createSuccessfulSpawn(spawnCalls),
+  });
+  await withPlatform("win32", async () => {
+    resetClipboard({ text: "previous clipboard" });
+    const manager = new TestClipboardManager();
+
+    manager.resolveWindowsFastPasteBinary = () => "/tmp/windows-fast-paste.exe";
+    // Binary missing / probe failed → unknown.
+    manager.detectWindowsEditableTarget = async () => null;
+
+    const result = await manager.pasteText("dictated text", {
+      restoreClipboard: true,
+      allowClipboardFallback: true,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    assert.equal(fakeClipboard.text, "dictated text");
+    assert.equal(result.inserted, false);
+    assert.equal(result.fallback, true);
+    assert.equal(result.reason, "edit-field-unknown");
+  });
+});
+
 test("pasteMacOSWithOsascript fallback returns a restore gate with expected pasted text", async () => {
   const spawnCalls = [];
   const TestClipboardManager = loadClipboardManager({
