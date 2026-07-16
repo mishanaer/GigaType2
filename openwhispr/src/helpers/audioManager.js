@@ -3,6 +3,7 @@ import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
 import { isSecureEndpoint } from "../utils/urlUtils";
 import { resolveGigaamTranscriptionUrl } from "../utils/gigaamTranscription";
 import { getBaseLanguageCode } from "../utils/languageSupport";
+import { stripSingleTerminalPeriod } from "../utils/transcriptionFormatting";
 import {
   createLocalSpeechGateState,
   getLocalSpeechGateDecision,
@@ -680,7 +681,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   async processTranscription(text, source) {
-    const normalizedText = typeof text === "string" ? text.trim() : "";
+    const normalizedText = stripSingleTerminalPeriod(text);
 
     if (!normalizedText) {
       logger.debug(
