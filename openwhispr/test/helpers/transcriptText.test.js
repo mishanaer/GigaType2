@@ -2,6 +2,23 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { transcriptsOverlap, transcriptsLooselyOverlap } = require("../../src/helpers/transcriptText");
+const transcriptionFormatting = import("../../src/utils/transcriptionFormatting.js");
+
+test("stripSingleTerminalPeriod removes only a final standalone period", async () => {
+  const { stripSingleTerminalPeriod } = await transcriptionFormatting;
+  assert.equal(stripSingleTerminalPeriod("Готово."), "Готово");
+  assert.equal(stripSingleTerminalPeriod("  Готово.  "), "Готово");
+  assert.equal(stripSingleTerminalPeriod("Версия 1.2 готова."), "Версия 1.2 готова");
+});
+
+test("stripSingleTerminalPeriod preserves other terminal punctuation", async () => {
+  const { stripSingleTerminalPeriod } = await transcriptionFormatting;
+  assert.equal(stripSingleTerminalPeriod("Готово..."), "Готово...");
+  assert.equal(stripSingleTerminalPeriod("Готово.."), "Готово..");
+  assert.equal(stripSingleTerminalPeriod("Готово?"), "Готово?");
+  assert.equal(stripSingleTerminalPeriod("Готово!"), "Готово!");
+  assert.equal(stripSingleTerminalPeriod(""), "");
+});
 
 test("transcriptsOverlap matches near-duplicate meeting transcripts", () => {
   assert.equal(
