@@ -95,6 +95,19 @@ class GigaamLocalAsrManager extends EventEmitter {
     return path.join(app.getPath("userData"), "model-cache", "gigaam", MODEL_NAME);
   }
 
+  // Model files shipped inside the app bundle (electron-builder extraResources
+  // → Contents/Resources/gigaam-model/), so a fresh install transcribes
+  // offline without the ~851 MB first-run download. Returns null when running
+  // unpackaged (dev) or when the bundle omits the model.
+  _getBundledModelDir() {
+    if (!process.resourcesPath) return null;
+    const dir = path.join(process.resourcesPath, "gigaam-model");
+    if (MODEL_FILES.every((f) => fs.existsSync(path.join(dir, f.name)))) {
+      return dir;
+    }
+    return null;
+  }
+
   // Directory containing all model files, or null when not downloaded yet.
   _resolveModelBaseDir() {
     const legacy = this._findLegacySnapshotDir();
@@ -103,6 +116,8 @@ class GigaamLocalAsrManager extends EventEmitter {
     if (MODEL_FILES.every((f) => fs.existsSync(path.join(dir, f.name)))) {
       return dir;
     }
+    const bundled = this._getBundledModelDir();
+    if (bundled) return bundled;
     return null;
   }
 
