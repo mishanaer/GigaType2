@@ -43,12 +43,11 @@ class UpdateManager {
       return;
     }
 
-    autoUpdater.setFeedURL({
-      provider: "github",
-      owner: "Type",
-      repo: "openwhispr",
-      private: false,
-    });
+    // The update feed is baked into app-update.yml at build time from the
+    // "generic" publish provider in electron-builder.json (SberCloud OBS:
+    // .../function_descriptions/gigatype-electron/<channel>). Do NOT call
+    // setFeedURL here — it would override the baked config. We only tune the
+    // channel below; electron-updater reads the OBS URL from app-update.yml.
 
     // Use arch-specific update channel on macOS to prevent arm64/x64
     // from downloading mismatched artifacts. Both builds publish to the

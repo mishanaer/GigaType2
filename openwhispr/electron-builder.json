@@ -1,6 +1,7 @@
 {
   "appId": "ai.gigatype.app",
   "afterPack": "scripts/afterPack.js",
+  "afterSign": "scripts/afterSign.js",
   "afterAllArtifactBuild": "scripts/afterAllArtifactBuild.js",
   "productName": "Type",
   "protocols": {
@@ -9,6 +10,11 @@
   },
   "directories": {
     "output": "dist"
+  },
+  "publish": {
+    "provider": "generic",
+    "url": "https://obs.ru-moscow-1.hc.sbercloud.ru/d-ssdev-crowd/function_descriptions/gigatype-electron/prod",
+    "channel": "latest"
   },
   "npmRebuild": true,
   "buildDependenciesFromSource": false,
@@ -178,6 +184,13 @@
     "hardenedRuntime": true,
     "entitlements": "resources/mac/entitlements.mac.plist",
     "entitlementsInherit": "resources/mac/entitlements.mac.plist",
+    "extraResources": [
+      {
+        "from": "resources/gigaam-model/",
+        "to": "gigaam-model/",
+        "filter": ["**/*"]
+      }
+    ],
     "extendInfo": {
       "LSUIElement": false,
       "NSMicrophoneUsageDescription": "Type uses the microphone to capture your voice for transcription.",
@@ -192,6 +205,11 @@
       {
         "from": "resources/bin/nircmd.exe",
         "to": "bin/nircmd.exe"
+      },
+      {
+        "from": "resources/gigaam-model/",
+        "to": "gigaam-model/",
+        "filter": ["**/*"]
       }
     ]
   },

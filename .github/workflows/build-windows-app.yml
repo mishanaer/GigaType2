@@ -4,11 +4,17 @@ name: Build Windows app (unsigned)
 # Builds the full GigaType desktop app for Windows x64 on a cloud runner
 # (windows-latest already has Node and VS Build Tools). Local ASR now runs
 # in-process (gigaamLocalAsr.js via onnxruntime-node), so no Python sidecar is
-# built or bundled. Produces an unsigned NSIS installer + portable .exe as a
-# downloadable artifact — no local Windows toolchain required.
+# built or bundled. The fp32 GigaAM v3 model is downloaded and bundled into the
+# app ("wired model") so a fresh install transcribes offline without the
+# ~885 MB first-run download. Produces an unsigned NSIS installer + portable .exe.
 #
-# Manual only: it's a heavy build (downloads several hundred MB of model/runtime
-# binaries and takes ~15-25 min), so it does not run on every push.
+# Delivery: the installer is attached to a "windows-dev-build-wired" prerelease
+# (Release assets are a separate storage bucket, so they keep working when the
+# account's Actions artifact-storage quota is exhausted). The Actions-artifact
+# upload is kept as a non-fatal bonus for when that quota is available.
+#
+# Manual only: it's a heavy build (downloads ~1 GB of model + several hundred MB
+# of runtime binaries and takes ~20-30 min), so it does not run on every push.
 
 on:
   workflow_dispatch: {}
@@ -24,7 +30,11 @@ on:
 jobs:
   build-app:
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
+    # contents: write lets the built-in GITHUB_TOKEN create/update the
+    # prerelease and upload the installer as a Release asset.
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: openwhispr
@@ -46,6 +56,20 @@ jobs:
       - name: Install platform-specific native binaries
         run: npm install @rollup/rollup-win32-x64-msvc lightningcss-win32-x64-msvc @tailwindcss/oxide-win32-x64-msvc --no-save
 
+      # ~885 MB, so cache it across runs. The download step skips files already
+      # present at the right size, so a cache hit makes it a near-instant no-op.
+      - name: Cache GigaAM model
+        uses: actions/cache@v4
+        with:
+          path: openwhispr/resources/gigaam-model
+          key: gigaam-model-${{ hashFiles('openwhispr/scripts/download-gigaam-model.js') }}
+
+      # Populate resources/gigaam-model/ so electron-builder's win.extraResources
+      # can bundle it into the app (Contents/Resources/gigaam-model on disk;
+      # resolved at runtime by gigaamLocalAsr.js _getBundledModelDir()).
+      - name: Download GigaAM model (wired)
+        run: npm run download:gigaam-model
+
       # prebuild:win (auto pre-hook) downloads llama-server / qdrant / sherpa /
       # vad / diarization / nircmd / windows helper binaries, then
       # electron-builder packages the unsigned NSIS installer + portable exe.
@@ -59,10 +83,35 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # always(): the NSIS installer + portable exe are written before the
-      # final update-metadata step, so publish them even if a late step fails.
-      - name: Upload installer + portable
+      # Primary delivery: attach the installer to a reusable prerelease. Release
+      # assets don't count against the Actions artifact-storage quota, so this
+      # keeps working when that quota is full. Fixed tag + --clobber means one
+      # "latest Windows wired-model dev build" release whose assets are replaced
+      # each run.
+      - name: Publish installer to GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "windows-dev-build-wired"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --prerelease --target $env:GITHUB_SHA `
+              --title "Windows dev build — wired GigaAM model (unsigned)" `
+              --notes "Automated unsigned Windows x64 build with the fp32 GigaAM v3 model bundled in the app (offline first run, no ~885 MB download). Private repo, collaborators only. Not code-signed (SmartScreen will warn). Assets are replaced on each build."
+          }
+          $files = Get-ChildItem -Path dist/*.exe, dist/*.blockmap, dist/latest.yml -ErrorAction SilentlyContinue
+          if (-not $files) { throw "No build artifacts found in dist/" }
+          Write-Host "Uploading $($files.Count) asset(s) to release '$tag':"
+          $files | ForEach-Object { Write-Host "  $($_.Name) ($([math]::Round($_.Length/1MB,1)) MB)" }
+          gh release upload $tag $files.FullName --clobber
+
+      # Bonus: also upload as an Actions artifact when storage is available.
+      # continue-on-error keeps a full-quota failure from failing the workflow —
+      # the Release above is the real delivery.
+      - name: Upload installer + portable (Actions artifact, best-effort)
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: gigatype-windows-app
@@ -70,4 +119,9 @@ jobs:
             openwhispr/dist/*.exe
             openwhispr/dist/*.blockmap
             openwhispr/dist/latest.yml
-          if-no-files-found: error
+          if-no-files-found: warn
+          # Each build is large and the private-repo artifact quota is small;
+          # without a short retention the quota refills within a couple of
+          # builds. The Release above is the durable delivery — this artifact
+          # only needs to survive a day.
+          retention-days: 1
