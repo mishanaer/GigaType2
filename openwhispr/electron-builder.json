@@ -205,6 +205,11 @@
       {
         "from": "resources/bin/nircmd.exe",
         "to": "bin/nircmd.exe"
+      },
+      {
+        "from": "resources/gigaam-model/",
+        "to": "gigaam-model/",
+        "filter": ["**/*"]
       }
     ]
   },
