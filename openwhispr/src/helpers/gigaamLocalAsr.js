@@ -33,7 +33,141 @@ const TRANSCRIBE_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_REQUEST_BYTES = 512 * 1024 * 1024;
 const STATUS_EMIT_THROTTLE_MS = 500;
 const TARGET_SAMPLE_RATE = 16000;
+// GigaAM's direct inference path is intended for short utterances. Large
+// tensors can terminate the native ONNX utility process well before the
+// encoder's absolute ~200 second positional limit, so keep each request at a
+// conservative 25 seconds and combine the results in the HTTP layer.
+const MAX_TRANSCRIPTION_CHUNK_SECONDS = 25;
+const MAX_TRANSCRIPTION_CHUNK_SAMPLES = TARGET_SAMPLE_RATE * MAX_TRANSCRIPTION_CHUNK_SECONDS;
 const LOOPBACK_CORS_ORIGIN_PATTERN = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/;
+
+function getPcmChunkRanges(sampleCount, maxChunkSamples = MAX_TRANSCRIPTION_CHUNK_SAMPLES) {
+  if (!Number.isInteger(sampleCount) || sampleCount < 0) {
+    throw new TypeError("sampleCount must be a non-negative integer");
+  }
+  if (!Number.isInteger(maxChunkSamples) || maxChunkSamples <= 0) {
+    throw new TypeError("maxChunkSamples must be a positive integer");
+  }
+
+  const ranges = [];
+  for (let start = 0; start < sampleCount; start += maxChunkSamples) {
+    ranges.push({ start, end: Math.min(start + maxChunkSamples, sampleCount) });
+  }
+  return ranges;
+}
+
+function getExactPcmBuffer(pcm, start, end) {
+  if (
+    start === 0 &&
+    end === pcm.length &&
+    pcm.byteOffset === 0 &&
+    pcm.buffer.byteLength === pcm.byteLength
+  ) {
+    return pcm.buffer;
+  }
+
+  // A subarray keeps the original backing buffer. Sending subarray.buffer
+  // would therefore send the entire long recording to ONNX again.
+  return pcm.slice(start, end).buffer;
+}
+
+function getTranscriptWords(text) {
+  return Array.from(text.matchAll(/\S+/g), (match) => ({
+    raw: match[0],
+    normalized: match[0]
+      .toLocaleLowerCase("ru-RU")
+      .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""),
+    end: match.index + match[0].length,
+  }));
+}
+
+function findDuplicateSeamWordCount(previousText, nextText) {
+  const previousWords = getTranscriptWords(previousText);
+  const nextWords = getTranscriptWords(nextText);
+  if (previousWords.length === 0 || nextWords.length === 0) return 0;
+
+  const previousWord = previousWords.at(-1);
+  const nextWord = nextWords[0];
+  if (
+    !previousWord.normalized ||
+    previousWord.normalized !== nextWord.normalized ||
+    previousWord.normalized.length < 5 ||
+    /[.!?…]["'”’»\p{Pe}\p{Pf}]*$/u.test(previousWord.raw) ||
+    !/^[\p{L}\p{N}]/u.test(nextWord.raw) ||
+    !/[\p{L}\p{N}]$/u.test(nextWord.raw)
+  ) {
+    return 0;
+  }
+
+  const previousInitial = previousWord.raw.match(/\p{L}/u)?.[0];
+  const nextInitial = nextWord.raw.match(/\p{L}/u)?.[0];
+  const previousStartsLowercase =
+    previousInitial &&
+    previousInitial === previousInitial.toLocaleLowerCase("ru-RU") &&
+    previousInitial !== previousInitial.toLocaleUpperCase("ru-RU");
+  const nextStartsUppercase =
+    nextInitial &&
+    nextInitial === nextInitial.toLocaleUpperCase("ru-RU") &&
+    nextInitial !== nextInitial.toLocaleLowerCase("ru-RU");
+
+  return previousStartsLowercase && nextStartsUppercase ? 1 : 0;
+}
+
+function mergeTranscriptChunk(previousText, nextText) {
+  const previous = typeof previousText === "string" ? previousText.trim() : "";
+  const next = typeof nextText === "string" ? nextText.trim() : "";
+  if (!previous) return next;
+  if (!next) return previous;
+
+  const duplicateWords = findDuplicateSeamWordCount(previous, next);
+  if (duplicateWords === 0) return `${previous} ${next}`;
+
+  const nextWords = getTranscriptWords(next);
+  const remainder = next.slice(nextWords[duplicateWords - 1].end).trimStart();
+  return remainder ? `${previous} ${remainder}` : previous;
+}
+
+async function transcribePcmInChunks(
+  pcm,
+  requestChunk,
+  { maxChunkSamples = MAX_TRANSCRIPTION_CHUNK_SAMPLES } = {}
+) {
+  if (!(pcm instanceof Float32Array)) {
+    throw new TypeError("pcm must be a Float32Array");
+  }
+  if (typeof requestChunk !== "function") {
+    throw new TypeError("requestChunk must be a function");
+  }
+
+  const ranges = getPcmChunkRanges(pcm.length, maxChunkSamples);
+  if (ranges.length === 0) return { text: "", chunksTotal: 0 };
+
+  let text = "";
+  let previousChunkHadText = false;
+  for (let index = 0; index < ranges.length; index++) {
+    const { start, end } = ranges[index];
+    const pcmBuffer = getExactPcmBuffer(pcm, start, end);
+    const result = await requestChunk(pcmBuffer, {
+      chunkIndex: index + 1,
+      chunksTotal: ranges.length,
+      samples: end - start,
+      startSample: start,
+      endSample: end,
+    });
+    const chunkText = typeof result?.text === "string" ? result.text.trim() : "";
+    if (!chunkText) {
+      previousChunkHadText = false;
+      continue;
+    }
+
+    text = previousChunkHadText
+      ? mergeTranscriptChunk(text, chunkText)
+      : [text, chunkText].filter(Boolean).join(" ");
+    previousChunkHadText = true;
+  }
+
+  return { text, chunksTotal: ranges.length };
+}
 
 function applyLoopbackCors(req, res) {
   const origin = req.headers.origin;
@@ -329,16 +463,7 @@ class GigaamLocalAsrManager extends EventEmitter {
       }
 
       const pcm = await this._decodeToPcm(file);
-      // MessagePortMain transfer lists only accept MessagePorts, so the PCM
-      // buffer is structured-cloned. Trim to exact bounds first — the view may
-      // sit inside a larger allocation.
-      const pcmBuffer =
-        pcm.byteOffset === 0 && pcm.buffer.byteLength === pcm.length * 4
-          ? pcm.buffer
-          : pcm.slice().buffer;
-      const { text } = await onnxWorkerClient.request("gigaam.transcribe", { pcmBuffer }, [], {
-        timeoutMs: TRANSCRIBE_TIMEOUT_MS,
-      });
+      const { text } = await this._transcribePcm(pcm);
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ text }));
@@ -347,6 +472,41 @@ class GigaamLocalAsrManager extends EventEmitter {
 
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: { message: "not found" } }));
+  }
+
+  async _transcribePcm(pcm) {
+    const startedAt = Date.now();
+    const result = await transcribePcmInChunks(pcm, async (pcmBuffer, chunk) => {
+      debugLogger.info("GigaAM chunk transcription starting", {
+        chunkIndex: chunk.chunkIndex,
+        chunksTotal: chunk.chunksTotal,
+        durationSeconds: chunk.samples / TARGET_SAMPLE_RATE,
+      });
+
+      // MessagePortMain transfer lists only accept MessagePorts, so the exact
+      // chunk buffer is structured-cloned into the ONNX utility process.
+      const response = await this._requestGigaamChunk(pcmBuffer);
+
+      debugLogger.info("GigaAM chunk transcription completed", {
+        chunkIndex: chunk.chunkIndex,
+        chunksTotal: chunk.chunksTotal,
+        textLength: typeof response?.text === "string" ? response.text.length : 0,
+      });
+      return response;
+    });
+
+    debugLogger.info("GigaAM transcription chunks combined", {
+      chunksTotal: result.chunksTotal,
+      textLength: result.text.length,
+      totalMs: Date.now() - startedAt,
+    });
+    return result;
+  }
+
+  _requestGigaamChunk(pcmBuffer) {
+    return onnxWorkerClient.request("gigaam.transcribe", { pcmBuffer }, [], {
+      timeoutMs: TRANSCRIBE_TIMEOUT_MS,
+    });
   }
 
   _readBody(req) {
@@ -584,3 +744,11 @@ function tryDecodeWav(buffer) {
 }
 
 module.exports = GigaamLocalAsrManager;
+module.exports._testing = {
+  MAX_TRANSCRIPTION_CHUNK_SECONDS,
+  MAX_TRANSCRIPTION_CHUNK_SAMPLES,
+  findDuplicateSeamWordCount,
+  getPcmChunkRanges,
+  mergeTranscriptChunk,
+  transcribePcmInChunks,
+};
