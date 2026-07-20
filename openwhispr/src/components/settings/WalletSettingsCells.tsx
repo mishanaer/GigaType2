@@ -19,6 +19,8 @@ interface WalletSettingsCellsProps {
   onHotkeyChange: (hotkey: string) => Promise<boolean | void> | boolean | void;
   hotkeyDisabled?: boolean;
   validateHotkey?: (hotkey: string) => string | null | undefined;
+  activationMode: "tap" | "push";
+  onActivationModeChange: (mode: "tap" | "push") => void;
   preferBuiltInMic: boolean;
   selectedMicDeviceId: string;
   onPreferBuiltInChange: (value: boolean) => void;
@@ -42,6 +44,8 @@ export default function WalletSettingsCells({
   onHotkeyChange,
   hotkeyDisabled = false,
   validateHotkey,
+  activationMode,
+  onActivationModeChange,
   preferBuiltInMic,
   selectedMicDeviceId,
   onPreferBuiltInChange,
@@ -187,6 +191,13 @@ export default function WalletSettingsCells({
     [onDeviceSelect, onPreferBuiltInChange]
   );
 
+  const handleActivationModeChange = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      onActivationModeChange(event.target.value === "tap" ? "tap" : "push");
+    },
+    [onActivationModeChange]
+  );
+
   useEffect(() => {
     return () => {
       if (invalidHotkeyReleaseRef.current) {
@@ -222,6 +233,27 @@ export default function WalletSettingsCells({
               }
             >
               <Cell.Text title="Хоткей" />
+            </Cell>
+
+            <Cell
+              end={
+                <div className="wallet-settings-native-select-wrap appshots-window-no-drag appshots-settings-no-drag">
+                  <Cell.Part type="Dropdown">
+                    {activationMode === "push" ? "Удерживать хоткей" : "Старт-стоп"}
+                  </Cell.Part>
+                  <select
+                    className="wallet-settings-native-select appshots-settings-no-drag"
+                    aria-label="Способ диктовки"
+                    value={activationMode}
+                    onChange={handleActivationModeChange}
+                  >
+                    <option value="push">Удерживать хоткей</option>
+                    <option value="tap">Старт-стоп</option>
+                  </select>
+                </div>
+              }
+            >
+              <Cell.Text title="Способ диктовки" />
             </Cell>
 
             <Cell

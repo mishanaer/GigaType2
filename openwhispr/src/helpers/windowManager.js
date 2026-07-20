@@ -537,11 +537,11 @@ class WindowManager {
   }
 
   getActivationMode() {
-    return "push";
+    return this._cachedActivationMode;
   }
 
-  setActivationModeCache() {
-    this._cachedActivationMode = "push";
+  setActivationModeCache(mode) {
+    this._cachedActivationMode = mode === "tap" ? "tap" : "push";
   }
 
   setHotkeyListeningMode(enabled) {

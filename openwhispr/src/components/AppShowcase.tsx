@@ -182,15 +182,18 @@ function WindowFrame({
 
 function SettingsPreview() {
   const [hideCapsule, setHideCapsule] = useState(false);
+  const [activationMode, setActivationMode] = useState<"tap" | "push">("push");
 
   return (
-    <div className="mx-auto w-[460px] pb-[20px] pt-[20px]">
+    <div className="mx-auto w-[460px] pb-[24px] pt-[20px]">
       <AppshotsLogoHeader showBuildLabel={false} />
       <DailyDictationHeadline />
       <div className="mt-[24px]">
         <WalletSettingsCells
           dictationKey="CmdOrCtrl+Shift"
           onHotkeyChange={noop}
+          activationMode={activationMode}
+          onActivationModeChange={setActivationMode}
           preferBuiltInMic={false}
           selectedMicDeviceId=""
           onPreferBuiltInChange={noop}
@@ -211,7 +214,7 @@ function SettingsPreview() {
           ]}
         />
       </div>
-      <AppshotsBuildLabel className="mt-[16px]" size="small" />
+      <AppshotsBuildLabel className="mt-[20px]" size="small" />
     </div>
   );
 }

@@ -29,7 +29,7 @@ const isBrowser = typeof window !== "undefined";
 const FIXED_UI_LANGUAGE = "ru";
 const FIXED_TRANSCRIPTION_LANGUAGE = "ru";
 const FIXED_THEME = "auto";
-const FIXED_ACTIVATION_MODE = "push" as const;
+const DEFAULT_ACTIVATION_MODE = "push" as const;
 const FIXED_AUDIO_CUES_ENABLED = true;
 const FIXED_PAUSE_MEDIA_ON_DICTATION = false;
 const FIXED_NOTIFICATIONS_ENABLED = false;
@@ -114,6 +114,14 @@ function readBoolean(key: string, fallback: boolean): boolean {
   if (stored === null) return fallback;
   if (fallback === true) return stored !== "false";
   return stored === "true";
+}
+
+function normalizeActivationMode(value: unknown): "tap" | "push" {
+  return value === "tap" ? "tap" : DEFAULT_ACTIVATION_MODE;
+}
+
+function readActivationMode(): "tap" | "push" {
+  return normalizeActivationMode(readString("activationMode", DEFAULT_ACTIVATION_MODE));
 }
 
 function readStringArray(key: string, fallback: string[]): string[] {
@@ -267,7 +275,6 @@ enforceFixedUiSettings();
 
 function enforceFixedBehaviorSettings() {
   if (!isBrowser) return;
-  localStorage.setItem("activationMode", FIXED_ACTIVATION_MODE);
   localStorage.setItem("audioCuesEnabled", String(FIXED_AUDIO_CUES_ENABLED));
   localStorage.setItem("pauseMediaOnDictation", String(FIXED_PAUSE_MEDIA_ON_DICTATION));
   localStorage.setItem("startMinimized", String(FIXED_START_MINIMIZED));
@@ -856,7 +863,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   meetingHotkeyLayoutMode: (readString("meetingHotkeyLayoutMode", "full-width") === "side-panel"
     ? "side-panel"
     : "full-width") as "side-panel" | "full-width",
-  activationMode: FIXED_ACTIVATION_MODE,
+  activationMode: readActivationMode(),
 
   preferBuiltInMic: readBoolean("preferBuiltInMic", true),
   selectedMicDeviceId: readString("selectedMicDeviceId", ""),
@@ -1127,11 +1134,12 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     set({ meetingHotkeyLayoutMode: mode });
   },
 
-  setActivationMode: () => {
-    if (isBrowser) localStorage.setItem("activationMode", FIXED_ACTIVATION_MODE);
-    set({ activationMode: FIXED_ACTIVATION_MODE });
+  setActivationMode: (mode: "tap" | "push") => {
+    const nextMode = normalizeActivationMode(mode);
+    if (isBrowser) localStorage.setItem("activationMode", nextMode);
+    set({ activationMode: nextMode });
     if (isBrowser) {
-      window.electronAPI?.notifyActivationModeChanged?.(FIXED_ACTIVATION_MODE);
+      window.electronAPI?.notifyActivationModeChanged?.(nextMode);
     }
   },
 
@@ -1572,9 +1580,17 @@ export async function initializeSettings(): Promise<void> {
     }
 
     try {
+      let activationMode = state.activationMode;
+      if (localStorage.getItem("activationMode") === null) {
+        activationMode = normalizeActivationMode(
+          await window.electronAPI.getActivationMode?.()
+        );
+        localStorage.setItem("activationMode", activationMode);
+      }
+
       enforceFixedBehaviorSettings();
       useSettingsStore.setState({
-        activationMode: FIXED_ACTIVATION_MODE,
+        activationMode,
         audioCuesEnabled: FIXED_AUDIO_CUES_ENABLED,
         pauseMediaOnDictation: FIXED_PAUSE_MEDIA_ON_DICTATION,
         notificationsEnabled: FIXED_NOTIFICATIONS_ENABLED,
@@ -1582,11 +1598,11 @@ export async function initializeSettings(): Promise<void> {
         notifyCalendarReminders: FIXED_NOTIFICATIONS_ENABLED,
         notifyUpdates: FIXED_NOTIFICATIONS_ENABLED,
       });
-      await window.electronAPI.saveActivationMode?.(FIXED_ACTIVATION_MODE);
-      window.electronAPI.notifyActivationModeChanged?.(FIXED_ACTIVATION_MODE);
+      await window.electronAPI.saveActivationMode?.(activationMode);
+      window.electronAPI.notifyActivationModeChanged?.(activationMode);
     } catch (err) {
       logger.warn(
-        "Failed to sync fixed runtime settings on startup",
+        "Failed to sync runtime settings on startup",
         { error: (err as Error).message },
         "settings"
       );

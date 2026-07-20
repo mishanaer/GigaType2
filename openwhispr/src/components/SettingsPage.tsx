@@ -15,6 +15,8 @@ export default function SettingsPage() {
   const {
     dictationKey,
     setDictationKey,
+    activationMode,
+    setActivationMode,
     preferBuiltInMic,
     selectedMicDeviceId,
     setPreferBuiltInMic,
@@ -58,6 +60,8 @@ export default function SettingsPage() {
         onHotkeyChange={registerHotkey}
         hotkeyDisabled={isHotkeyRegistering}
         validateHotkey={validateDictationHotkey}
+        activationMode={activationMode}
+        onActivationModeChange={setActivationMode}
         preferBuiltInMic={preferBuiltInMic}
         selectedMicDeviceId={selectedMicDeviceId}
         onPreferBuiltInChange={setPreferBuiltInMic}

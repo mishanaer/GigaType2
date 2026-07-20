@@ -301,11 +301,12 @@ class EnvironmentManager {
   }
 
   getActivationMode() {
-    return "push";
+    return this._getKey("ACTIVATION_MODE") === "tap" ? "tap" : "push";
   }
 
-  saveActivationMode(_mode) {
-    const result = this._saveKey("ACTIVATION_MODE", "push");
+  saveActivationMode(mode) {
+    const normalizedMode = mode === "tap" ? "tap" : "push";
+    const result = this._saveKey("ACTIVATION_MODE", normalizedMode);
     this.saveRuntimeConfigToEnvFile().catch(() => {});
     return result;
   }
