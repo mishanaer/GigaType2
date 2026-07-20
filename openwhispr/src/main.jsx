@@ -20,7 +20,16 @@ if (platform === "linux" && window.matchMedia("(prefers-color-scheme: dark)").ma
   document.body.classList.add("dark");
 }
 
-const root = ReactDOM.createRoot(document.getElementById("root"));
+const rootElement = document.getElementById("root");
+const root = import.meta.hot?.data.reactRoot ?? ReactDOM.createRoot(rootElement);
+
+if (import.meta.hot) {
+  // Preserve the React root across Vite updates. Recreating it against the
+  // same DOM container breaks provider context and leaves the compact dictation
+  // window displaying ErrorBoundary instead of the capsule.
+  import.meta.hot.data.reactRoot = root;
+}
+
 root.render(
   <React.StrictMode>
     <ErrorBoundary>
@@ -35,6 +44,4 @@ root.render(
   </React.StrictMode>
 );
 
-if (import.meta.hot) {
-  import.meta.hot.accept();
-}
+import.meta.hot?.accept();

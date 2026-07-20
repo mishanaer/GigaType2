@@ -291,22 +291,45 @@
     background: var(--muted);
   }
 
-  .dictation-orb-shadow {
+  .golos-dictation-capsule {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    pointer-events: none;
+    isolation: isolate;
+  }
+
+  .golos-capsule-canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+  }
+
+  .golos-capsule-canvas[data-fallback="true"] {
+    opacity: 0;
+  }
+
+  .golos-dictation-capsule:has(.golos-capsule-canvas[data-fallback="true"])::before {
+    content: "";
     position: absolute;
     left: 50%;
     top: 50%;
-    z-index: 0;
-    width: 56px;
-    height: 28px;
-    border-radius: 999px;
-    background: rgba(0, 0, 0, 0.1);
-    filter: blur(20px);
-    transform: translate(-50%, -50%) translateY(4px);
-  }
-
-  .dictation-orb-shadow + .strands-container {
-    position: relative;
-    z-index: 1;
+    width: 89.6px;
+    height: 63px;
+    border: 1px solid rgba(198, 247, 255, 0.3);
+    border-radius: 31.5px;
+    background:
+      radial-gradient(90% 24% at 50% 54%, rgba(225, 255, 255, 0.44), transparent 38%),
+      radial-gradient(65% 28% at 62% 56%, rgba(0, 229, 202, 0.36), transparent 54%),
+      radial-gradient(90% 80% at 52% 40%, rgba(12, 29, 34, 0.58), rgba(0, 0, 0, 0.74));
+    box-shadow:
+      inset 0 0 14px rgba(131, 239, 255, 0.07),
+      0 0 12px rgba(0, 211, 221, 0.08);
+    transform: translate(-50%, -50%);
   }
 
   .appshots-loading-window,
