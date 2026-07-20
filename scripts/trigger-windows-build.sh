@@ -3,7 +3,7 @@
 #
 # Dispatches the workflow (workflow_dispatch), waits for the new run to appear,
 # and prints its URL. With --watch it also follows the run to completion and
-# prints the installer download link (the windows-dev-build prerelease).
+# prints the installer download link (the windows-dev-build-wired prerelease).
 #
 # Usage:
 #   scripts/trigger-windows-build.sh [--ref <branch>] [--repo <owner/name>] [--watch]
@@ -13,8 +13,14 @@
 #   scripts/trigger-windows-build.sh --watch         # dispatch and follow to completion
 #   scripts/trigger-windows-build.sh --ref main -w   # dispatch a different branch
 #
+# The wired-model build (fp32 GigaAM bundled into the app) lives in the
+# build-windows-app.yml on main, and workflow_dispatch runs the workflow file
+# FROM the target ref — so the default ref must be a branch that has the
+# wired-model workflow. The old windows-gigaam-sidecar branch does NOT, which
+# is why dispatching on it produced installers without the bundled model.
+#
 # Defaults (override via flags or env):
-#   ref  = windows-gigaam-sidecar   (env: WIN_BUILD_REF)
+#   ref  = main                     (env: WIN_BUILD_REF)
 #   repo = mishanaer/GigaType2      (env: WIN_BUILD_REPO)
 #
 # Requires: the GitHub CLI `gh`, authenticated (`gh auth login`). The build is
@@ -24,9 +30,9 @@
 set -euo pipefail
 
 REPO="${WIN_BUILD_REPO:-mishanaer/GigaType2}"
-REF="${WIN_BUILD_REF:-windows-gigaam-sidecar}"
+REF="${WIN_BUILD_REF:-main}"
 WORKFLOW="build-windows-app.yml"
-RELEASE_TAG="windows-dev-build"
+RELEASE_TAG="windows-dev-build-wired"
 WATCH=0
 
 while [ $# -gt 0 ]; do
