@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import "./index.css";
 import { useAudioRecording } from "./hooks/useAudioRecording";
 import Strands from "./components/effects/Strands";
@@ -15,7 +15,12 @@ const STRAND_ORB_ASPECT_RATIO = 75 / 45;
 const STRAND_GLASS_EXPONENT = 3;
 const VOICE_RESPONSE_CURVE = 2;
 
+const HIDE_CAPSULE_STORAGE_KEY = "hideCapsule";
+
+const readHideCapsule = () => localStorage.getItem(HIDE_CAPSULE_STORAGE_KEY) === "true";
+
 export default function App() {
+  const [hideCapsule, setHideCapsule] = useState(readHideCapsule);
   const {
     isRecording,
     audioLevel,
@@ -36,6 +41,17 @@ export default function App() {
   }, [cancelRecording]);
 
   useEffect(() => {
+    const handleStorage = (event) => {
+      if (event.key === HIDE_CAPSULE_STORAGE_KEY) {
+        setHideCapsule(event.newValue === "true");
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
+  useEffect(() => {
     const handleKeyPress = (event) => {
       if (event.key === "Escape") {
         window.electronAPI?.hideDictationPanel?.();
@@ -54,14 +70,14 @@ export default function App() {
   const strandGlassSize = strandOrbSize / (DICTATION_WINDOW_SIZE * STRAND_GLASS_WIDTH_RATIO);
 
   useEffect(() => {
-    if (!isWaveVisible) {
+    if (!isWaveVisible || hideCapsule) {
       window.electronAPI?.hideDictationPanel?.();
     }
-  }, [isWaveVisible]);
+  }, [hideCapsule, isWaveVisible]);
 
   return (
     <div className="dictation-window flex h-screen w-screen items-center justify-center bg-transparent">
-      {isWaveVisible && (
+      {isWaveVisible && !hideCapsule && (
         <div className="pointer-events-none relative h-full w-full overflow-hidden">
           <div className="dictation-orb-shadow" />
           <Strands

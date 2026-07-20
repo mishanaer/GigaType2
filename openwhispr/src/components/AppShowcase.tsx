@@ -181,6 +181,8 @@ function WindowFrame({
 }
 
 function SettingsPreview() {
+  const [hideCapsule, setHideCapsule] = useState(false);
+
   return (
     <div className="mx-auto w-[460px] pb-[20px] pt-[20px]">
       <AppshotsLogoHeader showBuildLabel={false} />
@@ -193,6 +195,8 @@ function SettingsPreview() {
           selectedMicDeviceId=""
           onPreferBuiltInChange={noop}
           onDeviceSelect={noop}
+          hideCapsule={hideCapsule}
+          onHideCapsuleChange={setHideCapsule}
           devicesOverride={[
             {
               deviceId: "default",

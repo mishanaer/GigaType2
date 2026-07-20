@@ -35,6 +35,7 @@ export interface HotkeySettings {
 export interface MicrophoneSettings {
   preferBuiltInMic: boolean;
   selectedMicDeviceId: string;
+  hideCapsule: boolean;
 }
 
 export interface PrivacySettings {
@@ -146,6 +147,8 @@ function useSettingsInternal() {
     selectedMicDeviceId: store.selectedMicDeviceId,
     setPreferBuiltInMic: store.setPreferBuiltInMic,
     setSelectedMicDeviceId: store.setSelectedMicDeviceId,
+    hideCapsule: store.hideCapsule,
+    setHideCapsule: store.setHideCapsule,
     showTranscriptionPreview: store.showTranscriptionPreview,
     setShowTranscriptionPreview: store.setShowTranscriptionPreview,
     noteFilesEnabled: store.noteFilesEnabled,

@@ -423,8 +423,12 @@
   .appshots-settings-window select,
   .appshots-permissions-window [role="button"],
   .appshots-permissions-window [role="button"] *,
+  .appshots-permissions-window [role="switch"],
+  .appshots-permissions-window [role="switch"] *,
   .appshots-settings-window [role="button"],
   .appshots-settings-window [role="button"] *,
+  .appshots-settings-window [role="switch"],
+  .appshots-settings-window [role="switch"] *,
   .appshots-window-no-drag,
   .appshots-window-no-drag *,
   body:has(.appshots-settings-window) [aria-haspopup="menu"],
@@ -434,14 +438,14 @@
     -webkit-app-region: no-drag;
   }
 
-  .appshots-loading-window :is(button, a, input, textarea, select, [role="button"]):focus,
-  .appshots-loading-window :is(button, a, input, textarea, select, [role="button"]):focus-visible,
-  .appshots-permissions-window :is(button, a, input, textarea, select, [role="button"]):focus,
-  .appshots-permissions-window :is(button, a, input, textarea, select, [role="button"]):focus-visible,
-  .appshots-settings-window :is(button, a, input, textarea, select, [role="button"]):focus,
-  .appshots-settings-window :is(button, a, input, textarea, select, [role="button"]):focus-visible,
-  .appshots-showcase-surface :is(button, a, input, textarea, select, [role="button"]):focus,
-  .appshots-showcase-surface :is(button, a, input, textarea, select, [role="button"]):focus-visible {
+  .appshots-loading-window :is(button, a, input, textarea, select, [role="button"], [role="switch"]):focus,
+  .appshots-loading-window :is(button, a, input, textarea, select, [role="button"], [role="switch"]):focus-visible,
+  .appshots-permissions-window :is(button, a, input, textarea, select, [role="button"], [role="switch"]):focus,
+  .appshots-permissions-window :is(button, a, input, textarea, select, [role="button"], [role="switch"]):focus-visible,
+  .appshots-settings-window :is(button, a, input, textarea, select, [role="button"], [role="switch"]):focus,
+  .appshots-settings-window :is(button, a, input, textarea, select, [role="button"], [role="switch"]):focus-visible,
+  .appshots-showcase-surface :is(button, a, input, textarea, select, [role="button"], [role="switch"]):focus,
+  .appshots-showcase-surface :is(button, a, input, textarea, select, [role="button"], [role="switch"]):focus-visible {
     outline: none;
     box-shadow: none;
   }
@@ -616,6 +620,7 @@ button {
 /* Ensure all interactive elements have pointer cursor */
 button:hover,
 [role="button"]:hover,
+[role="switch"]:hover,
 .cursor-pointer:hover,
 button svg:hover,
 [role="button"] svg:hover,

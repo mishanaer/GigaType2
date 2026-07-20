@@ -8,6 +8,7 @@ function Switch({
     onChange,
     disabled = false,
     className,
+    ariaLabel,
 }) {
     const isControlled = value !== undefined
     const [uncontrolled, setUncontrolled] = useState(defaultValue)
@@ -36,6 +37,13 @@ function Switch({
         toggle()
     }
 
+    const handleKeyDown = (e) => {
+        if (disabled || (e.key !== "Enter" && e.key !== " ")) return
+        e.preventDefault()
+        e.stopPropagation()
+        toggle()
+    }
+
     const cx = className ? `${styles.root} ${className}` : styles.root
 
     return (
@@ -44,9 +52,12 @@ function Switch({
             data-state={checked}
             data-disabled={disabled || undefined}
             onClick={handleClick}
+            onKeyDown={handleKeyDown}
             role="switch"
             aria-checked={checked}
             aria-disabled={disabled || undefined}
+            aria-label={ariaLabel}
+            tabIndex={disabled ? -1 : 0}
         ></div>
     )
 }
@@ -57,5 +68,6 @@ Switch.propTypes = {
     onChange: PropTypes.func,
     disabled: PropTypes.bool,
     className: PropTypes.string,
+    ariaLabel: PropTypes.string,
 }
 export default Switch

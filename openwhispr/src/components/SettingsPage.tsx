@@ -19,6 +19,8 @@ export default function SettingsPage() {
     selectedMicDeviceId,
     setPreferBuiltInMic,
     setSelectedMicDeviceId,
+    hideCapsule,
+    setHideCapsule,
   } = useSettings();
 
   const { registerHotkey, isRegistering: isHotkeyRegistering } = useHotkeyRegistration({
@@ -60,6 +62,8 @@ export default function SettingsPage() {
         selectedMicDeviceId={selectedMicDeviceId}
         onPreferBuiltInChange={setPreferBuiltInMic}
         onDeviceSelect={setSelectedMicDeviceId}
+        hideCapsule={hideCapsule}
+        onHideCapsuleChange={setHideCapsule}
       />
     </>
   );

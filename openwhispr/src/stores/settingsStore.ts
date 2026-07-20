@@ -195,6 +195,7 @@ const BOOLEAN_SETTINGS = new Set([
   "useCleanupModel",
   "useDictationAgent",
   "preferBuiltInMic",
+  "hideCapsule",
   "audioCuesEnabled",
   "pauseMediaOnDictation",
   "startMinimized",
@@ -635,6 +636,7 @@ export interface SettingsState
 
   setPreferBuiltInMic: (value: boolean) => void;
   setSelectedMicDeviceId: (value: string) => void;
+  setHideCapsule: (value: boolean) => void;
 
   setTheme: (value: "light" | "dark" | "auto") => void;
   setTelemetryEnabled: (value: boolean) => void;
@@ -858,6 +860,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   preferBuiltInMic: readBoolean("preferBuiltInMic", true),
   selectedMicDeviceId: readString("selectedMicDeviceId", ""),
+  hideCapsule: readBoolean("hideCapsule", false),
 
   theme: FIXED_THEME,
   telemetryEnabled: false,
@@ -1134,6 +1137,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   setPreferBuiltInMic: createBooleanSetter("preferBuiltInMic"),
   setSelectedMicDeviceId: createStringSetter("selectedMicDeviceId"),
+  setHideCapsule: createBooleanSetter("hideCapsule"),
 
   setTheme: () => {
     if (isBrowser) localStorage.setItem("theme", FIXED_THEME);

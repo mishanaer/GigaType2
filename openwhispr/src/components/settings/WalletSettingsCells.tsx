@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Cell from "../../vendor/wallet_animations/components/Cells";
 import MotionProvider from "../../vendor/wallet_animations/components/MotionProvider";
 import SectionList from "../../vendor/wallet_animations/components/SectionList";
+import Switch from "../../vendor/wallet_animations/components/Switch";
 import { formatHotkeyLabel, isGlobeLikeHotkey } from "../../utils/hotkeys";
 import { isBuiltInMicrophone } from "../../utils/audioDeviceUtils";
 import { getCachedPlatform } from "../../utils/platform";
@@ -22,6 +23,8 @@ interface WalletSettingsCellsProps {
   selectedMicDeviceId: string;
   onPreferBuiltInChange: (value: boolean) => void;
   onDeviceSelect: (deviceId: string) => void;
+  hideCapsule: boolean;
+  onHideCapsuleChange: (value: boolean) => void;
   devicesOverride?: AudioDevice[];
 }
 
@@ -43,6 +46,8 @@ export default function WalletSettingsCells({
   selectedMicDeviceId,
   onPreferBuiltInChange,
   onDeviceSelect,
+  hideCapsule,
+  onHideCapsuleChange,
   devicesOverride,
 }: WalletSettingsCellsProps) {
   const [captureKey, setCaptureKey] = useState(0);
@@ -251,6 +256,18 @@ export default function WalletSettingsCells({
               }
             >
               <Cell.Text title="Микрофон" />
+            </Cell>
+
+            <Cell
+              end={
+                <Switch
+                  value={!hideCapsule}
+                  onChange={(showCapsule) => onHideCapsuleChange(!showCapsule)}
+                  ariaLabel="Показывать капсулу"
+                />
+              }
+            >
+              <Cell.Text title="Показывать капсулу" />
             </Cell>
 
           </SectionList.Item>

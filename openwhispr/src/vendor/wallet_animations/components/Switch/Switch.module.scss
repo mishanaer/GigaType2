@@ -3,6 +3,7 @@
     border-radius: 16px;
     justify-content: flex-start;
     align-items: center;
+    cursor: pointer;
     transition: background-color 250ms ease;
 
     &::after {
@@ -20,10 +21,15 @@
         transform: translateX(75%);
     }
 
+    &[data-disabled="true"] {
+        cursor: default;
+        opacity: 0.5;
+    }
+
     :global(body.apple) & {
         width: 64px;
         padding: 2px;
-        background-color: var(--tg-theme-secondary-bg-color);
+        background-color: var(--tertiary-fill-background, var(--tg-theme-secondary-bg-color));
 
         &::after {
             width: 39px;
