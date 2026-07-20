@@ -1140,6 +1140,20 @@ body.material .appshots-permissions-no-drag .appshots-permissions-start-view {
   padding-top: 24px;
 }
 
+body.apple .appshots-settings-window .appshots-settings-start-view,
+body.apple .appshots-showcase-surface .appshots-settings-start-view,
+body.material .appshots-settings-window .appshots-settings-start-view,
+body.material .appshots-showcase-surface .appshots-settings-start-view {
+  padding: 24px 32px 0;
+}
+
+.appshots-permissions-no-drag [variant="title1"][weight="bold"],
+.appshots-settings-start-view [variant="title1"][weight="bold"] {
+  font-family: var(--font-family-heading-serif-condensed);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
 .appshots-permissions-no-drag.appshots-gigaam-model-ready {
   padding-top: 0;
   padding-bottom: 0;
