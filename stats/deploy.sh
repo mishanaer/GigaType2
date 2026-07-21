@@ -22,7 +22,7 @@ VERSION="$(git -C "$HERE" rev-parse --short HEAD 2>/dev/null || echo unknown)-$(
 [ "$DRY_RUN" = "1" ] || printf '%s\n' "$VERSION" > "$HERE/VERSION"
 
 FLAGS=(-az --exclude=.venv --exclude=__pycache__ --exclude='*.pyc'
-  --exclude=data --exclude=deploy.sh)
+  --exclude=data --exclude=deploy.sh --exclude=.DS_Store)
 [ "$DRY_RUN" = "1" ] && FLAGS+=(--dry-run -v)
 
 echo "[deploy] $HERE -> $REMOTE:$REMOTE_DIR (v$VERSION)"
