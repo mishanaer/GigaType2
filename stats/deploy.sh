@@ -48,5 +48,6 @@ ssh "$REMOTE" "cd '$REMOTE_DIR' \
   && systemctl is-active stats-gigatype \
   && curl -sf http://127.0.0.1:9902/health \
   && curl -sf 'http://127.0.0.1:9902/summary?days=1' >/dev/null \
-  && echo '[remote] health + summary OK'"
+  && curl -sf 'http://127.0.0.1:9902/product?days=7' >/dev/null \
+  && echo '[remote] health + summary + product OK'"
 echo "[deploy] done"

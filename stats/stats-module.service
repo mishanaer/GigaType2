@@ -17,7 +17,9 @@ WorkingDirectory=/srv/stats/gigatype/app
 Environment=STATS_PORT=9902
 Environment=STATS_DB=/srv/stats/gigatype/data/events.db
 # Секреты — только через drop-in: /etc/systemd/system/stats-gigatype.service.d/env.conf
-# (там STATS_INGEST_TOKEN=...); помни готчу: EnvironmentFile переопределяет Environment.
+# (там STATS_INGEST_TOKEN=...). Для ручного/cron PostHog-backfill также нужны
+# POSTHOG_PERSONAL_API_KEY и POSTHOG_PROJECT_ID; сервис сам их наружу не отдаёт.
+# Помни готчу: EnvironmentFile переопределяет Environment.
 ExecStart=/srv/stats/gigatype/app/.venv/bin/python /srv/stats/gigatype/app/server.py
 Restart=always
 RestartSec=3

@@ -2,10 +2,12 @@ const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
 const debugLogger = require("./debugLogger");
+const { mapEvent } = require("./tractionEventMapper");
 
 // Продуктовая статистика Traction (stats/ в корне репо; хаб stats.multitool.works).
 // Дистиллят телеметрии: TelemetryService.capture() отдаёт сюда уже
-// санитизированные события, мы маппим 3 имени и шлём батчами на ingest модуля.
+// санитизированные события. Маппер оставляет только поля продуктового контракта
+// и общий event_id, чтобы direct ingest дедуплицировался с PostHog-backfill.
 // Токен write-only и, как и PostHog-ключ выше по конвенции, вшит дефолтом;
 // в dev (не packaged) шлём на локальный модуль без токена.
 const DEFAULT_PROD_INGEST_URL = "https://stats.multitool.works/p/gigatype/events";
@@ -16,56 +18,6 @@ const FLUSH_INTERVAL_MS = 30 * 1000;
 const FLUSH_BATCH_SIZE = 200; // сервер принимает ≤500 событий за POST
 const MAX_QUEUE_EVENTS = 1000;
 const REQUEST_TIMEOUT_MS = 5000;
-
-// PostHog-событие → событие Traction ({name, properties}) или null (не шлём).
-function mapEvent(event, properties = {}) {
-  if (event === "dictation_finished") {
-    // Шлём ЛЮБОЙ исход: success rate на сервере считается только из исходов
-    // диктовок (посторонние error-события его не искажают).
-    const durationMs = properties.audio_duration_ms;
-    return {
-      name: "dictation",
-      properties: {
-        ok: properties.outcome === "succeeded",
-        outcome: properties.outcome ?? null,
-        words: properties.final_output_words ?? properties.raw_transcript_words ?? null,
-        chars: properties.final_output_chars ?? properties.raw_transcript_chars ?? null,
-        duration_s: Number.isFinite(durationMs) ? Math.round(durationMs / 100) / 10 : null,
-        provider: properties.provider ?? null,
-        model: properties.model ?? null,
-        app_version: properties.app_version ?? null,
-        platform: properties.platform_name ?? properties.platform ?? null,
-      },
-    };
-  }
-  if (event === "first_app_opened" || event === "app_opened") {
-    return {
-      name: "app_open",
-      properties: {
-        first: event === "first_app_opened",
-        app_version: properties.app_version ?? null,
-        platform: properties.platform_name ?? properties.platform ?? null,
-      },
-    };
-  }
-  if (
-    event === "error_occurred" ||
-    event === "main_process_error" ||
-    event === "app_crashed" ||
-    event === "renderer_process_gone"
-  ) {
-    return {
-      name: "error",
-      properties: {
-        context: properties.error_area || event,
-        code: properties.error_code ?? null,
-        app_version: properties.app_version ?? null,
-        platform: properties.platform_name ?? properties.platform ?? null,
-      },
-    };
-  }
-  return null;
-}
 
 class TractionAnalytics {
   constructor({ deviceId, queueDir }) {

@@ -1,0 +1,115 @@
+from __future__ import annotations
+
+import asyncio
+import json
+import math
+import os
+import tempfile
+import time
+import unittest
+from pathlib import Path
+
+_TEMP = tempfile.TemporaryDirectory()
+os.environ["STATS_DB"] = str(Path(_TEMP.name) / "events.db")
+
+import import_posthog  # noqa: E402
+import server  # noqa: E402
+from storage import insert_events  # noqa: E402
+
+
+NOW = 2_000_000_000.0
+DAY = 86400.0
+
+
+def event(days_ago, device, name, event_id, **properties):
+    return {
+        "ts": NOW - days_ago * DAY,
+        "device_id": device,
+        "name": name,
+        "event_id": event_id,
+        "properties": {"event_id": event_id, "app_version": "2.0", **properties},
+    }
+
+
+class ProductMetricsTest(unittest.TestCase):
+    def setUp(self):
+        server._db.execute("DELETE FROM events")
+        server._db.commit()
+
+    def seed(self):
+        rows = [
+            event(20, "a", "first_app_opened", "a-open"),
+            event(19.9, "a", "requirements_ready", "a-ready"),
+            event(19.8, "a", "model_ready", "a-model"),
+            event(15, "a", "dictation_finished", "a-one", outcome="succeeded", audio_duration_ms=5000, final_output_words=10, total_latency_ms=1000, output_status="inserted_verified"),
+            event(14.1, "a", "dictation_finished", "a-two", outcome="succeeded", audio_duration_ms=6000, final_output_words=20, total_latency_ms=2000, output_status="clipboard_fallback"),
+            event(20, "b", "first_app_opened", "b-open"),
+            event(18, "b", "dictation_finished", "b-fail", outcome="transcription_failed", audio_duration_ms=4000, total_latency_ms=700),
+            event(17, "b", "dictation_finished", "b-short", outcome="too_short", audio_duration_ms=300),
+            event(3, "c", "first_app_opened", "c-open"),
+            event(2, "c", "dictation_finished", "c-one", outcome="succeeded", audio_duration_ms=3000, final_output_words=5, total_latency_ms=500, output_status="inserted_verified"),
+        ]
+        self.assertEqual(insert_events(server._db, rows), len(rows))
+
+    def test_product_metrics_use_session_denominators_and_mature_cohorts(self):
+        self.seed()
+        product = server._product_payload(30, NOW)
+
+        self.assertEqual(product["active_dictators"], 2)
+        self.assertEqual(product["repeat_dictators"], 1)
+        self.assertEqual(product["successful_dictations"], 3)
+        self.assertEqual(product["words_delivered"], 35)
+        self.assertEqual(product["quality"]["eligible_finishes"], 4)
+        self.assertAlmostEqual(product["quality"]["success_rate"], 0.75)
+        self.assertEqual(product["quality"]["latency_p50_ms"], 1000)
+        self.assertEqual(product["funnel"]["activation_7d_cohort"], 2)
+        self.assertAlmostEqual(product["funnel"]["activation_7d"], 0.5)
+        self.assertEqual(product["retention"]["d1"]["cohort"], 2)
+        self.assertAlmostEqual(product["retention"]["d1"]["rate"], 0.5)
+
+    def test_event_id_and_legacy_overlap_are_deduplicated(self):
+        canonical = event(1, "a", "dictation_finished", "same", outcome="succeeded", audio_duration_ms=5000, final_output_words=10)
+        self.assertEqual(insert_events(server._db, [canonical]), 1)
+        self.assertEqual(insert_events(server._db, [canonical]), 0)
+        self.assertEqual(
+            insert_events(
+                server._db,
+                [{"ts": canonical["ts"] + 1, "device_id": "a", "name": "dictation", "properties": {"words": 10, "duration_s": 5}}],
+            ),
+            1,
+        )
+        self.assertEqual(server._product_payload(7, NOW)["successful_dictations"], 1)
+
+    def test_posthog_projection_drops_unapproved_properties(self):
+        self.assertEqual(
+            import_posthog.sanitize_properties(
+                {"event_id": "one", "final_output_words": 12, "$ip": "hidden", "dictated_text": "secret"}
+            ),
+            {"event_id": "one", "final_output_words": 12},
+        )
+
+    def test_ingest_clamps_poison_timestamps_and_keeps_json_valid(self):
+        class FakeRequest:
+            async def body(self):
+                return json.dumps(
+                    {
+                        "device_id": "clock-skew",
+                        "events": [
+                            {"ts": math.inf, "name": "app_opened", "event_id": "clock-one", "properties": {"large": "x" * 9000}},
+                            {"ts": time.time() + 10 * DAY, "name": "app_opened", "event_id": "clock-two"},
+                            {"ts": "not-a-number", "name": "app_opened", "event_id": "clock-bad"},
+                        ],
+                    }
+                ).encode()
+
+        response = asyncio.run(server.ingest(FakeRequest()))
+        payload = json.loads(response.body)
+        self.assertEqual(payload["ingested"], 2)
+        rows = list(server._db.execute("SELECT ts, properties FROM events ORDER BY event_id"))
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all(math.isfinite(row[0]) and row[0] <= time.time() + 2 for row in rows))
+        self.assertEqual(json.loads(rows[0][1]), {})
+
+
+if __name__ == "__main__":
+    unittest.main()
