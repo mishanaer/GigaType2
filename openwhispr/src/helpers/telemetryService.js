@@ -4,6 +4,7 @@ const os = require("os");
 const path = require("path");
 const { app, safeStorage } = require("electron");
 const debugLogger = require("./debugLogger");
+const TractionAnalytics = require("./tractionAnalytics");
 
 const DEFAULT_POSTHOG_HOST = "https://eu.i.posthog.com";
 const DEFAULT_POSTHOG_API_KEY = "phc_xQjeveprGamdNM3FRBgwuXefAwXfWgctzMaGfswmReQq";
@@ -328,6 +329,13 @@ class TelemetryService {
       this.installId = this._ensureInstallId();
       this.anonymousUserId = this._ensureAnonymousUserId();
       this.platformProperties = this._buildPlatformProperties();
+      // Продуктовая статистика Traction: дистиллят тех же событий, свой ingest.
+      // Живёт за общим гейтом телеметрии (GIGATYPE_TELEMETRY_ENABLED).
+      this.traction = new TractionAnalytics({
+        deviceId: this.installId,
+        queueDir: this.getTelemetryDir(),
+      });
+      this.traction.start();
       this.initialized = true;
 
       this._startFlushTimer();
@@ -468,6 +476,7 @@ class TelemetryService {
     };
 
     this._enqueue(payload);
+    this.traction?.record(event, payload.properties);
 
     if (onceKey) {
       this.state.once = this.state.once || {};
@@ -634,6 +643,7 @@ class TelemetryService {
       this.flushTimer = null;
     }
     await this.flush().catch(() => {});
+    await this.traction?.shutdown().catch(() => {});
   }
 }
 
