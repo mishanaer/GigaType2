@@ -596,12 +596,13 @@ class TelemetryService {
     if (!items.length) return { sent: 0 };
 
     const batch = items.slice(0, FLUSH_BATCH_SIZE);
-    const remaining = items.slice(batch.length);
     this.flushing = true;
 
     try {
       await this._sendBatch(batch.map((item) => item.payload));
-      this._writeQueue(remaining);
+      // Перечитываем очередь: события, дописанные capture() во время POST,
+      // сидят в хвосте файла — старый снимок их бы молча стёр.
+      this._writeQueue(this._readQueue().slice(batch.length));
       return { sent: batch.length };
     } catch (error) {
       debugLogger.warn(
@@ -642,8 +643,9 @@ class TelemetryService {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
     }
-    await this.flush().catch(() => {});
-    await this.traction?.shutdown().catch(() => {});
+    // Параллельно: два последовательных 5s-таймаута задерживали бы выход
+    // приложения в оффлайне на ~10 секунд.
+    await Promise.allSettled([this.flush(), this.traction?.shutdown()]);
   }
 }
 

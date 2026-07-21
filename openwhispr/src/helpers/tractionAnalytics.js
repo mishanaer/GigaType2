@@ -19,11 +19,15 @@ const REQUEST_TIMEOUT_MS = 5000;
 
 // PostHog-событие → событие Traction ({name, properties}) или null (не шлём).
 function mapEvent(event, properties = {}) {
-  if (event === "dictation_finished" && properties.outcome === "succeeded") {
+  if (event === "dictation_finished") {
+    // Шлём ЛЮБОЙ исход: success rate на сервере считается только из исходов
+    // диктовок (посторонние error-события его не искажают).
     const durationMs = properties.audio_duration_ms;
     return {
       name: "dictation",
       properties: {
+        ok: properties.outcome === "succeeded",
+        outcome: properties.outcome ?? null,
         words: properties.final_output_words ?? properties.raw_transcript_words ?? null,
         chars: properties.final_output_chars ?? properties.raw_transcript_chars ?? null,
         duration_s: Number.isFinite(durationMs) ? Math.round(durationMs / 100) / 10 : null,
@@ -134,7 +138,6 @@ class TractionAnalytics {
     if (!items.length) return { sent: 0 };
 
     const batch = items.slice(0, FLUSH_BATCH_SIZE);
-    const remaining = items.slice(batch.length);
     this.flushing = true;
     try {
       const controller = new AbortController();
@@ -155,11 +158,14 @@ class TractionAnalytics {
       } finally {
         clearTimeout(timeout);
       }
-      this._writeQueue(remaining);
+      // Перечитываем файл: события, дописанные record() во время POST, живут
+      // в хвосте — срезаем ровно отправленный батч, а не пишем старый снимок.
+      this._writeQueue(this._readQueue().slice(batch.length));
       return { sent: batch.length };
     } catch (error) {
-      // Оффлайн/локальный модуль не запущен — события остаются в очереди
-      // (кап MAX_QUEUE_EVENTS срезает хвост при чтении).
+      // Оффлайн/модуль не запущен — батч остаётся; перезапись капит файл
+      // (иначе он растёт без предела: _readQueue режет только прочитанное).
+      this._writeQueue(this._readQueue());
       debugLogger.debug(
         "Traction flush failed",
         { error: error?.message, count: batch.length },

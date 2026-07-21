@@ -11,10 +11,11 @@
   GET  /timeseries  — дневные корзины для графиков дашборда (?days=N)
 
 Схема событий (внутреннее дело модуля; device_id — в конверте батча):
-  dictation — завершённая диктовка: words, chars, duration_s, wpm,
-              provider (whisper|gigaam|...), model, lang, mode, app_version, platform
-  app_open  — запуск приложения: app_version, platform
-  error     — ошибка транскрипции/пайплайна: context, message
+  dictation — исход диктовки: ok (bool), outcome, words, chars, duration_s,
+              provider (gigaam_local|...), model, app_version, platform
+              (WPM модуль считает сам из words/duration_s)
+  app_open  — запуск приложения: first (bool), app_version, platform
+  error     — ошибка приложения: context, code, app_version, platform
 
 Запуск: STATS_PORT=9902 python3 server.py
 Env:    STATS_PORT (default 9902), STATS_DB (default ./data/events.db),
@@ -23,11 +24,12 @@ Env:    STATS_PORT (default 9902), STATS_DB (default ./data/events.db),
 from __future__ import annotations
 
 import json
+import math
 import os
 import sqlite3
 import statistics
 import time
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import uvicorn
@@ -71,16 +73,25 @@ async def ingest(request: Request) -> JSONResponse:
     if not isinstance(events, list) or len(events) > 500:
         return JSONResponse({"error": "expected ≤500 events"}, status_code=400)
     device = body.get("device_id") if isinstance(body, dict) else None
+    now = time.time()
     rows = []
     for ev in events:
         if not isinstance(ev, dict) or not ev.get("name"):
             continue
-        rows.append((
-            float(ev.get("ts") or time.time()),
-            str(ev.get("device_id") or device or ""),
-            str(ev["name"])[:120],
-            json.dumps(ev.get("properties") or {})[:4000],
-        ))
+        try:
+            ts = float(ev.get("ts") or now)
+        except (TypeError, ValueError):
+            continue
+        # Мусорный ts (inf/NaN от json.loads, далёкое будущее) не должен ни
+        # ронять fromtimestamp в выборках, ни вечно сидеть в каждом окне.
+        if not math.isfinite(ts) or not (0.0 < ts < now + 86400.0):
+            ts = now
+        props = ev.get("properties")
+        props_json = json.dumps(props) if isinstance(props, dict) else "{}"
+        if len(props_json) > 4000:  # не режем сериализацию посреди токена
+            props_json = "{}"
+        rows.append((ts, str(ev.get("device_id") or device or ""),
+                     str(ev["name"])[:120], props_json))
     _db.executemany("INSERT INTO events VALUES (?,?,?,?)", rows)
     _db.commit()
     return JSONResponse({"ok": True, "ingested": len(rows)})
@@ -92,20 +103,24 @@ def _window(days: float) -> tuple[float, float]:
 
 
 def _dictations(since: float) -> list[dict]:
-    """Свойства диктовок окна; битый JSON события — пропускаем, не роняем."""
+    """Свойства диктовок окна; битые/не-dict properties — пропускаем, не роняем."""
     out = []
     for (props,) in _db.execute(
         "SELECT properties FROM events WHERE ts > ? AND name = 'dictation'", (since,)
     ):
         try:
-            out.append(json.loads(props or "{}"))
+            parsed = json.loads(props or "{}")
         except json.JSONDecodeError:
             continue
+        if isinstance(parsed, dict):
+            out.append(parsed)
     return out
 
 
 def _num(v) -> float | None:
-    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    return float(v) if math.isfinite(v) else None
 
 
 def _fmt_int(n: float) -> str:
@@ -136,18 +151,25 @@ def summary(days: float = 1.0) -> JSONResponse:
     ).fetchone()[0]
 
     dicts = _dictations(since)
-    words = sum(w for d in dicts if (w := _num(d.get("words"))) is not None)
+    ok = [d for d in dicts if d.get("ok") is True]
+    # Попытка = событие с булевым ok (маркер исхода диктовки; события с
+    # обнулёнными properties не искажают долю). Отмена — не неудача.
+    attempts = [
+        d for d in dicts
+        if isinstance(d.get("ok"), bool) and d.get("outcome") != "cancelled"
+    ]
+    words = sum(w for d in ok if (w := _num(d.get("words"))) is not None)
     # WPM пересчитываем сами из words/duration_s (клиентскому wpm не доверяем),
     # отсекая мусорные замеры короче секунды.
     wpms = [
         w / (dur / 60.0)
-        for d in dicts
+        for d in ok
         if (w := _num(d.get("words"))) is not None
         and (dur := _num(d.get("duration_s"))) is not None
         and dur >= 1.0 and w > 0
     ]
     median_wpm = statistics.median(wpms) if wpms else None
-    fail_rate = errors / (len(dicts) + errors) if (dicts or errors) else None
+    success_rate = len(ok) / len(attempts) if attempts else None
 
     win = "24h" if abs(window_days - 1.0) < 1e-9 else f"{window_days:g}d"
     payload = {
@@ -158,15 +180,16 @@ def summary(days: float = 1.0) -> JSONResponse:
         "events": events,
         "errors": errors,
         "metrics": [
-            {"label": f"Dictations {win}", "value": _fmt_int(len(dicts))},
+            {"label": f"Dictations {win}", "value": _fmt_int(len(ok))},
             {"label": "Median WPM",
              "value": f"{median_wpm:.0f}" if median_wpm is not None else "—"},
             {"label": f"Words typed {win}", "value": _fmt_int(words)},
             # «Accuracy» продукт пока не меряет (нет ground truth у диктовки);
-            # показываем долю успешных диктовок — есть уже сейчас и честна.
+            # показываем долю успешных диктовок среди неотменённых попыток —
+            # только по исходам самих диктовок, посторонние error не влияют.
             {"label": "Success rate",
-             "value": f"{(1 - fail_rate) * 100:.1f}%" if fail_rate is not None else "—",
-             "good": fail_rate == 0 if fail_rate is not None else None},
+             "value": f"{success_rate * 100:.1f}%" if success_rate is not None else "—",
+             "good": success_rate == 1.0 if success_rate is not None else None},
         ],
     }
     # no-store обязателен: закэшированный 200 маскирует мёртвый модуль.
@@ -175,7 +198,8 @@ def summary(days: float = 1.0) -> JSONResponse:
 
 @app.get("/timeseries")
 def timeseries(days: float = 7.0) -> JSONResponse:
-    """Дневные корзины для графиков дашборда (UTC-сутки)."""
+    """Дневные корзины для графиков дашборда (UTC-сутки, пустые дни — нулями:
+    провал активности на графике должен выглядеть провалом, а не сжатием)."""
     window_days, since = _window(days)
     buckets: dict[str, dict] = {}
     for ts, device, name, props in _db.execute(
@@ -188,18 +212,29 @@ def timeseries(days: float = 7.0) -> JSONResponse:
         if device:
             b["devices"].add(device)
         if name == "dictation":
-            b["dictations"] += 1
             try:
-                w = _num(json.loads(props or "{}").get("words"))
+                p = json.loads(props or "{}")
             except json.JSONDecodeError:
-                w = None
-            b["words"] += int(w or 0)
+                p = {}
+            if isinstance(p, dict) and p.get("ok") is True:
+                b["dictations"] += 1
+                b["words"] += int(_num(p.get("words")) or 0)
         elif name == "error":
             b["errors"] += 1
-    series = [
-        {**b, "devices": len(b["devices"])} for b in
-        (buckets[d] for d in sorted(buckets))
-    ]
+    start = datetime.fromtimestamp(since, timezone.utc).date()
+    end = datetime.now(timezone.utc).date()
+    if buckets:  # допуск клок-скью до суток: корзина может лечь «на завтра»
+        end = max(end, date.fromisoformat(max(buckets)))
+    series = []
+    day = start
+    while day <= end:
+        b = buckets.get(
+            day.isoformat(),
+            {"day": day.isoformat(), "dictations": 0, "words": 0, "errors": 0,
+             "devices": set()},
+        )
+        series.append({**b, "devices": len(b["devices"])})
+        day += timedelta(days=1)
     return JSONResponse(
         {"window_days": window_days, "series": series},
         headers={"Cache-Control": "no-store"},
@@ -212,5 +247,8 @@ def dashboard() -> FileResponse:
 
 
 if __name__ == "__main__":
+    if not INGEST_TOKEN:
+        print("WARNING: STATS_INGEST_TOKEN пуст — ingest открыт без токена. "
+              "Это допустимо ТОЛЬКО в dev.", flush=True)
     # Только loopback: наружу модуль ходит через Caddy (контракт §4).
     uvicorn.run(app, host="127.0.0.1", port=PORT)

@@ -5,6 +5,9 @@
 Description=Traction stats module: gigatype
 After=network-online.target
 Wants=network-online.target
+# Прод-гейт: без drop-in с STATS_INGEST_TOKEN юнит не стартует — иначе
+# забытый env.conf молча открыл бы ingest без токена (fail-open).
+AssertPathExists=/etc/systemd/system/stats-gigatype.service.d/env.conf
 
 [Service]
 Type=simple

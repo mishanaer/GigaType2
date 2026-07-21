@@ -18,8 +18,8 @@ DRY_RUN="${DRY_RUN:-0}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 # VERSION штампуется деплоем и отдаётся в /health (анти-дрейф, spec §6.1).
+# Пишем во временный файл, не в рабочее дерево — деплой не грязнит репо.
 VERSION="$(git -C "$HERE" rev-parse --short HEAD 2>/dev/null || echo unknown)-$(date -u +%Y%m%d%H%M)"
-[ "$DRY_RUN" = "1" ] || printf '%s\n' "$VERSION" > "$HERE/VERSION"
 
 FLAGS=(-az --exclude=.venv --exclude=__pycache__ --exclude='*.pyc'
   --exclude=data --exclude=deploy.sh --exclude=.DS_Store)
@@ -33,9 +33,16 @@ if [ "$DRY_RUN" = "1" ]; then
   exit 0
 fi
 
-ssh "$REMOTE" "cd $REMOTE_DIR \
+TMP_VERSION="$(mktemp)"
+printf '%s\n' "$VERSION" > "$TMP_VERSION"
+rsync -az --rsync-path="sudo rsync" "$TMP_VERSION" "$REMOTE:$REMOTE_DIR/VERSION"
+rm -f "$TMP_VERSION"
+
+# Версии пришпилены: свежий мажор fastapi/starlette не должен превращать
+# рутинный деплой в даун (health-чек его поймает, но отката нет).
+ssh "$REMOTE" "cd '$REMOTE_DIR' \
   && { [ -x .venv/bin/python ] || sudo python3 -m venv .venv; } \
-  && sudo .venv/bin/pip install -q fastapi uvicorn \
+  && sudo .venv/bin/pip install -q 'fastapi==0.128.*' 'uvicorn==0.39.*' \
   && sudo chown -R gigatool:gigatool /srv/stats/gigatype \
   && sudo systemctl restart stats-gigatype && sleep 2 \
   && systemctl is-active stats-gigatype \

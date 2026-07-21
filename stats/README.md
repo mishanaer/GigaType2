@@ -11,9 +11,11 @@ STATS_PORT=9902 .venv/bin/python server.py    # http://127.0.0.1:9902
 ```
 
 События шлёт приложение (main-процесс, `openwhispr/src/helpers/tractionAnalytics.js`):
-`dictation` (words, chars, duration_s, provider, model, lang), `app_open`,
-`error`. Конверт батча несёт `device_id` (= install_id телеметрии).
-Витрина карточки «Обзора»: Dictations, Median WPM, Words typed, Success rate.
+`dictation` — любой исход (ok, outcome, words, chars, duration_s, provider,
+model), `app_open`, `error`. Конверт батча несёт `device_id` (= install_id
+телеметрии). Витрина карточки «Обзора»: Dictations, Median WPM (модуль
+считает сам из words/duration_s), Words typed, Success rate (только из
+исходов диктовок; отменённые — вне знаменателя).
 
 Прод: `/srv/stats/gigatype/`, юнит `stats-gigatype` (порт 9902), токен в
 systemd drop-in. `VERSION` штампуется деплоем и отдаётся в `/health`.
