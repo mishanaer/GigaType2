@@ -28,7 +28,9 @@ const FLOATING_OVERLAY_TYPE =
         : "toolbar"
       : "normal";
 
-const DICTATION_PILL_WINDOW = { width: 120, height: 120 };
+// Golos' compact SiriAI surface needs transparent side gutters for its glass
+// rim, glow, and spring overshoot. Keeping the original 120 px width clips it.
+const DICTATION_PILL_WINDOW = { width: 168, height: 119 };
 const MAIN_WINDOW_BOTTOM_OFFSET = 115;
 // Exact sRGB mirrors of the renderer's light/dark --muted surfaces.
 const LIGHT_CONTROL_PANEL_BACKGROUND = "#f5f5f5";
