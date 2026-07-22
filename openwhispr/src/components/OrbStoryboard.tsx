@@ -10,6 +10,7 @@ import {
 
 type StoryStep = "hidden-before" | "listening" | "transcribing" | "hidden-after";
 type DemoAudioProfile = "smooth" | "spikes";
+type DemoRenderer = "webgl" | "css-fallback";
 
 const DEMO_TIME_STRETCH = 1;
 const DEMO_PLAYBACK_RATE = 1;
@@ -131,6 +132,27 @@ function OrbViewport({
   );
 }
 
+function CssFallbackCapsule({ phase }: { phase: GolosCapsulePhase }) {
+  return (
+    <div
+      className="golos-dictation-capsule"
+      role="status"
+      aria-label={
+        phase === "transcribing"
+          ? "Распознаём речь — упрощённая графика"
+          : "Идёт запись — упрощённая графика"
+      }
+    >
+      <canvas
+        className="golos-capsule-canvas"
+        data-fallback="true"
+        data-visual-state={phase === "transcribing" ? "thinking" : "listening"}
+        aria-hidden="true"
+      />
+    </div>
+  );
+}
+
 function StoryFrame({
   number,
   state,
@@ -175,6 +197,7 @@ export default function OrbStoryboard() {
   const [phase, setPhase] = useState<GolosCapsulePhase>("listening");
   const [audioLevel, setAudioLevel] = useState(0.08);
   const [audioProfile, setAudioProfile] = useState<DemoAudioProfile>("smooth");
+  const [demoRenderer, setDemoRenderer] = useState<DemoRenderer>("webgl");
   const [activeStep, setActiveStep] = useState<StoryStep>("hidden-before");
   const [isWavePanelCollapsed, setIsWavePanelCollapsed] = useState(false);
   const [waveAppearance, setWaveAppearance] = useState<SiriWaveAppearance>(
@@ -312,10 +335,16 @@ export default function OrbStoryboard() {
             <div className="absolute inset-0 opacity-45 [background:radial-gradient(circle_at_50%_55%,rgba(17,190,219,.14),transparent_36%),linear-gradient(135deg,rgba(23,190,147,.04),transparent_45%)]" />
             <div className="absolute left-5 top-5 z-10 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.16em] text-white/35">
               <span className="h-1.5 w-1.5 rounded-full bg-[#6fffe1] shadow-[0_0_12px_#6fffe1]" />
-              {isAutoPlaying ? "Live product flow · 1×" : "Manual state · click to switch"}
+              {demoRenderer === "css-fallback"
+                ? "CSS fallback · click to switch"
+                : isAutoPlaying
+                  ? "Live product flow · 1×"
+                  : "Manual state · click to switch"}
             </div>
             <div className="absolute inset-0">
-              {isCapsuleVisible ? (
+              {isCapsuleVisible && demoRenderer === "css-fallback" ? (
+                <CssFallbackCapsule phase={phase} />
+              ) : isCapsuleVisible ? (
                 <GolosCapsule
                   key={run}
                   phase={phase}
@@ -445,6 +474,48 @@ export default function OrbStoryboard() {
 
           {!isWavePanelCollapsed && (
             <div className="mt-4">
+              <div className="mb-2 rounded-[12px] bg-black/20 p-2.5 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-mono text-[8px] uppercase tracking-[0.1em] text-white/38">
+                      Рендер превью
+                    </p>
+                    <p className="mt-1 font-mono text-[8px] text-white/28">
+                      Fallback включается автоматически при ошибке WebGL
+                    </p>
+                  </div>
+                  <div
+                    role="group"
+                    aria-label="Режим рендера превью"
+                    className="grid shrink-0 grid-cols-2 gap-1 rounded-[12px] bg-white/[0.04] p-1 shadow-[0_0_0_1px_rgba(255,255,255,0.07)]"
+                  >
+                    {(
+                      [
+                        { id: "webgl", label: "WebGL" },
+                        { id: "css-fallback", label: "CSS fallback" },
+                      ] as const
+                    ).map((renderer) => {
+                      const isSelected = demoRenderer === renderer.id;
+                      return (
+                        <button
+                          key={renderer.id}
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => setDemoRenderer(renderer.id)}
+                          className={`h-10 rounded-[8px] px-2.5 font-mono text-[8px] uppercase tracking-[0.08em] transition-[background-color,color,box-shadow,transform] duration-150 ease-out active:scale-[0.96] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6fffe1] ${
+                            isSelected
+                              ? "bg-[#6fffe1]/12 text-[#8affea] shadow-[0_0_0_1px_rgba(111,255,225,0.3)]"
+                              : "text-white/38 hover:bg-white/[0.05] hover:text-white/60"
+                          }`}
+                        >
+                          {renderer.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
               <div className="mb-4 rounded-[12px] bg-black/20 p-2.5 shadow-[0_0_0_1px_rgba(255,255,255,0.06)]">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">

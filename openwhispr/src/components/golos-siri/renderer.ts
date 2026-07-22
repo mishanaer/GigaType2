@@ -1,5 +1,4 @@
 // The rendering math is adapted from the user's Siri reference component.
-// @ts-nocheck
 import type { SiriBands, SiriState } from "./state";
 import {
   BACKGROUND_FRAGMENT_SHADER,
@@ -50,7 +49,7 @@ function toNumberArray(value) {
   }
   if (Array.isArray(value)) return value.flat(Number.POSITIVE_INFINITY).map(Number);
   if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
-    return Array.from(value, Number);
+    return Array.from(value as unknown as ArrayLike<number>, Number);
   }
   return [];
 }
@@ -161,7 +160,7 @@ export class SiriRenderer {
   vertexArray = null;
   programs = null;
   private contextLost = false;
-  private lastImage: CanvasImageSource | null = null;
+  private lastImage: TexImageSource | null = null;
   private brightnessLow = 0;
   private onContextLost: (event: Event) => void;
   private onContextRestored: () => void;
@@ -181,12 +180,14 @@ export class SiriRenderer {
       this.contextLost = true;
       this.effectTarget = null;
       this.sceneTarget = null;
+      this.setFallback(true);
     };
     this.onContextRestored = () => {
       try {
         this.contextLost = false;
         this.error = null;
         this.initGL();
+        this.canvas.dispatchEvent(new CustomEvent("siri-render-restored"));
       } catch (error) {
         this.fail(error);
       }
@@ -226,7 +227,7 @@ export class SiriRenderer {
     if (this.lastImage) this.setBackgroundImage(this.lastImage);
   }
 
-  setBackgroundImage(image: CanvasImageSource) {
+  setBackgroundImage(image: TexImageSource) {
     const gl = this.gl;
     this.lastImage = image;
     if (!gl || this.disposed || this.error || this.contextLost || !this.backgroundTexture) {
@@ -258,43 +259,49 @@ export class SiriRenderer {
     if (!this.gl || !this.programs || this.disposed || this.error || this.contextLost) {
       return;
     }
-    this.time = (this.time + Math.max(0, Math.min(dt, 0.1))) % 1e5;
-    const brightnessLow = this.updateBrightnessLow(
-      bands.low,
-      dt,
-      waveAppearance.audioBrightnessSmoothing
-    );
-    this.resize();
-    const layout = this.layout(state.surface, state.sizes);
-    this.ensureTargets(layout);
-    this.renderEffectPass(
-      state.surface,
-      state.progress,
-      bands,
-      brightnessLow,
-      layout,
-      waveAppearance
-    );
-    this.renderScenePass(layout);
-    this.renderGlassPass(layout, glassMaterial);
+    try {
+      this.time = (this.time + Math.max(0, Math.min(dt, 0.1))) % 1e5;
+      const brightnessLow = this.updateBrightnessLow(
+        bands.low,
+        dt,
+        waveAppearance.audioBrightnessSmoothing
+      );
+      this.resize();
+      const layout = this.layout(state.surface, state.sizes);
+      this.ensureTargets(layout);
+      this.renderEffectPass(
+        state.surface,
+        state.progress,
+        bands,
+        brightnessLow,
+        layout,
+        waveAppearance
+      );
+      this.renderScenePass(layout);
+      this.renderGlassPass(layout, glassMaterial);
+      if (this.canvas.dataset.fallback === "true") this.setFallback(false);
+    } catch (error) {
+      this.fail(error);
+    }
   }
 
   dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
     this.canvas.removeEventListener("webglcontextlost", this.onContextLost);
     this.canvas.removeEventListener("webglcontextrestored", this.onContextRestored);
     const gl = this.gl;
-    if (!gl || this.disposed) return;
+    if (!gl) return;
     destroyRenderTarget(gl, this.effectTarget);
     destroyRenderTarget(gl, this.sceneTarget);
     if (this.backgroundTexture) gl.deleteTexture(this.backgroundTexture);
-    for (const entry of Object.values(this.programs || {})) {
+    for (const entry of Object.values(this.programs || {}) as Array<{ program: WebGLProgram }>) {
       gl.deleteProgram(entry.program);
     }
     if (this.vertexArray) gl.deleteVertexArray(this.vertexArray);
     this.effectTarget = null;
     this.sceneTarget = null;
     this.backgroundTexture = null;
-    this.disposed = true;
   }
 
   private resize() {
@@ -572,11 +579,19 @@ export class SiriRenderer {
 
   private fail(error: unknown) {
     this.error = error instanceof Error ? error : new Error(String(error));
-    this.canvas.dataset.fallback = "true";
+    this.setFallback(true);
     this.canvas.dispatchEvent(
       new CustomEvent("siri-render-error", {
         detail: { message: this.error.message },
       })
     );
+  }
+
+  private setFallback(enabled: boolean) {
+    if (enabled) {
+      this.canvas.dataset.fallback = "true";
+    } else {
+      delete this.canvas.dataset.fallback;
+    }
   }
 }

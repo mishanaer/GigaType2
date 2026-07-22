@@ -64,32 +64,50 @@ export function GolosCapsule({
     reducedMotionRef.current = reducedMotion;
     siri.select(phase === "transcribing" ? "thinking" : "listening");
 
-    if (reducedMotion) {
+    const renderStaticFrame = () => {
       for (let index = 0; index < 120; index += 1) {
         siri.tick(1 / 60, SILENT_BANDS);
       }
       renderer.render(siri, SILENT_BANDS, 0, glassMaterialRef.current, waveAppearanceRef.current);
-      return () => {
-        renderer.dispose();
-        siriRef.current = null;
-        rendererRef.current = null;
-      };
-    }
+    };
 
     let previous = performance.now();
     const render = (now: number) => {
+      frameRef.current = 0;
       const dt = Math.min(0.1, Math.max(0, (now - previous) / 1_000));
       const scaledDt = dt * timeScaleRef.current;
       previous = now;
       const bands = siri.state === "listening" ? bandsForLevel(levelRef.current) : SILENT_BANDS;
       siri.tick(scaledDt, bands);
       renderer.render(siri, bands, scaledDt, glassMaterialRef.current, waveAppearanceRef.current);
+      if (!renderer.error) frameRef.current = requestAnimationFrame(render);
+    };
+
+    const startAnimation = () => {
+      if (frameRef.current !== 0 || renderer.error) return;
+      previous = performance.now();
       frameRef.current = requestAnimationFrame(render);
     };
 
-    frameRef.current = requestAnimationFrame(render);
+    const handleRendererRestored = () => {
+      if (reducedMotion) {
+        renderStaticFrame();
+      } else {
+        startAnimation();
+      }
+    };
+
+    canvas.addEventListener("siri-render-restored", handleRendererRestored);
+    if (reducedMotion) {
+      renderStaticFrame();
+    } else {
+      startAnimation();
+    }
+
     return () => {
       cancelAnimationFrame(frameRef.current);
+      frameRef.current = 0;
+      canvas.removeEventListener("siri-render-restored", handleRendererRestored);
       renderer.dispose();
       siriRef.current = null;
       rendererRef.current = null;

@@ -371,7 +371,7 @@ vec2 coverUv(vec2 canvasUv) {
   return clamp((pixel + offset) / fitted, vec2(0.0), vec2(1.0));
 }
 vec3 fallbackBackground(vec2 uv) {
-  float vignette = smoothstep(0.95, 0.12, distance(uv, vec2(0.5)));
+  float vignette = 1.0 - smoothstep(0.12, 0.95, distance(uv, vec2(0.5)));
   vec3 top = vec3(0.015, 0.018, 0.022);
   vec3 bottom = vec3(0.0, 0.0, 0.0);
   vec3 tint = mix(bottom, top, 1.0 - uv.y);
@@ -470,7 +470,7 @@ vec2 coverUv(vec2 canvasUv) {
   return clamp((pixel + offset) / fitted, vec2(0.0), vec2(1.0));
 }
 vec3 fallbackBackground(vec2 uv) {
-  float vignette = smoothstep(0.95, 0.12, distance(uv, vec2(0.5)));
+  float vignette = 1.0 - smoothstep(0.12, 0.95, distance(uv, vec2(0.5)));
   vec3 top = vec3(0.015, 0.018, 0.022);
   vec3 bottom = vec3(0.0, 0.0, 0.0);
   return mix(bottom, top, 1.0 - uv.y) + vec3(0.02, 0.035, 0.055) * vignette;
@@ -548,11 +548,11 @@ float highlightLobe(float dist, float aa, vec2 n, float h, vec2 dir, float cut, 
   float angular = saturate((dot(dir, n) - cut) / max(1.0 - cut, 0.001));
   return band * angular;
 }
-float highlightBand(float d, vec2 grad) {
+float highlightBand(float d, vec2 grad, float aa) {
   float glen = max(length(grad), 0.0001);
   float dist = -d / glen;
   vec2 n = grad / glen;
-  float aa = max(fwidth(dist), 0.0001);
+  aa = max(aa, 0.0001);
   vec2 kdir = vec2(cos(uKeyAngle), sin(uKeyAngle));
   vec2 fdir = vec2(cos(uFillAngle), sin(uFillAngle));
   float key = highlightLobe(dist, aa, n, uHlHeight, kdir, uHlCut, uHlCurv);
@@ -564,35 +564,50 @@ float highlightBand(float d, vec2 grad) {
 vec4 glassFragment(vec2 pixel) {
   vec2 panelUv = (pixel - uPanelOrigin) / uPanelSize;
   vec2 inQuad = step(vec2(0.0), panelUv) * step(panelUv, vec2(1.0));
-  if (inQuad.x * inQuad.y < 0.5) return vec4(0.0);
   vec2 halfSize = uPanelSize * 0.5 - vec2(uMarginPx);
   vec2 p = (panelUv - vec2(0.5)) * uPanelSize;
   float d = shapeDistance(p, halfSize, uCornerRadius);
+  vec2 grad = shapeGradient(p, halfSize, uCornerRadius, uGradRadialMix);
+  float panelHighlightDist = -d / max(length(grad), 0.0001);
+  float panelHighlightAa = max(fwidth(panelHighlightDist), 0.0001);
+  vec4 chips[3] = vec4[3](uChip0, uChip1, uChip2);
+  vec2 chipP[3];
+  float chipD[3];
+  vec2 chipGrad[3];
+  float chipHighlightAa[3];
+  for (int i = 0; i < 3; i++) {
+    vec4 chip = chips[i];
+    chipP[i] = p - chip.xy;
+    float cr = min(chip.z, chip.w);
+    chipD[i] = shapeDistance(chipP[i], chip.zw, cr);
+    chipGrad[i] = shapeGradient(chipP[i], chip.zw, cr, 0.35);
+    float chipHighlightDist = -chipD[i] / max(length(chipGrad[i]), 0.0001);
+    chipHighlightAa[i] = max(fwidth(chipHighlightDist), 0.0001);
+  }
+  // All derivatives run before fragment-varying exits, as required by GLSL ES.
+  if (inQuad.x * inQuad.y < 0.5) return vec4(0.0);
   float alpha = 1.0 - smoothstep(-1.0, 1.0, d);
   if (alpha <= 0.001) return vec4(0.0);
-  vec2 grad = shapeGradient(p, halfSize, uCornerRadius, uGradRadialMix);
   vec2 baseUv = (uPanelOrigin + panelUv * uPanelSize) / uCanvasSize;
   vec2 rUv = clamp(refractedUv(baseUv, d, grad), vec2(0.0), vec2(1.0));
   vec3 col = sampleScene(rUv);
-  col += vec3(highlightBand(d, grad) * uHlAmount);
-  vec4 chips[3] = vec4[3](uChip0, uChip1, uChip2);
+  col += vec3(highlightBand(d, grad, panelHighlightAa) * uHlAmount);
   for (int i = 0; i < 3; i++) {
     float on = uChipState[i];
     vec4 chip = chips[i];
     if (on <= 0.001 || chip.z <= 0.5) continue;
-    vec2 cp = p - chip.xy;
-    float cr = min(chip.z, chip.w);
-    float cd = shapeDistance(cp, chip.zw, cr);
+    vec2 cp = chipP[i];
+    float cd = chipD[i];
     float ca = (1.0 - smoothstep(-1.0, 1.0, cd)) * on;
     if (ca <= 0.001) continue;
-    vec2 cgrad = shapeGradient(cp, chip.zw, cr, 0.35);
+    vec2 cgrad = chipGrad[i];
     float t = clamp(-cd / max(uChipHeight, 0.001), 0.0, 1.0);
     float mag = 1.0 - refractionProfile(t, 1.0);
     vec2 cUv = clamp(rUv + (uChipRefract * mag * cgrad) / uCanvasSize, vec2(0.0), vec2(1.0));
     float hov = uChipHover[i];
     vec3 chipCol = sampleScene(cUv);
     chipCol = mix(chipCol, vec3(1.0), uChipFace * (1.0 + 1.5 * hov));
-    chipCol += vec3(highlightBand(cd, cgrad) * uChipHlAmount);
+    chipCol += vec3(highlightBand(cd, cgrad, chipHighlightAa[i]) * uChipHlAmount);
     col = mix(col, chipCol, ca);
   }
   return vec4(col, alpha);

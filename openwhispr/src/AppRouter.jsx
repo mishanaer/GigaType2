@@ -19,7 +19,9 @@ import { areRequiredPermissionsMet } from "./utils/permissions";
 const ControlPanel = React.lazy(() => import("./components/ControlPanel.tsx"));
 const OnboardingFlow = React.lazy(() => import("./components/OnboardingFlow.tsx"));
 const AppShowcase = React.lazy(() => import("./components/AppShowcase.tsx"));
-const OrbStoryboard = React.lazy(() => import("./components/OrbStoryboard.tsx"));
+const OrbStoryboard = import.meta.env.DEV
+  ? React.lazy(() => import("./components/OrbStoryboard.tsx"))
+  : null;
 const ONBOARDING_ACTIVATION_STEP_INDEX = 1;
 
 const getPlatform = () => window.electronAPI?.getPlatform?.() || "browser";
@@ -129,7 +131,11 @@ export default function AppRouter() {
     return <TranscriptionPreviewOverlay />;
   }
 
-  if (params.includes("orb-storyboard=true")) {
+  if (
+    import.meta.env.DEV &&
+    OrbStoryboard &&
+    new URLSearchParams(params).get("orb-storyboard") === "true"
+  ) {
     return (
       <Suspense fallback={<AppLoadingFallback />}>
         <OrbStoryboard />
