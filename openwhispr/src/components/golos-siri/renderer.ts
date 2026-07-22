@@ -8,8 +8,10 @@ import {
   GLASS_COMPOSITE_FRAGMENT_SHADER,
   VERTEX_SHADER,
   WAVE_FRAGMENT_SHADER,
+  DEFAULT_SIRI_WAVE_APPEARANCE,
   dotsUniforms,
   waveUniforms,
+  type SiriWaveAppearance,
 } from "./shaders";
 
 const MAX_DPR = 2;
@@ -18,6 +20,22 @@ const COMPACT_VISUAL_SCALE = 0.7;
 const EFFECT_OVERDRAW = 1.18;
 const CORNER_RADIUS_MAX_PX = 44;
 const FALLBACK_PIXEL = new Uint8Array([3, 4, 8, 255]);
+const BRIGHTNESS_ATTACK_S = 0.12;
+const BRIGHTNESS_RELEASE_S = 0.22;
+
+export interface SiriGlassMaterial {
+  refractAmount: number;
+  highlightHeight: number;
+  highlightCut: number;
+  highlightAmount: number;
+}
+
+export const DEFAULT_SIRI_GLASS_MATERIAL: SiriGlassMaterial = {
+  refractAmount: -32,
+  highlightHeight: 2.2,
+  highlightCut: 0.52,
+  highlightAmount: 0.72,
+};
 
 function cornerRadiusFor(coreWidth, coreHeight, answer, dpr) {
   const half = Math.min(coreWidth, coreHeight) * 0.5;
@@ -144,6 +162,7 @@ export class SiriRenderer {
   programs = null;
   private contextLost = false;
   private lastImage: CanvasImageSource | null = null;
+  private brightnessLow = 0;
   private onContextLost: (event: Event) => void;
   private onContextRestored: () => void;
 
@@ -229,17 +248,35 @@ export class SiriRenderer {
     this.backgroundReady = 1;
   }
 
-  render(state: Pick<SiriState, "surface" | "progress" | "sizes">, bands: SiriBands, dt = 0) {
+  render(
+    state: Pick<SiriState, "surface" | "progress" | "sizes">,
+    bands: SiriBands,
+    dt = 0,
+    glassMaterial = DEFAULT_SIRI_GLASS_MATERIAL,
+    waveAppearance = DEFAULT_SIRI_WAVE_APPEARANCE
+  ) {
     if (!this.gl || !this.programs || this.disposed || this.error || this.contextLost) {
       return;
     }
     this.time = (this.time + Math.max(0, Math.min(dt, 0.1))) % 1e5;
+    const brightnessLow = this.updateBrightnessLow(
+      bands.low,
+      dt,
+      waveAppearance.audioBrightnessSmoothing
+    );
     this.resize();
     const layout = this.layout(state.surface, state.sizes);
     this.ensureTargets(layout);
-    this.renderEffectPass(state.surface, state.progress, bands, layout);
+    this.renderEffectPass(
+      state.surface,
+      state.progress,
+      bands,
+      brightnessLow,
+      layout,
+      waveAppearance
+    );
     this.renderScenePass(layout);
-    this.renderGlassPass(layout);
+    this.renderGlassPass(layout, glassMaterial);
   }
 
   dispose() {
@@ -274,6 +311,20 @@ export class SiriRenderer {
     this.canvas.height = height;
   }
 
+  private updateBrightnessLow(target, dt, shouldSmooth) {
+    const clampedTarget = Math.max(0, Math.min(1, target || 0));
+    const elapsed = Math.max(0, Math.min(dt, 0.1));
+    if (!shouldSmooth || elapsed === 0) {
+      this.brightnessLow = clampedTarget;
+      return this.brightnessLow;
+    }
+    const timeConstant =
+      clampedTarget > this.brightnessLow ? BRIGHTNESS_ATTACK_S : BRIGHTNESS_RELEASE_S;
+    const blend = 1 - Math.exp(-elapsed / timeConstant);
+    this.brightnessLow += (clampedTarget - this.brightnessLow) * blend;
+    return this.brightnessLow;
+  }
+
   private layout(surface, sizes) {
     const pressScale = 1 + surface.press * 0.018;
     const answer = surface.answer || 0;
@@ -282,9 +333,11 @@ export class SiriRenderer {
     const margin = PANEL_MARGIN_PX * this.dpr * materialScale;
     const baseWidth = sizes.expanded.width * this.dpr;
     const baseHeight = sizes.expanded.height * this.dpr;
+    const thinkingMorph = Math.max(0, Math.min(1, ((surface.dotsResolved ?? -1) + 1) * 0.5));
+    const stateWidth = baseWidth + (baseHeight - baseWidth) * thinkingMorph;
     const answerWidth = Math.min(sizes.answer.width * this.dpr, this.width - 48 * this.dpr);
     const answerHeight = sizes.answer.height * this.dpr;
-    const coreWidth = (baseWidth + (answerWidth - baseWidth) * answer) * pressScale;
+    const coreWidth = (stateWidth + (answerWidth - stateWidth) * answer) * pressScale;
     const coreHeight = (baseHeight + (answerHeight - baseHeight) * answer) * pressScale;
     const panelWidth = coreWidth + margin * 2;
     const panelHeight = coreHeight + margin * 2;
@@ -331,7 +384,14 @@ export class SiriRenderer {
     }
   }
 
-  private renderEffectPass(surface, progress, bands, layout) {
+  private renderEffectPass(
+    surface,
+    progress,
+    bands,
+    brightnessLow,
+    layout,
+    waveAppearance: SiriWaveAppearance
+  ) {
     const gl = this.gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.effectTarget.framebuffer);
     gl.viewport(0, 0, layout.effectWidth, layout.effectHeight);
@@ -353,7 +413,10 @@ export class SiriRenderer {
         value: [layout.effectWidth * 0.5, layout.effectHeight * 0.5, surface.press, 0],
       },
     ];
-    this.draw(this.programs.wave, [...shared, ...waveUniforms(surface, bands)]);
+    this.draw(this.programs.wave, [
+      ...shared,
+      ...waveUniforms(surface, bands, waveAppearance, brightnessLow),
+    ]);
     this.draw(this.programs.dots, [...shared, ...dotsUniforms(surface, progress)]);
     gl.disable(gl.BLEND);
   }
@@ -396,7 +459,7 @@ export class SiriRenderer {
     gl.disable(gl.BLEND);
   }
 
-  private renderGlassPass(layout) {
+  private renderGlassPass(layout, glassMaterial: SiriGlassMaterial) {
     const gl = this.gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, this.width, this.height);
@@ -416,7 +479,7 @@ export class SiriRenderer {
         { name: "uCurvature", value: 1 },
         {
           name: "uRefractAmount",
-          value: -56 * this.dpr * layout.materialScale,
+          value: glassMaterial.refractAmount * this.dpr * layout.materialScale,
         },
         { name: "uAngle", value: 0 },
         { name: "uGradRadialMix", value: 0.08 },
@@ -424,11 +487,11 @@ export class SiriRenderer {
         { name: "uFillAngle", value: Math.PI * 1.25 },
         {
           name: "uHlHeight",
-          value: 2.2 * this.dpr * layout.materialScale,
+          value: glassMaterial.highlightHeight * this.dpr * layout.materialScale,
         },
-        { name: "uHlCut", value: 0.52 },
+        { name: "uHlCut", value: glassMaterial.highlightCut },
         { name: "uHlNorm", value: 8 },
-        { name: "uHlAmount", value: 0.72 },
+        { name: "uHlAmount", value: glassMaterial.highlightAmount },
         { name: "uHlCurv", value: 1 },
         { name: "uBackgroundReady", value: this.backgroundReady },
         { name: "uTransparentOutside", value: 1 },

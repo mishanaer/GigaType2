@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
-import { SiriRenderer } from "./golos-siri/renderer";
+import { SiriRenderer, type SiriGlassMaterial } from "./golos-siri/renderer";
+import type { SiriWaveAppearance } from "./golos-siri/shaders";
 import { createSiriState, type SiriBands } from "./golos-siri/state";
 
 export type GolosCapsulePhase = "listening" | "transcribing";
@@ -7,6 +8,9 @@ export type GolosCapsulePhase = "listening" | "transcribing";
 interface GolosCapsuleProps {
   phase: GolosCapsulePhase;
   audioLevel?: number;
+  timeScale?: number;
+  glassMaterial?: SiriGlassMaterial;
+  waveAppearance?: SiriWaveAppearance;
 }
 
 const SILENT_BANDS: SiriBands = { low: 0, mid: 0, high: 0 };
@@ -25,15 +29,27 @@ function bandsForLevel(level: number): SiriBands {
  * so this adapter feeds the existing normalized audio level into the original
  * WebGL state machine instead of requesting a second MediaStream.
  */
-export function GolosCapsule({ phase, audioLevel = 0 }: GolosCapsuleProps) {
+export function GolosCapsule({
+  phase,
+  audioLevel = 0,
+  timeScale = 1,
+  glassMaterial,
+  waveAppearance,
+}: GolosCapsuleProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const siriRef = useRef<ReturnType<typeof createSiriState> | null>(null);
   const rendererRef = useRef<SiriRenderer | null>(null);
   const frameRef = useRef(0);
   const levelRef = useRef(audioLevel);
+  const timeScaleRef = useRef(timeScale);
+  const glassMaterialRef = useRef(glassMaterial);
+  const waveAppearanceRef = useRef(waveAppearance);
   const reducedMotionRef = useRef(false);
 
   levelRef.current = audioLevel;
+  timeScaleRef.current = Math.max(0.05, Math.min(4, timeScale));
+  glassMaterialRef.current = glassMaterial;
+  waveAppearanceRef.current = waveAppearance;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -52,7 +68,7 @@ export function GolosCapsule({ phase, audioLevel = 0 }: GolosCapsuleProps) {
       for (let index = 0; index < 120; index += 1) {
         siri.tick(1 / 60, SILENT_BANDS);
       }
-      renderer.render(siri, SILENT_BANDS, 0);
+      renderer.render(siri, SILENT_BANDS, 0, glassMaterialRef.current, waveAppearanceRef.current);
       return () => {
         renderer.dispose();
         siriRef.current = null;
@@ -63,10 +79,11 @@ export function GolosCapsule({ phase, audioLevel = 0 }: GolosCapsuleProps) {
     let previous = performance.now();
     const render = (now: number) => {
       const dt = Math.min(0.1, Math.max(0, (now - previous) / 1_000));
+      const scaledDt = dt * timeScaleRef.current;
       previous = now;
       const bands = siri.state === "listening" ? bandsForLevel(levelRef.current) : SILENT_BANDS;
-      siri.tick(dt, bands);
-      renderer.render(siri, bands, dt);
+      siri.tick(scaledDt, bands);
+      renderer.render(siri, bands, scaledDt, glassMaterialRef.current, waveAppearanceRef.current);
       frameRef.current = requestAnimationFrame(render);
     };
 
@@ -93,9 +110,16 @@ export function GolosCapsule({ phase, audioLevel = 0 }: GolosCapsuleProps) {
       for (let index = 0; index < 120; index += 1) {
         siri.tick(1 / 60, SILENT_BANDS);
       }
-      renderer.render(siri, SILENT_BANDS, 0);
+      renderer.render(siri, SILENT_BANDS, 0, glassMaterialRef.current, waveAppearanceRef.current);
     }
   }, [phase]);
+
+  useEffect(() => {
+    const siri = siriRef.current;
+    const renderer = rendererRef.current;
+    if (!reducedMotionRef.current || !siri || !renderer) return;
+    renderer.render(siri, SILENT_BANDS, 0, glassMaterial, waveAppearance);
+  }, [glassMaterial, waveAppearance]);
 
   return (
     <div

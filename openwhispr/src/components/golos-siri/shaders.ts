@@ -39,6 +39,8 @@ uniform float uMid;
 uniform float uHigh;
 uniform float uLowAmplitude;
 uniform float uLowIntensity;
+uniform float uBrightnessLow;
+uniform float uAudioBrightnessResponse;
 uniform float uMidAberration;
 uniform float uMidAberrationAmplitude;
 uniform float uMidBandFill;
@@ -46,19 +48,27 @@ uniform float uMidSoftness;
 uniform float uHighAberration;
 uniform float uHighAberrationAmplitude;
 uniform float uWhiteClip;
+uniform vec3 uWaveColor0;
+uniform vec3 uWaveColor1;
+uniform vec3 uWaveColor2;
+uniform vec3 uWaveHighlightColor0;
+uniform vec3 uWaveHighlightColor1;
+uniform vec3 uWaveHighlightColor2;
+uniform float uWaveCount;
 out vec4 outColor;
 
 float saturate(float value) { return clamp(value, 0.0, 1.0); }
-const vec3 WAVE_TURQUOISE = vec3(0.0, 0.88, 1.0);
-const vec3 WAVE_ICE_WHITE = vec3(0.82, 0.96, 1.0);
-vec3 spectrumTri(float t) {
-  vec3 blue = vec3(0.0, 0.412, 1.0);
-  vec3 teal = vec3(0.0, 0.706, 0.710);
-  vec3 green = vec3(0.0, 1.0, 0.416);
-  if (t < 0.5) return blue;
-  if (t < 1.5) return teal;
-  if (t < 2.5) return green;
-  return teal;
+vec3 wavePaletteColor(int index) {
+  int paletteIndex = index % 3;
+  if (paletteIndex == 0) return uWaveColor0;
+  if (paletteIndex == 1) return uWaveColor1;
+  return uWaveColor2;
+}
+vec3 waveHighlightColor(int index) {
+  int paletteIndex = index % 3;
+  if (paletteIndex == 0) return uWaveHighlightColor0;
+  if (paletteIndex == 1) return uWaveHighlightColor1;
+  return uWaveHighlightColor2;
 }
 float smoothUnit(float value) { return value * value * (3.0 - 2.0 * value); }
 
@@ -70,7 +80,8 @@ void main() {
   float hi = saturate(uHigh);
   float res = saturate(uResolved);
   float c52 = uThickness * 0.01;
-  float c55 = (lo * uLowIntensity + uIntensity) * 0.01;
+  float brightnessLow = saturate(uBrightnessLow);
+  float c55 = (brightnessLow * uLowIntensity * uAudioBrightnessResponse + uIntensity) * 0.01;
   float c58 = max(0.0, md * uMidSoftness + uSoftness);
   float c61 = (md * uMidBandFill + uBandFill) * 0.0001;
   float c64 = (uLowAmplitude * 0.01) * lo + uAmplitude;
@@ -112,14 +123,20 @@ void main() {
   float mouseLift = uMouse.z * 0.035 * exp(-pow((mouseUv.x * 2.0 - 1.0) * 2.4, 2.0));
 
   vec3 colAcc = vec3(0.0);
-  vec3 wSum = vec3(0.0);
-  for (int i = 0; i < 4; i += 1) {
+  vec3 highlightAcc = vec3(0.0);
+  float baseWeightSum = 0.0;
+  float highlightWeightSum = 0.0;
+  float waveCount = clamp(floor(uWaveCount + 0.5), 1.0, 8.0);
+  for (int i = 0; i < 8; i += 1) {
     float fi = float(i);
-    float t13 = fi * 0.33333334;
+    if (fi >= waveCount) continue;
+    float t13 = (waveCount > 1.0) ? fi / (waveCount - 1.0) : 0.5;
     // Geometry and opacity may resolve from 0 to 1, but the palette must not.
     // Mixing from white here caused the visible pastel flash after an answer.
-    vec3 hue = spectrumTri(fi);
-    wSum += hue;
+    vec3 hue = wavePaletteColor(i);
+    vec3 highlightHue = waveHighlightColor(i);
+    baseWeightSum += max(max(hue.r, hue.g), hue.b);
+    highlightWeightSum += max(max(highlightHue.r, highlightHue.g), highlightHue.b);
     float ph = atArg2 + mix(negBase, c73, t13);
     float w2 = env68 * sin(ph) + mouseLift;
     float dist = mix(edge, abs(py - w2), res);
@@ -129,9 +146,12 @@ void main() {
     float glowL = (soft * n78) / rad;
     float band = max(0.0, max(py - max(waveBase, w2), min(waveBase, w2) - py));
     float fill = n139 / (band + bft);
-    colAcc += (hue * n81) * (fill + glowL);
+    float layerEnergy = n81 * (fill + glowL);
+    colAcc += hue * layerEnergy;
+    highlightAcc += highlightHue * layerEnergy;
   }
-  vec3 col = colAcc / max(wSum, vec3(0.0001));
+  vec3 col = colAcc / max(baseWeightSum, 0.0001);
+  vec3 highlightCol = highlightAcc / max(highlightWeightSum, 0.0001);
   float tail = omr * (c76 + 4.0);
   float dC = mix(edge, abs(py - waveBase), res);
   float radC = dC + n77;
@@ -141,7 +161,17 @@ void main() {
   vec3 cgl = pow(vec3(cg) + col, vec3(1.5));
   float glowEnergy = max(max(cgl.r, cgl.g), cgl.b);
   float iceWhiteMix = smoothstep(0.35, 0.95, saturate(glowEnergy));
-  cgl = mix(WAVE_TURQUOISE, WAVE_ICE_WHITE, iceWhiteMix) * glowEnergy;
+  float paletteEnergy = max(max(col.r, col.g), col.b);
+  vec3 paletteColor = col / max(paletteEnergy, 0.0001);
+  paletteColor = mix(uWaveColor0, paletteColor, step(0.0001, paletteEnergy));
+  float highlightEnergy = max(max(highlightCol.r, highlightCol.g), highlightCol.b);
+  vec3 highlightColor = highlightCol / max(highlightEnergy, 0.0001);
+  highlightColor = mix(
+    uWaveHighlightColor0,
+    highlightColor,
+    step(0.0001, highlightEnergy)
+  );
+  cgl = mix(paletteColor, highlightColor, iceWhiteMix) * glowEnergy;
   float ndcY = gid.y * 2.0 / uResolution.y - 1.0;
   float emC = max(clamp(uEdgeMask, 0.0, 1.0), 0.0001);
   float emMask = clamp((abs(ndcY) - 1.0 + clamp(uEdgeMaskInset, 0.0, 1.0)) / (-emC), 0.0, 1.0);
@@ -586,6 +616,33 @@ export interface UniformValue {
   value: number | boolean | number[];
 }
 
+export type SiriWaveColor = [number, number, number];
+export type SiriWavePalette = [SiriWaveColor, SiriWaveColor, SiriWaveColor];
+
+export interface SiriWaveAppearance {
+  baseColors: SiriWavePalette;
+  highlightColors: SiriWavePalette;
+  waveCount: number;
+  audioBrightnessResponse: number;
+  audioBrightnessSmoothing: boolean;
+}
+
+export const DEFAULT_SIRI_WAVE_APPEARANCE: SiriWaveAppearance = {
+  baseColors: [
+    [0, 1, 0],
+    [0, 123 / 255, 1],
+    [1, 1, 1],
+  ],
+  highlightColors: [
+    [0, 1, 0],
+    [0, 123 / 255, 1],
+    [1, 1, 1],
+  ],
+  waveCount: 3,
+  audioBrightnessResponse: 1,
+  audioBrightnessSmoothing: true,
+};
+
 const BLOOM_PRESET = {
   audioScale: 1,
   uWhiteClip: 1,
@@ -614,10 +671,18 @@ const BLOOM_PRESET = {
   uHighAberrationAmplitude: 0.06,
 } as const;
 
-export function waveUniforms(surface: SiriSurface, bands: SiriBands): UniformValue[] {
+export function waveUniforms(
+  surface: SiriSurface,
+  bands: SiriBands,
+  appearance = DEFAULT_SIRI_WAVE_APPEARANCE,
+  brightnessLow = bands.low
+): UniformValue[] {
   const { audioScale, ...values } = BLOOM_PRESET;
+  const waveCount = Math.max(1, Math.min(8, Math.round(appearance.waveCount)));
   return [
-    { name: "uResolved", value: surface.sharedResolved },
+    // The shared signal falls with the wave and then rises with the dots, which
+    // makes the fading wave brighten a second time during the crossfade.
+    { name: "uResolved", value: surface.waveResolved },
     { name: "uLayerOpacity", value: surface.waveLayerOpacity },
     { name: "uEffectScale", value: surface.effectScale },
     { name: "uAnchor", type: "vec2", value: [0.5, 0.5] },
@@ -625,6 +690,22 @@ export function waveUniforms(surface: SiriSurface, bands: SiriBands): UniformVal
     { name: "uLow", value: bands.low * audioScale },
     { name: "uMid", value: bands.mid * audioScale },
     { name: "uHigh", value: bands.high * audioScale },
+    { name: "uBrightnessLow", value: Math.max(0, Math.min(1, brightnessLow)) },
+    ...appearance.baseColors.map((color, index) => ({
+      name: `uWaveColor${index}`,
+      type: "vec3" as const,
+      value: color,
+    })),
+    ...appearance.highlightColors.map((color, index) => ({
+      name: `uWaveHighlightColor${index}`,
+      type: "vec3" as const,
+      value: color,
+    })),
+    { name: "uWaveCount", value: waveCount },
+    {
+      name: "uAudioBrightnessResponse",
+      value: Math.max(0, Math.min(1, appearance.audioBrightnessResponse)),
+    },
     ...Object.entries(values).map(([name, value]) => ({ name, value })),
   ];
 }
@@ -637,7 +718,7 @@ export function dotsUniforms(
     { name: "uDotsResolved", value: surface.dotsResolved },
     { name: "uEffectScale", value: surface.effectScale },
     { name: "uAnchor", type: "vec2", value: [0.5, 0.5] },
-    { name: "uRotation", value: 0.7 },
+    { name: "uRotation", value: 1.4 },
     { name: "uRingRadius", value: 0.45 },
     { name: "uDotRadius", value: 0.1 },
     { name: "uPairOffset", value: 0.085 },
