@@ -20,8 +20,8 @@ const COMPACT_VISUAL_SCALE = 0.7;
 const EFFECT_OVERDRAW = 1.18;
 const CORNER_RADIUS_MAX_PX = 44;
 const FALLBACK_PIXEL = new Uint8Array([3, 4, 8, 255]);
-const BRIGHTNESS_ATTACK_S = 0.12;
-const BRIGHTNESS_RELEASE_S = 0.22;
+const BRIGHTNESS_ATTACK_S = 0.05;
+const BRIGHTNESS_RELEASE_S = 0.05;
 
 export interface SiriGlassMaterial {
   refractAmount: number;

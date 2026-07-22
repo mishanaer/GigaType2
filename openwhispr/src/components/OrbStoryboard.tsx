@@ -494,7 +494,7 @@ export default function OrbStoryboard() {
                     </p>
                     <p className="mt-1 font-mono text-[8px] text-white/28">
                       {waveAppearance.audioBrightnessSmoothing
-                        ? "Сила 100% · атака 120 мс"
+                        ? "Сила 100% · атака/возврат 50 мс"
                         : "Сила 100% · без задержки"}
                     </p>
                   </div>
