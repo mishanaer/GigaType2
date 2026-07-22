@@ -109,15 +109,12 @@ class WindowManager {
       return;
     }
 
-    if (process.platform === "win32") {
-      // Windows click-through forwarding is unreliable for this floating panel.
-      // Keep the panel interactive so the mic button and cancel button are always clickable.
-      this.mainWindow.setIgnoreMouseEvents(false);
-      return;
-    }
-
     if (shouldCapture) {
       this.mainWindow.setIgnoreMouseEvents(false);
+    } else if (process.platform === "win32") {
+      // The orb has no controls. Do not leave an invisible or visible overlay
+      // intercepting clicks; Windows does not need mouse-move forwarding here.
+      this.mainWindow.setIgnoreMouseEvents(true);
     } else {
       this.mainWindow.setIgnoreMouseEvents(true, { forward: true });
     }
