@@ -274,6 +274,14 @@ def _product_payload(days: float, now: float | None = None) -> dict:
     window_records = [record for record in records if record["ts"] > since]
     successes = [record for record in records if record["success"]]
     window_successes = [record for record in window_records if record["success"]]
+    all_devices = {event["device_id"] for event in all_events if event["device_id"]}
+    active_by_horizon = {
+        horizon: {
+            event["device_id"] for event in all_events
+            if event["device_id"] and event["ts"] > now - horizon * 86400
+        }
+        for horizon in (1, 7, 30)
+    }
     quality_eligible = [
         record for record in window_records if record["denominator_ready"] and record["eligible"]
     ]
@@ -349,7 +357,13 @@ def _product_payload(days: float, now: float | None = None) -> dict:
     return {
         "updated_at": datetime.fromtimestamp(now, timezone.utc).isoformat(timespec="seconds"),
         "window_days": window_days,
-        "installs": len({event["device_id"] for event in all_events if event["device_id"]}),
+        "installs": len(all_devices),
+        "overview": {
+            "ever_used": len(all_devices),
+            "dau": len(active_by_horizon[1]),
+            "wau": len(active_by_horizon[7]),
+            "mau": len(active_by_horizon[30]),
+        },
         "active_devices": len(active_devices),
         "active_dictators": len(active_dictators),
         "repeat_dictators": sum(len(days_used) >= 2 for days_used in success_days.values()),
@@ -441,6 +455,7 @@ def summary(days: float = 1.0) -> JSONResponse:
         "dau": product["active_devices"],
         "events": events,
         "errors": product["errors"]["count"],
+        "overview": product["overview"],
         "metrics": [
             {"label": f"Active dictators {win}", "value": _fmt_int(product["active_dictators"])},
             {"label": f"Successful dictations {win}", "value": _fmt_int(product["successful_dictations"])},

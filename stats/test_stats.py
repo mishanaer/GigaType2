@@ -8,6 +8,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 _TEMP = tempfile.TemporaryDirectory()
 os.environ["STATS_DB"] = str(Path(_TEMP.name) / "events.db")
@@ -66,6 +67,22 @@ class ProductMetricsTest(unittest.TestCase):
         self.assertAlmostEqual(product["funnel"]["activation_7d"], 0.5)
         self.assertEqual(product["retention"]["d1"]["cohort"], 2)
         self.assertAlmostEqual(product["retention"]["d1"]["rate"], 0.5)
+        self.assertEqual(product["overview"], {
+            "ever_used": 3,
+            "dau": 0,
+            "wau": 1,
+            "mau": 3,
+        })
+
+    def test_summary_exposes_only_applicable_canonical_overview_metrics(self):
+        self.seed()
+        with patch("server.time.time", return_value=NOW):
+            response = server.summary(7)
+        overview = json.loads(response.body)["overview"]
+
+        self.assertEqual(set(overview), {"ever_used", "dau", "wau", "mau"})
+        self.assertNotIn("sessions_per_dau", overview)
+        self.assertNotIn("tools_per_dau", overview)
 
     def test_event_id_and_legacy_overlap_are_deduplicated(self):
         canonical = event(1, "a", "dictation_finished", "same", outcome="succeeded", audio_duration_ms=5000, final_output_words=10)
