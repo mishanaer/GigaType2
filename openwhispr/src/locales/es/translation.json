@@ -44,7 +44,8 @@
     "help": "Ayuda",
     "learnMore": "Más información",
     "file": "Archivo",
-    "closeWindow": "Cerrar ventana"
+    "closeWindow": "Cerrar ventana",
+    "checkForUpdates": "Buscar actualizaciones…"
   },
   "window": {
     "voiceRecorderTitle": "Grabadora de voz",
@@ -2552,5 +2553,17 @@
       "successDescription": "Bienvenido a {{name}}.",
       "errorTitle": "No se pudo aceptar la invitación"
     }
+  },
+  "updater": {
+    "readyTitle": "Actualización lista",
+    "readyPrompt": "La versión {{version}} se ha descargado y está lista para instalar.",
+    "install": "Instalar y reiniciar",
+    "later": "Más tarde",
+    "upToDateTitle": "Estás al día",
+    "upToDateMessage": "Ya tienes la última versión de Type.",
+    "downloadFailedTitle": "No se pudo descargar la actualización",
+    "downloadFailedMessage": "Algo salió mal al descargar la actualización. Inténtalo de nuevo más tarde.",
+    "installFailedTitle": "No se pudo instalar la actualización",
+    "installFailedMessage": "Algo salió mal al instalar la actualización. Inténtalo de nuevo más tarde."
   }
 }

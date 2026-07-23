@@ -298,6 +298,14 @@ function initializeCoreManagers() {
   windowManager.meetingDetectionEngine = meetingDetectionEngine;
   updateManager = new UpdateManager();
   updateManager.setWindowManager(windowManager);
+  // Before the installer replaces the app, run the same teardown a normal quit
+  // does and wait for every sidecar to exit (Windows file locks / macOS .app
+  // swap). The before-quit handler below then lets quitAndInstall proceed.
+  updateManager.setPrepareForInstall(async () => {
+    performSyncTeardown();
+    await sidecarRegistry.shutdownAll();
+  });
+  windowManager.setCheckForUpdatesHandler(() => updateManager.runManualUpdateCheck(true));
   windowsKeyManager = new WindowsKeyManager();
   linuxKeyManager = new LinuxKeyManager();
   textEditMonitor = new TextEditMonitor();
@@ -1299,6 +1307,11 @@ if (gotSingleInstanceLock) {
 
   let isShuttingDown = false;
   app.on("before-quit", (event) => {
+    // Update install path: the updater already ran performSyncTeardown +
+    // sidecarRegistry.shutdownAll (via setPrepareForInstall) before calling
+    // quitAndInstall. Let the quit proceed so Squirrel/NSIS can swap the app —
+    // do NOT preventDefault or app.exit(0) here, or the install is aborted.
+    if (updateManager && updateManager.isInstalling) return;
     if (isShuttingDown) return;
     isShuttingDown = true;
     event.preventDefault();
