@@ -88,6 +88,52 @@ class ProductMetricsTest(unittest.TestCase):
             {"event_id": "one", "final_output_words": 12},
         )
 
+    def test_posthog_import_uses_keyset_pagination(self):
+        captured_queries = []
+        timestamp = "2026-07-23T10:20:30.123456Z"
+        first_uuid = "019f2206-38cd-7000-8000-da5486ba6669"
+        second_uuid = "019f2206-38cd-7000-8000-da5486ba6670"
+
+        def fake_query(_base_url, _project_id, _api_key, query):
+            captured_queries.append(query)
+            return {
+                "results": [
+                    [first_uuid, timestamp, "app_opened", "device", {"install_id": "device"}],
+                    [second_uuid, timestamp, "dictation_finished", "device", {"outcome": "succeeded"}],
+                ]
+            }
+
+        original = import_posthog.posthog_query
+        import_posthog.posthog_query = fake_query
+        try:
+            rows, cursor, result_count = import_posthog.fetch_page(
+                "https://eu.posthog.com",
+                "214255",
+                "secret",
+                import_posthog.iso_datetime("2026-07-01T00:00:00Z"),
+                import_posthog.iso_datetime("2026-08-01T00:00:00Z"),
+                2,
+            )
+            self.assertEqual(result_count, 2)
+            self.assertEqual(len(rows), 2)
+            self.assertEqual(cursor[1], second_uuid)
+            self.assertNotIn("OFFSET", captured_queries[0])
+
+            import_posthog.fetch_page(
+                "https://eu.posthog.com",
+                "214255",
+                "secret",
+                import_posthog.iso_datetime("2026-07-01T00:00:00Z"),
+                import_posthog.iso_datetime("2026-08-01T00:00:00Z"),
+                2,
+                cursor,
+            )
+            self.assertIn("timestamp > toDateTime64", captured_queries[1])
+            self.assertIn(f"uuid > toUUID('{second_uuid}')", captured_queries[1])
+            self.assertNotIn("OFFSET", captured_queries[1])
+        finally:
+            import_posthog.posthog_query = original
+
     def test_ingest_clamps_poison_timestamps_and_keeps_json_valid(self):
         class FakeRequest:
             async def body(self):
