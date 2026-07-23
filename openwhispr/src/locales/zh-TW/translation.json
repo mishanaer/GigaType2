@@ -44,7 +44,8 @@
     "help": "說明",
     "learnMore": "瞭解更多",
     "file": "檔案",
-    "closeWindow": "關閉視窗"
+    "closeWindow": "關閉視窗",
+    "checkForUpdates": "檢查更新…"
   },
   "window": {
     "voiceRecorderTitle": "錄音器",
@@ -1021,12 +1022,7 @@
           "annualEquivalent": "$16.67",
           "includesPrefix": "所有 Pro 功能 +",
           "badge": "最熱門",
-          "features": [
-            "無限會議錄製",
-            "代理模式",
-            "與您的資料對話",
-            "優先支援"
-          ],
+          "features": ["無限會議錄製", "代理模式", "與您的資料對話", "優先支援"],
           "cta": "開始使用",
           "switchToAnnual": "切換為年付"
         },
@@ -2552,5 +2548,17 @@
       "successDescription": "Bienvenido a {{name}}.",
       "errorTitle": "No se pudo aceptar la invitación"
     }
+  },
+  "updater": {
+    "readyTitle": "更新已就緒",
+    "readyPrompt": "版本 {{version}} 已下載完成，可以安裝。",
+    "install": "安裝並重新啟動",
+    "later": "稍後",
+    "upToDateTitle": "已是最新版本",
+    "upToDateMessage": "您已在使用最新版本的 Type。",
+    "downloadFailedTitle": "無法下載更新",
+    "downloadFailedMessage": "下載更新時發生問題。請稍後再試。",
+    "installFailedTitle": "無法安裝更新",
+    "installFailedMessage": "安裝更新時發生問題。請稍後再試。"
   }
 }

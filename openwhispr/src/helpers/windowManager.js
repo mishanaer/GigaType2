@@ -45,6 +45,7 @@ class WindowManager {
     this._isDictatingToggle = false;
     this._pendingMeetingNoteNavigation = null;
     this.telemetryManager = null;
+    this._onCheckForUpdates = null;
 
     app.on("before-quit", () => {
       this.isQuitting = true;
@@ -54,6 +55,10 @@ class WindowManager {
 
   setTelemetryManager(telemetryManager) {
     this.telemetryManager = telemetryManager;
+  }
+
+  setCheckForUpdatesHandler(fn) {
+    this._onCheckForUpdates = fn;
   }
 
   async createMainWindow() {
@@ -101,7 +106,10 @@ class WindowManager {
     await this.loadMainWindow();
     await this.initializeHotkey();
     this.dragManager.setTargetWindow(this.mainWindow);
-    MenuManager.setupMainMenu(() => this.openSettings());
+    MenuManager.setupMainMenu(
+      () => this.openSettings(),
+      () => this._onCheckForUpdates?.()
+    );
   }
 
   setMainWindowInteractivity(shouldCapture) {
@@ -678,7 +686,11 @@ class WindowManager {
       this.controlPanelWindow = null;
     });
 
-    MenuManager.setupControlPanelMenu(this.controlPanelWindow, () => this.openSettings());
+    MenuManager.setupControlPanelMenu(
+      this.controlPanelWindow,
+      () => this.openSettings(),
+      () => this._onCheckForUpdates?.()
+    );
 
     this.controlPanelWindow.webContents.on("did-finish-load", () => {
       clearVisibilityTimer();
@@ -1195,10 +1207,17 @@ class WindowManager {
   }
 
   refreshLocalizedUi() {
-    MenuManager.setupMainMenu(() => this.openSettings());
+    MenuManager.setupMainMenu(
+      () => this.openSettings(),
+      () => this._onCheckForUpdates?.()
+    );
 
     if (this.controlPanelWindow && !this.controlPanelWindow.isDestroyed()) {
-      MenuManager.setupControlPanelMenu(this.controlPanelWindow, () => this.openSettings());
+      MenuManager.setupControlPanelMenu(
+        this.controlPanelWindow,
+        () => this.openSettings(),
+        () => this._onCheckForUpdates?.()
+      );
       this.controlPanelWindow.setTitle(i18nMain.t("window.controlPanelTitle"));
     }
 

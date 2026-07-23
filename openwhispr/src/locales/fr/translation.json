@@ -44,7 +44,8 @@
     "help": "Aide",
     "learnMore": "En savoir plus",
     "file": "Fichier",
-    "closeWindow": "Fermer la fenêtre"
+    "closeWindow": "Fermer la fenêtre",
+    "checkForUpdates": "Rechercher les mises à jour…"
   },
   "window": {
     "voiceRecorderTitle": "Enregistreur vocal",
@@ -2552,5 +2553,17 @@
       "successDescription": "Bienvenue dans {{name}}.",
       "errorTitle": "Impossible d'accepter l'invitation"
     }
+  },
+  "updater": {
+    "readyTitle": "Mise à jour prête",
+    "readyPrompt": "La version {{version}} a été téléchargée et est prête à être installée.",
+    "install": "Installer et redémarrer",
+    "later": "Plus tard",
+    "upToDateTitle": "Vous êtes à jour",
+    "upToDateMessage": "Vous disposez déjà de la dernière version de Type.",
+    "downloadFailedTitle": "Échec du téléchargement de la mise à jour",
+    "downloadFailedMessage": "Une erreur s'est produite lors du téléchargement de la mise à jour. Veuillez réessayer plus tard.",
+    "installFailedTitle": "Échec de l'installation de la mise à jour",
+    "installFailedMessage": "Une erreur s'est produite lors de l'installation de la mise à jour. Veuillez réessayer plus tard."
   }
 }

@@ -44,7 +44,8 @@
     "help": "Ajuda",
     "learnMore": "Saiba mais",
     "file": "Arquivo",
-    "closeWindow": "Fechar janela"
+    "closeWindow": "Fechar janela",
+    "checkForUpdates": "Verificar atualizações…"
   },
   "window": {
     "voiceRecorderTitle": "Gravador de voz",
@@ -2552,5 +2553,17 @@
       "successDescription": "Bienvenido a {{name}}.",
       "errorTitle": "No se pudo aceptar la invitación"
     }
+  },
+  "updater": {
+    "readyTitle": "Atualização pronta",
+    "readyPrompt": "A versão {{version}} foi baixada e está pronta para instalar.",
+    "install": "Instalar e reiniciar",
+    "later": "Mais tarde",
+    "upToDateTitle": "Você está atualizado",
+    "upToDateMessage": "Você já tem a versão mais recente do Type.",
+    "downloadFailedTitle": "Não foi possível baixar a atualização",
+    "downloadFailedMessage": "Algo deu errado ao baixar a atualização. Tente novamente mais tarde.",
+    "installFailedTitle": "Não foi possível instalar a atualização",
+    "installFailedMessage": "Algo deu errado ao instalar a atualização. Tente novamente mais tarde."
   }
 }

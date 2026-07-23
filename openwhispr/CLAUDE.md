@@ -468,6 +468,63 @@ Detects meetings via three independent sources, orchestrated by `MeetingDetectio
 - Exponential backoff on consecutive failures: 2min → 4min → 8min → cap 30min
 - Reset to normal 2min interval on any successful sync
 
+### 15. Auto-Update (electron-updater) and Releasing
+
+`src/updater.js` (`UpdateManager`) owns auto-update. It uses electron-updater's
+**generic** provider — the feed URL is baked into `app-update.yml` at build time
+from `publish` in `electron-builder.json` (SberCloud OBS, S3-compatible:
+`…/function_descriptions/gigatype-electron/prod`). There is **no GitHub release
+or git tag in the update mechanism** — the installed app only reads YAML
+manifests + binaries from that bucket.
+
+**Runtime flow** (packaged builds only; on by default):
+1. `checkForUpdatesOnStartup()` runs the check ~3s after launch, then every 4h.
+2. electron-updater fetches the channel manifest and compares its version to
+   `app.getVersion()`. macOS uses **arch-specific channels** so arm64/x64 don't
+   race on the shared manifest: arm64 → `latest-arm64-mac.yml`, x64 →
+   `latest-x64-mac.yml` (Rosetta x64-on-arm self-heals to the arm64 channel).
+   Windows → `latest.yml`, Linux → `latest-linux.yml`.
+3. If strictly newer, it downloads in the background (**differential/blockmap**:
+   only changed blocks are fetched, so the unchanged ~851 MB bundled GigaAM
+   model is copied from the installed app rather than re-downloaded — updates are
+   effectively "app only" unless the model changed). First update after a fresh
+   install has no local artifact to diff against and falls back to a full download.
+4. Native dialog (localized, `updater.*` i18n keys): **Install & Restart** or
+   **Later**. "Later" defers that version for 24h (persisted to
+   `userData/updater-skip.json`). A manual check lives in the app menu →
+   "Check for Updates…" (`runManualUpdateCheck`, surfaces failures).
+5. Install shuts down **all sidecars first** (`setPrepareForInstall` →
+   `performSyncTeardown()` + `sidecarRegistry.shutdownAll()`) before
+   `quitAndInstall`. Required on Windows (file locks) and macOS (.app swap). The
+   `before-quit` handler in `main.js` skips its own `app.exit(0)` while
+   `updateManager.isInstalling` so the installer isn't aborted.
+
+Config: `autoDownload=false`, `autoInstallOnAppQuit=false` (we drive both so
+install always goes through the sidecar teardown), `disableDifferentialDownload=false`.
+Env overrides: `GIGATYPE_DISABLE_AUTO_UPDATES` (opt out in the field),
+`GIGATYPE_FORCE_UPDATE_CHECKS` (force on for QA on any build).
+
+**Releasing a new version** (`.github/workflows/release.yml`, triggered by a git
+tag `v*.*.*` or manual `workflow_dispatch`):
+1. **Bump `version` in `package.json`** and commit. The build uses this version —
+   the tag does NOT set it. Tagging `v1.9.0` while `package.json` still says
+   `1.8.0` republishes `1.8.0` and nobody updates.
+2. Push a matching tag: `git tag v1.9.0 && git push origin v1.9.0`.
+3. CI builds every platform (macOS is signed + notarized), then
+   `scripts/publish.py` uploads to OBS. Binaries + `.blockmap`s go up first,
+   `latest*.yml` manifests last, so the feed is never pointed at a missing file.
+   The mac job mints `latest-<arch>-mac.yml` from `latest-mac.yml` per arch.
+4. Manual publish: `npm run build:mac -- --arm64 --publish never`, then
+   `python scripts/publish.py --from dist` with `OBS_*` / `S3_*` env set (see
+   `.env.example`). For mac, `scripts/publish.py --mac-arch arm64` mints the
+   arch manifest.
+
+Caveats: OBS stores everything under a flat `…/prod/` prefix (no version
+folders) — each release adds binaries and overwrites the manifest; old binaries
+stay for differential diffing. macOS auto-update **requires a valid signature +
+notarization** (Squirrel.Mac verifies the downloaded `.zip`); an unsigned build
+downloads but fails to install.
+
 ## Development Guidelines
 
 ### Internationalization (i18n) — REQUIRED
