@@ -37,6 +37,17 @@ export STATS_DB=/srv/stats/gigatype/data/events.db
 безопасен (`event_id` уникален). Секреты не добавлять в репозиторий и не
 передавать в браузер.
 
+Важно: `eu.posthog.com` отвечает текущему серверу в Yandex Cloud (RU)
+`403 PostHog is not available in your region`. Поэтому personal key нельзя
+считать рабочей серверной конфигурацией на i167. Разовый backfill запускается
+на доверенной машине вне этой блокировки в отдельную SQLite-базу, после чего
+на сервер переносится только результат allowlist-проекции. Для переходного
+регулярного догона нужен runner/relay вне RU; после выпуска direct Traction
+delivery он удаляется, а PostHog key отзывается.
+
+Архитектура хранения, оценка объёма и план миграции:
+[`STORAGE_ARCHITECTURE.md`](STORAGE_ARCHITECTURE.md).
+
 ## Проверка
 
 ```bash
