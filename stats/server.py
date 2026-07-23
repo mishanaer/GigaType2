@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import threading
 import time
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta, timezone
@@ -46,6 +47,14 @@ VERSION = VERSION_FILE.read_text().strip() if VERSION_FILE.exists() else "dev"
 app = FastAPI()
 
 _db = connect(DB_PATH, check_same_thread=False)
+
+# Traction asks for the 1/7/30 day summaries concurrently. Product aggregation
+# includes legacy/canonical dedupe, cohorts and quality metrics, so three copies
+# competing under the module CPU quota can all miss the hub's 5-second timeout.
+# Serialize cache fills and keep each window across one poll interval.
+PRODUCT_CACHE_TTL_SECONDS = 90.0
+_product_cache: dict[float, tuple[float, dict]] = {}
+_product_cache_lock = threading.Lock()
 
 ERROR_EVENTS = {
     "error",
@@ -262,9 +271,8 @@ def _retention(successes: list[dict], since: float, now: float, days: int) -> di
     }
 
 
-def _product_payload(days: float, now: float | None = None) -> dict:
+def _compute_product_payload(days: float, now: float) -> dict:
     window_days = max(0.04, min(float(days), 365.0))
-    now = now or time.time()
     since = now - window_days * 86400
     all_events = _read_events(until=now)
     window_events = [event for event in all_events if event["ts"] > since]
@@ -426,6 +434,26 @@ def _product_payload(days: float, now: float | None = None) -> dict:
             ),
         },
     }
+
+
+def _product_payload(days: float, now: float | None = None) -> dict:
+    """Return product metrics, caching only real-time dashboard reads.
+
+    Explicit ``now`` values bypass the cache so tests and historical
+    calculations remain deterministic.
+    """
+    window_days = max(0.04, min(float(days), 365.0))
+    if now is not None:
+        return _compute_product_payload(window_days, now)
+
+    with _product_cache_lock:
+        monotonic_now = time.monotonic()
+        cached = _product_cache.get(window_days)
+        if cached and monotonic_now - cached[0] < PRODUCT_CACHE_TTL_SECONDS:
+            return cached[1]
+        payload = _compute_product_payload(window_days, time.time())
+        _product_cache[window_days] = (time.monotonic(), payload)
+        return payload
 
 
 def _fmt_int(n: float) -> str:

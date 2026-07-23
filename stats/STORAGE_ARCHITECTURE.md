@@ -4,11 +4,11 @@
 
 ## Решение
 
-Не разворачивать PostHog, ClickHouse или общий live-event database на текущем
-сервере. Сохранять контракт Traction: у каждого продукта свой процесс и свой
-SQLite/WAL, а хаб читает только стабильные `/summary` и `/series`. Общими
-должны быть схема конверта, правила privacy/quality и холодный архив, но не
-рабочий SQLite-файл и не lock-domain.
+Не разворачивать PostHog, ClickHouse, общий live-event database или общий
+event-архив на текущем сервере. Сохранять контракт Traction: у каждого продукта
+свой процесс, свой SQLite/WAL и свой backup lifecycle, а хаб читает только
+стабильные `/summary` и `/series`. Общими остаются только формат API и правила
+privacy/quality — не файл данных, bucket/prefix или lock-domain.
 
 Это сохраняет главную гарантию Traction: сбой, тяжёлый запрос или миграция
 одного продукта не останавливает остальные вкладки.
@@ -44,8 +44,8 @@ dictated text и добавленная PostHog метаинформация н�
 - `source` (`direct`, `posthog_backfill`, `import`);
 - allowlisted product-specific `properties`.
 
-В live SQLite поле `product` не нужно: граница продукта задаётся модулем и
-файлом БД. В общем Parquet-архиве `product` обязательно.
+Поле `product` в live SQLite не нужно: граница продукта задаётся модулем и
+файлом БД.
 
 Нельзя принимать текст диктовки/встречи, prompt/response, пути, заголовки,
 сырой error message, email, IP или client-generated произвольный JSON.
@@ -90,12 +90,15 @@ secrets и review любых изменений workflow. Если это неп
 ## Backup и аналитика
 
 - Hot path: per-product SQLite в WAL mode.
-- Ежедневно: SQLite online backup, шифрованный private bucket в Yandex Object
-  Storage, отдельный prefix на продукт.
-- Ежемесячно или после 1 GiB: Parquet/Zstd по `product/year/month`; агрегаты
-  можно читать DuckDB без постоянно работающего сервиса.
+- Сейчас: SQLite online backup на текущий диск, отдельно для каждого продукта,
+  30 скользящих ежедневных снимков; это защищает от ошибки приложения, но не
+  от потери VM или диска.
+- Опционально: одна weekly-копия каждого продукта в отдельный private bucket
+  Yandex Object Storage. Это disaster-recovery слой, а не общее хранилище логов.
+- Если одной базе понадобится дешёвый долгий event-retention, только её старые
+  партиции можно переводить в собственный Parquet/Zstd-архив и читать DuckDB.
 - Traction никогда не читает SQLite другого продукта и не строит dashboard
-  запросом к cold archive.
+  запросом к backup/cold archive.
 - Event-level retention: начать с 13 месяцев; суточные агрегаты хранить дольше.
   Менять срок только после определения юридической/продуктовой потребности.
 
@@ -107,8 +110,8 @@ secrets и review любых изменений workflow. Если это неп
   и dashboard P95 перестал укладываться в 1 секунду;
 - появился второй независимый writer и устойчивый `SQLITE_BUSY`;
 - backup/checkpoint не укладывается в операционное окно;
-- запросам постоянно нужны cross-product raw joins, а summary/Parquet уже
-  недостаточны.
+- продукту постоянно нужны запросы, которым summary и его собственный архив
+  уже недостаточны.
 
 Тогда меняется storage adapter конкретного модуля или выделяется PostgreSQL,
 но публичный Traction contract остаётся прежним. ClickHouse/PostHog следует

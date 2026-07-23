@@ -5,6 +5,7 @@ import json
 import math
 import os
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -36,6 +37,7 @@ class ProductMetricsTest(unittest.TestCase):
     def setUp(self):
         server._db.execute("DELETE FROM events")
         server._db.commit()
+        server._product_cache.clear()
 
     def seed(self):
         rows = [
@@ -83,6 +85,38 @@ class ProductMetricsTest(unittest.TestCase):
         self.assertEqual(set(overview), {"ever_used", "dau", "wau", "mau"})
         self.assertNotIn("sessions_per_dau", overview)
         self.assertNotIn("tools_per_dau", overview)
+
+    def test_realtime_product_cache_serializes_fills_and_reuses_payload(self):
+        calls = []
+        entered = threading.Event()
+        release = threading.Event()
+
+        def fake_compute(days, now):
+            calls.append(days)
+            entered.set()
+            release.wait(timeout=2)
+            return {"window_days": days, "updated_at": str(now)}
+
+        results = []
+        with patch.object(server, "_compute_product_payload", side_effect=fake_compute):
+            workers = [
+                threading.Thread(target=lambda: results.append(server._product_payload(7)))
+                for _ in range(3)
+            ]
+            for worker in workers:
+                worker.start()
+            self.assertTrue(entered.wait(timeout=1))
+            release.set()
+            for worker in workers:
+                worker.join(timeout=2)
+
+            self.assertEqual(calls, [7.0])
+            self.assertEqual(len(results), 3)
+            self.assertIs(results[0], results[1])
+            self.assertIs(results[1], results[2])
+
+            server._product_payload(7, NOW)
+            self.assertEqual(calls, [7.0, 7.0])
 
     def test_event_id_and_legacy_overlap_are_deduplicated(self):
         canonical = event(1, "a", "dictation_finished", "same", outcome="succeeded", audio_duration_ms=5000, final_output_words=10)
