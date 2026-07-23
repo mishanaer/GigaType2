@@ -39,6 +39,7 @@ class ProductMetricsTest(unittest.TestCase):
         server._db.execute("DELETE FROM events")
         server._db.commit()
         server._product_cache.clear()
+        server._rate_buckets.clear()
 
     def seed(self):
         rows = [
@@ -284,6 +285,12 @@ class ProductMetricsTest(unittest.TestCase):
             properties,
             {"outcome": "succeeded", "final_output_words": 12, "event_id": "allowed"},
         )
+
+    def test_receiver_rate_limit_uses_hashed_ephemeral_buckets(self):
+        for _ in range(3):
+            self.assertTrue(server._within_rate_limit("device", "private-id", 3))
+        self.assertFalse(server._within_rate_limit("device", "private-id", 3))
+        self.assertNotIn("private-id", server._rate_buckets)
 
 
 if __name__ == "__main__":

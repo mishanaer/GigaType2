@@ -22,12 +22,13 @@ Env:    STATS_PORT (default 9902), STATS_DB (default ./data/events.db),
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import os
 import threading
 import time
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -56,6 +57,11 @@ _db_lock = threading.RLock()
 PRODUCT_CACHE_TTL_SECONDS = 90.0
 _product_cache: dict[float, tuple[float, dict]] = {}
 _product_cache_lock = threading.Lock()
+RATE_WINDOW_SECONDS = 60.0
+RATE_LIMIT_PER_IP = 600
+RATE_LIMIT_PER_DEVICE = 12
+_rate_buckets: dict[str, deque[float]] = {}
+_rate_lock = threading.Lock()
 
 ERROR_EVENTS = {
     "error",
@@ -141,6 +147,28 @@ def _safe_direct_properties(event_name: str, raw) -> dict:
     return result
 
 
+def _within_rate_limit(scope: str, value: str, limit: int) -> bool:
+    """Bound receiver abuse without persisting raw IP/device identifiers."""
+    digest = hashlib.sha256(f"{scope}:{value}".encode()).hexdigest()
+    now = time.monotonic()
+    cutoff = now - RATE_WINDOW_SECONDS
+    with _rate_lock:
+        if len(_rate_buckets) > 10_000:
+            for key in list(_rate_buckets):
+                bucket = _rate_buckets[key]
+                while bucket and bucket[0] <= cutoff:
+                    bucket.popleft()
+                if not bucket:
+                    _rate_buckets.pop(key, None)
+        bucket = _rate_buckets.setdefault(digest, deque())
+        while bucket and bucket[0] <= cutoff:
+            bucket.popleft()
+        if len(bucket) >= limit:
+            return False
+        bucket.append(now)
+        return True
+
+
 @app.post("/events")
 async def ingest(request: Request) -> JSONResponse:
     if INGEST_TOKEN and request.headers.get("x-ingest-token") != INGEST_TOKEN:
@@ -153,6 +181,14 @@ async def ingest(request: Request) -> JSONResponse:
     if not isinstance(events, list) or len(events) > 500:
         return JSONResponse({"error": "expected ≤500 events"}, status_code=400)
     device = body.get("device_id") if isinstance(body, dict) else None
+    client = getattr(request, "client", None)
+    client_host = getattr(client, "host", "unknown")
+    if not _within_rate_limit("ip", str(client_host), RATE_LIMIT_PER_IP):
+        return JSONResponse({"error": "rate limit"}, status_code=429)
+    if isinstance(device, str) and device and not _within_rate_limit(
+        "device", device, RATE_LIMIT_PER_DEVICE
+    ):
+        return JSONResponse({"error": "rate limit"}, status_code=429)
     now = time.time()
     rows = []
     rejected = 0
@@ -703,4 +739,5 @@ if __name__ == "__main__":
             flush=True,
         )
     # Только loopback: наружу модуль ходит через Caddy (контракт §4).
-    uvicorn.run(app, host="127.0.0.1", port=PORT)
+    # Analytics never needs durable source IPs; disable per-request access logs.
+    uvicorn.run(app, host="127.0.0.1", port=PORT, access_log=False)

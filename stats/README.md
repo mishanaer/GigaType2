@@ -17,8 +17,8 @@ STATS_PORT=9902 .venv/bin/python server.py    # http://127.0.0.1:9902
 Receiver повторно проверяет event/property allowlist, требует `event_id`,
 отбрасывает PII/free-form payload и дедуплицирует запись. Вшитый в desktop
 project key — барьер от случайного трафика, а не секрет от владельца клиента;
-периметр дополнительно ограничивает тело запроса, а аномальный поток нужно
-ограничивать на reverse proxy.
+периметр ограничивает тело запроса, а receiver — частоту по непостоянным хэшам
+IP/device без записи исходных идентификаторов.
 
 Метрики и знаменатели зафиксированы в [`PRODUCT_METRICS.md`](PRODUCT_METRICS.md).
 `GET /product?days=N` отдаёт value, funnel, retention, quality, release health

@@ -32,16 +32,16 @@ properties. Храним не этот сырой payload, а только 45.8k
 событий и явный allowlist properties. Получившаяся база — 32.8 MB. `$ip`,
 dictated text и добавленная PostHog метаинформация не переносятся.
 
-## Общий конверт
+## Контракт конверта
 
-Каждый продукт нормализует событие в одну модель:
+Каждый продукт использует одинаковый минимальный API-конверт, но хранит его
+в собственной схеме:
 
 - `event_id` — обязательный idempotency key;
-- `occurred_at` и серверный `received_at`;
-- `anonymous_actor_id` (install/device, не человек);
-- опциональный `session_id`;
-- `event_name`, `schema_version`, `app_version`, `platform`, `channel`;
-- `source` (`direct`, `posthog_backfill`, `import`);
+- `ts` — время события с серверным clamp некорректных часов;
+- `device_id` — анонимный install/device, не человек;
+- `name`, `contract_version`, `app_version`, `platform`, `channel`;
+- опциональные `session_id` и `source`;
 - allowlisted product-specific `properties`.
 
 Поле `product` в live SQLite не нужно: граница продукта задаётся модулем и
@@ -101,6 +101,29 @@ secrets и review любых изменений workflow. Если это неп
   запросом к backup/cold archive.
 - Event-level retention: начать с 13 месяцев; суточные агрегаты хранить дольше.
   Менять срок только после определения юридической/продуктовой потребности.
+
+## Диск или Yandex Object Storage
+
+На сервере сейчас свободно 101.8 GiB. Проверенный online-backup всех Traction
+SQLite после импорта GigaType занимает 19.0 MiB в gzip; 30 текущих ежедневных
+копий при неизменном размере — около 0.56 GiB. Поэтому для ёмкости Object
+Storage сейчас не нужен: рабочие базы и локальные backups остаются на диске.
+
+Object Storage имеет смысл только как защита от потери VM/диска. На
+2026-07-23 STANDARD стоит 2.376 ₽ за GiB-месяц с НДС, первый 1 GiB, первые
+10,000 записей и 100,000 чтений в месяц бесплатны:
+https://yandex.cloud/ru/docs/storage/pricing
+
+- текущий объём backups: 0 ₽/месяц;
+- если зеркалировать все 30 ежедневных копий и текущий поток/сжатие сохранятся,
+  через год получится около 10.8 GiB, то есть примерно 23 ₽/месяц;
+- если держать off-host только 5 недельных копий, прогноз через год —
+  около 1.8 GiB, то есть примерно 2 ₽/месяц.
+
+Это оценки capacity planning, а не счёт: они линейно продолжают текущие
+2.3 GiB raw growth/year и текущий коэффициент gzip. Решение на сейчас —
+оставить 30 daily на диске; когда потребуется disaster recovery, добавить по
+5 weekly off-host копий отдельно для каждого продукта.
 
 ## Когда мигрировать с SQLite
 
