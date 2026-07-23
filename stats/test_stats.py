@@ -36,6 +36,7 @@ def event(days_ago, device, name, event_id, **properties):
 
 class ProductMetricsTest(unittest.TestCase):
     def setUp(self):
+        server._event_snapshot = None
         server._db.execute("DELETE FROM events")
         server._db.commit()
         server._product_cache.clear()
@@ -119,6 +120,14 @@ class ProductMetricsTest(unittest.TestCase):
 
             server._product_payload(7, NOW)
             self.assertEqual(calls, [7.0, 7.0])
+
+    def test_product_windows_share_one_parsed_event_snapshot(self):
+        snapshot = [{"ts": NOW, "device_id": "a", "name": "app_opened"}]
+        with patch.object(server, "_query_events", return_value=snapshot) as query:
+            first = server._read_events(until=NOW)
+            second = server._read_events(until=NOW + 1)
+        self.assertIs(first, second)
+        query.assert_called_once_with(until=NOW)
 
     def test_event_id_and_legacy_overlap_are_deduplicated(self):
         canonical = event(1, "a", "dictation_finished", "same", outcome="succeeded", audio_duration_ms=5000, final_output_words=10)

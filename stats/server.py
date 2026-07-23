@@ -57,6 +57,9 @@ _db_lock = threading.RLock()
 PRODUCT_CACHE_TTL_SECONDS = 90.0
 _product_cache: dict[float, tuple[float, dict]] = {}
 _product_cache_lock = threading.Lock()
+EVENT_SNAPSHOT_TTL_SECONDS = 90.0
+_event_snapshot: tuple[float, float, list[dict]] | None = None
+_event_snapshot_lock = threading.Lock()
 RATE_WINDOW_SECONDS = 60.0
 RATE_LIMIT_PER_IP = 600
 RATE_LIMIT_PER_DEVICE = 12
@@ -226,6 +229,12 @@ async def ingest(request: Request) -> JSONResponse:
         )
     with _db_lock:
         inserted = insert_events(_db, rows)
+    if inserted:
+        global _event_snapshot
+        with _event_snapshot_lock:
+            _event_snapshot = None
+        with _product_cache_lock:
+            _product_cache.clear()
     return JSONResponse(
         {
             "ok": True,
@@ -248,7 +257,7 @@ def _num(v) -> float | None:
     return float(v) if math.isfinite(v) else None
 
 
-def _read_events(since: float | None = None, until: float | None = None) -> list[dict]:
+def _query_events(since: float | None = None, until: float | None = None) -> list[dict]:
     clauses, params = [], []
     if since is not None:
         clauses.append("ts > ?")
@@ -282,6 +291,29 @@ def _read_events(since: float | None = None, until: float | None = None) -> list
             }
         )
     return events
+
+
+def _read_events(since: float | None = None, until: float | None = None) -> list[dict]:
+    """Read events, sharing one parsed all-history snapshot across 1/7/30.
+
+    Windowed timeseries reads stay uncached. Product calculations filter the
+    immutable list in memory and may lag new ingest by at most the explicit
+    snapshot TTL.
+    """
+    if since is not None or until is None:
+        return _query_events(since, until)
+
+    global _event_snapshot
+    with _event_snapshot_lock:
+        monotonic_now = time.monotonic()
+        if (
+            _event_snapshot is not None
+            and monotonic_now - _event_snapshot[0] < EVENT_SNAPSHOT_TTL_SECONDS
+        ):
+            return _event_snapshot[2]
+        events = _query_events(until=until)
+        _event_snapshot = (time.monotonic(), until, events)
+        return events
 
 
 def _dictation_record(event: dict) -> dict | None:
