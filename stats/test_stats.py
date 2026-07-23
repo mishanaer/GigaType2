@@ -78,6 +78,7 @@ class ProductMetricsTest(unittest.TestCase):
             "dau": 0,
             "wau": 1,
             "mau": 3,
+            "sessions_per_dau": None,
         })
 
     def test_overview_uses_moscow_day_iso_week_and_calendar_month(self):
@@ -90,6 +91,26 @@ class ProductMetricsTest(unittest.TestCase):
                 "name": "app_opened",
                 "event_id": "current-day",
                 "properties": {},
+            },
+            {
+                "ts": datetime(2026, 7, 8, 7, 0, tzinfo=timezone.utc).timestamp(),
+                "device_id": "current-day",
+                "name": "dictation_finished",
+                "event_id": "current-day-session-1",
+                "properties": {
+                    "outcome": "succeeded",
+                    "audio_duration_ms": 2000,
+                },
+            },
+            {
+                "ts": datetime(2026, 7, 8, 8, 0, tzinfo=timezone.utc).timestamp(),
+                "device_id": "current-day",
+                "name": "dictation_finished",
+                "event_id": "current-day-session-2",
+                "properties": {
+                    "outcome": "succeeded",
+                    "audio_duration_ms": 3000,
+                },
             },
             {
                 # Monday of the current ISO week.
@@ -116,7 +137,7 @@ class ProductMetricsTest(unittest.TestCase):
                 "properties": {},
             },
         ]
-        self.assertEqual(insert_events(server._db, rows), 4)
+        self.assertEqual(insert_events(server._db, rows), 6)
 
         product = server._product_payload(1, calendar_now)
 
@@ -125,6 +146,11 @@ class ProductMetricsTest(unittest.TestCase):
         self.assertEqual(product["overview"]["wau"], 2)
         self.assertEqual(product["overview"]["mau"], 3)
         self.assertEqual(product["overview"]["ever_used"], 4)
+        self.assertEqual(product["overview"]["sessions_per_dau"], 2.0)
+
+        with patch("server.time.time", return_value=calendar_now):
+            series = json.loads(server.timeseries(1).body)["series"]
+        self.assertEqual(series[-1]["sessions_per_dau"], 2.0)
 
     def test_summary_exposes_only_applicable_canonical_overview_metrics(self):
         self.seed()
@@ -132,8 +158,10 @@ class ProductMetricsTest(unittest.TestCase):
             response = server.summary(7)
         overview = json.loads(response.body)["overview"]
 
-        self.assertEqual(set(overview), {"ever_used", "dau", "wau", "mau"})
-        self.assertNotIn("sessions_per_dau", overview)
+        self.assertEqual(
+            set(overview),
+            {"ever_used", "dau", "wau", "mau", "sessions_per_dau"},
+        )
         self.assertNotIn("tools_per_dau", overview)
 
     def test_realtime_product_cache_serializes_fills_and_reuses_payload(self):

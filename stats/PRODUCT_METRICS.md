@@ -20,6 +20,7 @@ Raw event volume is a data-quality diagnostic, not a product KPI.
 | Primary | Active dictators (7d / 30d) | Distinct `install_id` with at least one eligible successful dictation in the window | One installation is the current user proxy |
 | Primary | 7-day activation | Mature first-open cohorts that complete an eligible successful dictation within 7 days | Exclude cohorts without a full 7-day observation window |
 | Driver | Successful dictations | Eligible `dictation_finished` events with `outcome=succeeded` | Do not infer success from a generic error count |
+| Driver | Sessions / DAU | Successful dictations on the current Moscow date / distinct active installations on that same date | An installation that opens the app but does not dictate remains in the DAU denominator |
 | Driver | Final words delivered | Sum of `final_output_words` for successful dictations | Raw words are a fallback only and coverage must be shown |
 | Driver | Repeat dictators | Active dictators with successful dictation on at least two Moscow dates in the window | A simple early repeat signal, not long-term retention |
 | Outcome | D1 / D7 / D30 dictation retention | First-success cohorts with another successful dictation on a later date within N days | Only mature cohorts enter each denominator |
@@ -61,6 +62,8 @@ the same first-open cohort, never raw event counts.
   Moscow calendar dates.
 - `event_id` is the cross-source deduplication key. The same telemetry event may
   arrive from a PostHog backfill and direct Traction ingest.
+- `Sessions / DAU` always uses the current Moscow date for both numerator and
+  denominator, independently of the selected 1/7/30-date product view.
 
 ## Availability
 
