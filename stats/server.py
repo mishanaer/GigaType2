@@ -65,10 +65,80 @@ ERROR_EVENTS = {
     "app_crashed",
 }
 
+COMMON_INGEST_PROPERTIES = {
+    "event_id",
+    "contract_version",
+    "app_version",
+    "app_channel",
+    "platform",
+    "platform_name",
+    "arch",
+}
+DIRECT_EVENT_PROPERTIES = {
+    "first_app_opened": set(),
+    "app_opened": set(),
+    "requirements_ready": {
+        "microphone_ready",
+        "macos_accessibility_ready",
+        "windows_paste_tool_ready",
+        "linux_paste_tool_ready",
+    },
+    "model_ready": {"source", "model", "provider"},
+    "dictation_finished": {
+        "session_id",
+        "activation_mode",
+        "trigger",
+        "provider",
+        "model",
+        "audio_duration_ms",
+        "raw_transcript_chars",
+        "raw_transcript_words",
+        "final_output_chars",
+        "final_output_words",
+        "output_method",
+        "output_status",
+        "success",
+        "outcome",
+        "total_latency_ms",
+        "transcription_latency_ms",
+        "output_latency_ms",
+        "error_area",
+        "error_code",
+        "reason",
+    },
+    "error_occurred": {"session_id", "error_area", "error_code", "reason"},
+    "main_process_error": {"error_area", "error_code", "reason"},
+    "renderer_process_gone": {"error_area", "error_code", "reason", "exit_code"},
+    "app_crashed": {"error_area", "error_code", "reason", "exit_code"},
+}
+
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "version": VERSION}
+    return {
+        "ok": True,
+        "version": VERSION,
+        "ingest_enabled": True,
+        "ingest_authenticated": bool(INGEST_TOKEN),
+        "contract_version": 2,
+    }
+
+
+def _safe_direct_properties(event_name: str, raw) -> dict:
+    if not isinstance(raw, dict):
+        return {}
+    allowed = COMMON_INGEST_PROPERTIES | DIRECT_EVENT_PROPERTIES[event_name]
+    result = {}
+    for key, value in raw.items():
+        if key not in allowed or value is None:
+            continue
+        if isinstance(value, bool):
+            result[key] = value
+        elif isinstance(value, (int, float)) and math.isfinite(value):
+            result[key] = value
+        elif isinstance(value, str):
+            result[key] = value[:500]
+    return result
 
 
 @app.post("/events")
@@ -85,29 +155,50 @@ async def ingest(request: Request) -> JSONResponse:
     device = body.get("device_id") if isinstance(body, dict) else None
     now = time.time()
     rows = []
+    rejected = 0
     for ev in events:
-        if not isinstance(ev, dict) or not ev.get("name"):
+        if not isinstance(ev, dict) or ev.get("name") not in DIRECT_EVENT_PROPERTIES:
+            rejected += 1
+            continue
+        event_name = ev["name"]
+        event_device = ev.get("device_id") or device
+        properties = _safe_direct_properties(event_name, ev.get("properties"))
+        event_id = ev.get("event_id") or properties.get("event_id")
+        if not isinstance(event_device, str) or not event_device.strip():
+            rejected += 1
+            continue
+        if not isinstance(event_id, str) or not event_id.strip():
+            rejected += 1
             continue
         try:
             timestamp = float(ev.get("ts") or now)
         except (TypeError, ValueError):
+            rejected += 1
             continue
         # NaN/inf or a far-future timestamp must not poison every time window.
         if not math.isfinite(timestamp) or not (0 < timestamp < now + 86400):
             timestamp = now
-        properties = ev.get("properties") if isinstance(ev.get("properties"), dict) else {}
+        properties["event_id"] = event_id
         rows.append(
             {
                 "ts": timestamp,
-                "device_id": ev.get("device_id") or device or "",
-                "name": ev["name"],
+                "device_id": event_device,
+                "name": event_name,
                 "properties": properties,
-                "event_id": ev.get("event_id") or properties.get("event_id") or "",
+                "event_id": event_id,
             }
         )
     with _db_lock:
         inserted = insert_events(_db, rows)
-    return JSONResponse({"ok": True, "ingested": inserted, "duplicates": len(rows) - inserted})
+    return JSONResponse(
+        {
+            "ok": True,
+            "accepted": len(rows),
+            "ingested": inserted,
+            "duplicates": len(rows) - inserted,
+            "rejected": rejected,
+        }
+    )
 
 
 def _window(days: float) -> tuple[float, float]:

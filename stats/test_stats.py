@@ -16,6 +16,7 @@ os.environ["STATS_DB"] = str(Path(_TEMP.name) / "events.db")
 
 import import_posthog  # noqa: E402
 import server  # noqa: E402
+import sync_posthog  # noqa: E402
 from storage import insert_events  # noqa: E402
 
 
@@ -185,6 +186,39 @@ class ProductMetricsTest(unittest.TestCase):
         finally:
             import_posthog.posthog_query = original
 
+    def test_posthog_bridge_requires_full_receiver_acceptance(self):
+        class FakeResponse:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def read(self):
+                return json.dumps(self.payload).encode()
+
+        rows = [{"name": "app_opened", "event_id": "one", "device_id": "device"}]
+        with patch(
+            "sync_posthog.urllib.request.urlopen",
+            return_value=FakeResponse(
+                {"ok": True, "accepted": 1, "ingested": 0, "duplicates": 1, "rejected": 0}
+            ),
+        ):
+            result = sync_posthog.send_batch("https://example.invalid/events", "key", rows)
+        self.assertEqual(result["duplicates"], 1)
+
+        with patch(
+            "sync_posthog.urllib.request.urlopen",
+            return_value=FakeResponse(
+                {"ok": True, "accepted": 0, "ingested": 0, "duplicates": 0, "rejected": 1}
+            ),
+        ):
+            with self.assertRaises(ValueError):
+                sync_posthog.send_batch("https://example.invalid/events", "key", rows)
+
     def test_ingest_clamps_poison_timestamps_and_keeps_json_valid(self):
         class FakeRequest:
             async def body(self):
@@ -202,10 +236,54 @@ class ProductMetricsTest(unittest.TestCase):
         response = asyncio.run(server.ingest(FakeRequest()))
         payload = json.loads(response.body)
         self.assertEqual(payload["ingested"], 2)
+        self.assertEqual(payload["accepted"], 2)
+        self.assertEqual(payload["rejected"], 1)
         rows = list(server._db.execute("SELECT ts, properties FROM events ORDER BY event_id"))
         self.assertEqual(len(rows), 2)
         self.assertTrue(all(math.isfinite(row[0]) and row[0] <= time.time() + 2 for row in rows))
-        self.assertEqual(json.loads(rows[0][1]), {})
+        self.assertEqual(json.loads(rows[0][1]), {"event_id": "clock-one"})
+
+    def test_ingest_enforces_server_side_event_and_property_allowlists(self):
+        class FakeRequest:
+            async def body(self):
+                return json.dumps(
+                    {
+                        "device_id": "device",
+                        "events": [
+                            {
+                                "name": "dictation_finished",
+                                "event_id": "allowed",
+                                "properties": {
+                                    "outcome": "succeeded",
+                                    "final_output_words": 12,
+                                    "dictated_text": "must never be stored",
+                                    "$ip": "must never be stored",
+                                    "model": {"nested": "not a scalar"},
+                                },
+                            },
+                            {"name": "arbitrary_event", "event_id": "blocked"},
+                            {"name": "app_opened"},
+                        ],
+                    }
+                ).encode()
+
+        payload = json.loads(asyncio.run(server.ingest(FakeRequest())).body)
+        self.assertEqual(payload, {
+            "ok": True,
+            "accepted": 1,
+            "ingested": 1,
+            "duplicates": 0,
+            "rejected": 2,
+        })
+        properties = json.loads(
+            server._db.execute(
+                "SELECT properties FROM events WHERE event_id = 'allowed'"
+            ).fetchone()[0]
+        )
+        self.assertEqual(
+            properties,
+            {"outcome": "succeeded", "final_output_words": 12, "event_id": "allowed"},
+        )
 
 
 if __name__ == "__main__":
