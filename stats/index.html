@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GigaType · product metrics</title>
+<style>
+  :root { color-scheme: light; --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b;
+    --ink-2:#52514e; --muted:#898781; --border:rgba(11,11,11,.1); --accent:#2a78d6;
+    --good:#238636; --warn:#b66a00; }
+  @media (prefers-color-scheme: dark) { :root { color-scheme:dark; --page:#0d0d0d;
+    --surface:#1a1a19; --ink:#fff; --ink-2:#c3c2b7; --muted:#898781;
+    --border:rgba(255,255,255,.1); --accent:#3987e5; --good:#4ac26b; --warn:#d29922; } }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:22px 26px 44px; background:var(--page); color:var(--ink);
+    font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  main { max-width:1120px; margin:auto; }
+  header { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
+  h1 { font-size:18px; margin:0 0 2px; }
+  h2 { font-size:13px; margin:0; }
+  .sub,.note { color:var(--muted); font-size:12px; }
+  .filters { display:flex; gap:6px; }
+  button { font:12px/1 inherit; padding:6px 12px; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface); color:var(--ink-2); cursor:pointer; }
+  button[aria-pressed="true"] { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .section-title { margin:20px 0 8px; display:flex; align-items:baseline; gap:8px; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:10px; }
+  .tile,.card { background:var(--surface); border:1px solid var(--border); border-radius:12px; }
+  .tile { padding:12px 14px; min-height:78px; }
+  .tile .v { font-size:23px; font-weight:650; font-variant-numeric:tabular-nums; }
+  .tile .l { color:var(--ink-2); font-size:11px; margin-top:1px; }
+  .tile .n { color:var(--muted); font-size:10px; margin-top:3px; }
+  .grid2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+  .card { padding:13px 14px; min-width:0; }
+  .card-head { display:flex; justify-content:space-between; gap:8px; margin-bottom:12px; }
+  .funnel { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .step .value { font-size:20px; font-weight:650; font-variant-numeric:tabular-nums; }
+  .step .label { color:var(--ink-2); font-size:11px; }
+  .track { height:5px; background:var(--border); border-radius:9px; margin-top:7px; overflow:hidden; }
+  .fill { height:100%; background:var(--accent); border-radius:inherit; }
+  .chart svg { display:block; width:100%; height:170px; overflow:visible; }
+  .bar { fill:var(--accent); }
+  .bar-hit { fill:transparent; }
+  .grid-line { stroke:var(--border); stroke-width:1; }
+  .tick { fill:var(--muted); font-size:9px; }
+  .empty { color:var(--muted); padding:42px 0; text-align:center; font-size:12px; }
+  table { width:100%; border-collapse:collapse; margin-top:4px; }
+  th,td { text-align:right; padding:6px 7px; border-bottom:1px solid var(--border);
+    font-size:11px; font-variant-numeric:tabular-nums; }
+  th { color:var(--muted); font-weight:500; }
+  th:first-child,td:first-child { text-align:left; }
+  .signature { display:flex; justify-content:space-between; gap:10px; padding:5px 0;
+    border-bottom:1px solid var(--border); font:11px/1.4 ui-monospace,SFMono-Regular,monospace; }
+  details { margin-top:18px; color:var(--ink-2); font-size:12px; }
+  #tip { position:fixed; pointer-events:none; display:none; z-index:9; background:var(--surface);
+    border:1px solid var(--border); border-radius:8px; padding:6px 9px; font-size:11px;
+    box-shadow:0 4px 14px rgba(0,0,0,.12); }
+  .warning { color:var(--warn); }
+  @media (max-width:760px) { body { padding:16px; } header { flex-direction:column; }
+    .grid2 { grid-template-columns:1fr; } .funnel { grid-template-columns:repeat(2,1fr); } }
+</style>
+</head>
+<body><main>
+  <header>
+    <div><h1>GigaType · product metrics</h1><div class="sub" id="sub">loading…</div></div>
+    <div class="filters" role="group" aria-label="Period" id="filters">
+      <button data-days="1">Today</button><button data-days="7" aria-pressed="true">7 dates</button><button data-days="30">30 dates</button>
+    </div>
+  </header>
+
+  <div class="section-title"><h2>Value delivered</h2><span class="note">successful, ≥1s dictations</span></div>
+  <section class="tiles" id="value-tiles"></section>
+
+  <div class="section-title"><h2>First-value funnel</h2><span class="note">distinct installs first opened in the window</span></div>
+  <section class="card"><div class="funnel" id="funnel"></div><div class="note" id="activation-note"></div></section>
+
+  <div class="section-title"><h2>Usage over time</h2><span class="note">Moscow dates</span></div>
+  <section class="grid2">
+    <div class="card chart"><div class="card-head"><h2>Active dictators</h2><span class="note">unique / day</span></div><div id="c-dictators"></div></div>
+    <div class="card chart"><div class="card-head"><h2>Successful dictations</h2><span class="note">count / day</span></div><div id="c-dictations"></div></div>
+  </section>
+
+  <div class="section-title"><h2>Retention &amp; quality</h2></div>
+  <section class="grid2">
+    <div class="card"><div class="card-head"><h2>Dictation retention</h2><span class="note">return within N days</span></div><div class="tiles" id="retention"></div></div>
+    <div class="card"><div class="card-head"><h2>Guardrails</h2><span class="note">canonical finishes only</span></div><div class="tiles" id="quality"></div></div>
+  </section>
+
+  <div class="section-title"><h2>Release health &amp; errors</h2></div>
+  <section class="grid2">
+    <div class="card"><div class="card-head"><h2>App versions</h2><span class="note">small samples are not hidden</span></div><div id="versions"></div></div>
+    <div class="card"><div class="card-head"><h2>Top error signatures</h2><span class="note" id="error-note"></span></div><div id="errors"></div></div>
+  </section>
+
+  <details><summary>Data coverage and daily table</summary><div class="note" id="coverage"></div><div id="table"></div></details>
+  <div id="tip"></div>
+</main>
+<script>
+'use strict';
+let days = 7;
+const $ = id => document.getElementById(id);
+const esc = value => String(value).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[c]));
+const fmt = value => value == null || !Number.isFinite(+value) ? '—' : +value >= 1000000 ? (+value/1000000).toFixed(1)+'M' : +value >= 10000 ? Math.round(+value/1000)+'k' : +value >= 1000 ? (+value/1000).toFixed(1)+'k' : String(Math.round(+value));
+const pct = value => value == null || !Number.isFinite(+value) ? '—' : (+value*100).toFixed(1)+'%';
+const ms = value => value == null || !Number.isFinite(+value) ? '—' : +value >= 1000 ? (+value/1000).toFixed(1)+'s' : Math.round(+value)+'ms';
+const tile = (label,value,note='') => `<div class="tile"><div class="v">${esc(value)}</div><div class="l">${esc(label)}</div>${note?`<div class="n">${esc(note)}</div>`:''}</div>`;
+
+function barChart(el, series, key) {
+  if (!series.length || !series.some(row => row[key] > 0)) { el.innerHTML='<div class="empty">no data yet</div>'; return; }
+  const W=600,H=170,padB=18,padT=7,max=Math.max(...series.map(row => row[key] || 0));
+  const slot=W/series.length,gap=Math.min(3,slot*.12),bw=Math.max(1,Math.min(slot-gap,42));
+  const y=value => padT+(H-padB-padT)*(1-value/max);
+  let svg=`<line class="grid-line" x1="0" y1="${H-padB}" x2="${W}" y2="${H-padB}"/>`;
+  series.forEach((row,index) => {
+    const x=slot*index+(slot-bw)/2,top=y(row[key]||0),height=Math.max(H-padB-top,row[key]>0?2:0);
+    svg+=`<rect class="bar" x="${x}" y="${H-padB-height}" width="${bw}" height="${height}" rx="${Math.min(4,bw/2)}"/>`;
+    svg+=`<rect class="bar-hit" x="${slot*index}" y="0" width="${slot}" height="${H-padB}" data-day="${esc(row.day)}" data-v="${row[key]||0}"/>`;
+    if(index%Math.ceil(series.length/7)===0) svg+=`<text class="tick" x="${slot*index+slot/2}" y="${H-4}" text-anchor="middle">${esc(row.day.slice(5))}</text>`;
+  });
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img">${svg}</svg>`;
+  el.querySelectorAll('.bar-hit').forEach(hit => {
+    hit.addEventListener('mousemove', event => { const tip=$('tip'); tip.style.display='block'; tip.innerHTML=`${esc(hit.dataset.day)} · <b>${fmt(+hit.dataset.v)}</b>`; tip.style.left=Math.min(event.clientX+12,innerWidth-130)+'px'; tip.style.top=(event.clientY-34)+'px'; });
+    hit.addEventListener('mouseleave',()=>{$('tip').style.display='none';});
+  });
+}
+
+function renderFunnel(funnel) {
+  const first=funnel.first_opened || 0;
+  const steps=[['First opened',funnel.first_opened],['Requirements ready',funnel.requirements_ready],['Model ready',funnel.model_ready],['First success',funnel.first_success]];
+  $('funnel').innerHTML=steps.map(([label,value])=>`<div class="step"><div class="value">${fmt(value)}</div><div class="label">${esc(label)} · ${first?pct(value/first):'—'}</div><div class="track"><div class="fill" style="width:${first?Math.min(100,value/first*100):0}%"></div></div></div>`).join('');
+  $('activation-note').textContent=funnel.activation_7d_cohort ? `7-day activation: ${pct(funnel.activation_7d)} · ${fmt(funnel.activation_7d_cohort)} mature first-open installs` : '7-day activation: waiting for a mature cohort';
+}
+
+async function load() {
+  try {
+    const [summary,product,timeseries]=await Promise.all([
+      fetch(`summary?days=${days}`,{cache:'no-store'}).then(r=>r.json()),
+      fetch(`product?days=${days}`,{cache:'no-store'}).then(r=>r.json()),
+      fetch(`timeseries?days=${days}`,{cache:'no-store'}).then(r=>r.json()),
+    ]);
+    const win=product.window_days===1?'today MSK':`${product.window_days} Moscow dates`;
+    $('sub').textContent=`updated ${product.updated_at} · window ${win}`;
+    $('value-tiles').innerHTML=
+      tile(`Active dictators ${win}`,fmt(product.active_dictators),`${fmt(product.repeat_dictators)} used on 2+ days`)+
+      tile(`Successful dictations ${win}`,fmt(product.successful_dictations),`${product.dictations_per_active_dictator?.toFixed(1)||'—'} per active dictator`)+
+      tile('Sessions / DAU today MSK',product.overview.sessions_per_dau?.toFixed(2)||'—','successful dictations / active device')+
+      tile(`Words delivered ${win}`,fmt(product.words_delivered),`${product.audio_hours.toFixed(1)}h recorded`)+
+      tile('Eligible success rate',pct(product.quality.success_rate),`${fmt(product.quality.eligible_finishes)} completed attempts`)+
+      tile('Latency p50',ms(product.quality.latency_p50_ms),`p90 ${ms(product.quality.latency_p90_ms)}`)+
+      tile(`Active devices ${win}`,fmt(product.active_devices),`${fmt(product.installs)} seen all-time`);
+    renderFunnel(product.funnel);
+    barChart($('c-dictators'),timeseries.series||[],'dictators');
+    barChart($('c-dictations'),timeseries.series||[],'dictations');
+    $('retention').innerHTML=['d1','d7','d30'].map(key=>{const row=product.retention[key];return tile(key.toUpperCase(),pct(row.rate),`${fmt(row.returned)} / ${fmt(row.cohort)} mature`);}).join('');
+    $('quality').innerHTML=
+      tile('Success',pct(product.quality.success_rate),`${fmt(product.quality.eligible_finishes)} attempts`)+
+      tile('Latency p90',ms(product.quality.latency_p90_ms),`${fmt(product.quality.latency_sample)} samples`)+
+      tile('Clipboard fallback',pct(product.quality.clipboard_fallback_rate),'of known successful outputs');
+    const versions=product.release_health||[];
+    $('versions').innerHTML=versions.length?`<table><tr><th>version</th><th>devices</th><th>attempts</th><th>success</th><th>errors</th></tr>${versions.map(row=>`<tr><td>${esc(row.version)}</td><td>${fmt(row.devices)}</td><td>${fmt(row.attempts)}</td><td>${pct(row.success_rate)}</td><td>${fmt(row.errors)}</td></tr>`).join('')}</table>`:'<div class="empty">no version data</div>';
+    $('error-note').textContent=`${fmt(product.errors.count)} events · ${fmt(product.errors.affected_devices)} devices`;
+    $('errors').innerHTML=(product.errors.top_signatures||[]).map(row=>`<div class="signature"><span>${esc(row.signature)}</span><b>${fmt(row.count)}</b></div>`).join('')||'<div class="empty">no errors</div>';
+    const c=product.coverage;
+    $('coverage').innerHTML=`Canonical finishes: <b>${fmt(c.canonical_finishes)}</b> · legacy success-only: <b>${fmt(c.legacy_success_only)}</b> · duration: <b>${pct(c.duration)}</b> · latency: <b>${pct(c.latency)}</b> · event id: <b>${pct(c.event_id)}</b>${c.canonical_finishes===0?' · <span class="warning">success rate is unavailable until canonical finishes arrive or PostHog is backfilled</span>':''}`;
+    const series=timeseries.series||[];
+    $('table').innerHTML=series.length?`<table><tr><th>day</th><th>dictators</th><th>successes</th><th>sessions/DAU</th><th>attempts</th><th>success</th><th>words</th><th>devices</th><th>errors</th></tr>${series.map(row=>`<tr><td>${esc(row.day)}</td><td>${fmt(row.dictators)}</td><td>${fmt(row.dictations)}</td><td>${row.sessions_per_dau==null?'—':(+row.sessions_per_dau).toFixed(2)}</td><td>${fmt(row.attempts)}</td><td>${pct(row.success_rate)}</td><td>${fmt(row.words)}</td><td>${fmt(row.devices)}</td><td>${fmt(row.errors)}</td></tr>`).join('')}</table>`:'no data yet';
+  } catch(error) { $('sub').textContent='load failed: '+error; }
+}
+
+$('filters').addEventListener('click',event=>{const button=event.target.closest('button[data-days]');if(!button)return;days=+button.dataset.days;document.querySelectorAll('#filters button').forEach(item=>item.setAttribute('aria-pressed',String(item===button)));load();});
+load();
+</script></body></html>

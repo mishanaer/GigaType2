@@ -1,0 +1,29 @@
+name: Sync PostHog statistics to Traction
+
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: gigatype-posthog-stats-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Forward allowlisted events
+        env:
+          POSTHOG_BASE_URL: https://eu.posthog.com
+          POSTHOG_PROJECT_ID: "214255"
+          POSTHOG_PERSONAL_API_KEY: ${{ secrets.GIGATYPE_POSTHOG_READ_KEY }}
+          TRACTION_INGEST_URL: https://stats.multitool.works/p/gigatype/events
+          TRACTION_INGEST_TOKEN: ${{ secrets.GIGATYPE_STATS_INGEST_TOKEN }}
+        run: python3 stats/sync_posthog.py --since-hours 36 --settle-minutes 5
