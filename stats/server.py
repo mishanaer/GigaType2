@@ -47,6 +47,7 @@ VERSION = VERSION_FILE.read_text().strip() if VERSION_FILE.exists() else "dev"
 app = FastAPI()
 
 _db = connect(DB_PATH, check_same_thread=False)
+_db_lock = threading.RLock()
 
 # Traction asks for the 1/7/30 day summaries concurrently. Product aggregation
 # includes legacy/canonical dedupe, cohorts and quality metrics, so three copies
@@ -104,7 +105,8 @@ async def ingest(request: Request) -> JSONResponse:
                 "event_id": ev.get("event_id") or properties.get("event_id") or "",
             }
         )
-    inserted = insert_events(_db, rows)
+    with _db_lock:
+        inserted = insert_events(_db, rows)
     return JSONResponse({"ok": True, "ingested": inserted, "duplicates": len(rows) - inserted})
 
 
@@ -128,10 +130,15 @@ def _read_events(since: float | None = None, until: float | None = None) -> list
         clauses.append("ts <= ?")
         params.append(until)
     where = " WHERE " + " AND ".join(clauses) if clauses else ""
-    rows = _db.execute(
-        "SELECT ts, device_id, name, properties, event_id FROM events" + where + " ORDER BY ts",
-        params,
-    )
+    with _db_lock:
+        rows = list(
+            _db.execute(
+                "SELECT ts, device_id, name, properties, event_id FROM events"
+                + where
+                + " ORDER BY ts",
+                params,
+            )
+        )
     events = []
     for ts, device, name, raw_properties, event_id in rows:
         try:
@@ -473,7 +480,10 @@ def summary(days: float = 1.0) -> JSONResponse:
     product = _product_payload(days)
     window_days = product["window_days"]
     since = time.time() - window_days * 86400
-    events = _db.execute("SELECT COUNT(*) FROM events WHERE ts > ?", (since,)).fetchone()[0]
+    with _db_lock:
+        events = _db.execute(
+            "SELECT COUNT(*) FROM events WHERE ts > ?", (since,)
+        ).fetchone()[0]
     win = "24h" if abs(window_days - 1.0) < 1e-9 else f"{window_days:g}d"
     rate = product["quality"]["success_rate"]
     payload = {
