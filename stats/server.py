@@ -31,6 +31,7 @@ import time
 from collections import Counter, defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import uvicorn
 from fastapi import FastAPI, Request
@@ -44,6 +45,7 @@ DB_PATH = Path(os.environ.get("STATS_DB", HERE / "data" / "events.db"))
 INGEST_TOKEN = os.environ.get("STATS_INGEST_TOKEN", "")
 VERSION_FILE = HERE / "VERSION"
 VERSION = VERSION_FILE.read_text().strip() if VERSION_FILE.exists() else "dev"
+REPORTING_TZ = ZoneInfo("Europe/Moscow")
 
 app = FastAPI()
 
@@ -246,9 +248,28 @@ async def ingest(request: Request) -> JSONResponse:
     )
 
 
-def _window(days: float) -> tuple[float, float]:
-    window_days = max(0.04, min(float(days), 365.0))
-    return window_days, time.time() - window_days * 86400.0
+def _window(days: float, now: float | None = None) -> tuple[float, float]:
+    """Return N Moscow calendar dates, including the current date.
+
+    ``days=1`` starts at 00:00 MSK today instead of an arbitrary trailing
+    24-hour boundary. Larger windows start at 00:00 MSK N-1 dates ago.
+    """
+    window_days = max(1, min(int(math.ceil(float(days))), 365))
+    current = datetime.fromtimestamp(time.time() if now is None else now, REPORTING_TZ)
+    start_date = current.date() - timedelta(days=window_days - 1)
+    start = datetime.combine(start_date, datetime.min.time(), REPORTING_TZ)
+    return float(window_days), start.timestamp()
+
+
+def _overview_period_starts(now: float) -> dict[str, float]:
+    """Canonical Traction periods in the shared Europe/Moscow timezone."""
+    current = datetime.fromtimestamp(now, REPORTING_TZ)
+    day_start = current.replace(hour=0, minute=0, second=0, microsecond=0)
+    return {
+        "dau": day_start.timestamp(),
+        "wau": (day_start - timedelta(days=day_start.weekday())).timestamp(),
+        "mau": day_start.replace(day=1).timestamp(),
+    }
 
 
 def _num(v) -> float | None:
@@ -260,7 +281,7 @@ def _num(v) -> float | None:
 def _query_events(since: float | None = None, until: float | None = None) -> list[dict]:
     clauses, params = [], []
     if since is not None:
-        clauses.append("ts > ?")
+        clauses.append("ts >= ?")
         params.append(since)
     if until is not None:
         clauses.append("ts <= ?")
@@ -402,7 +423,7 @@ def _percentile(values: list[float], percentile: float) -> float | None:
 
 
 def _day(timestamp: float) -> str:
-    return datetime.fromtimestamp(timestamp, timezone.utc).strftime("%Y-%m-%d")
+    return datetime.fromtimestamp(timestamp, REPORTING_TZ).strftime("%Y-%m-%d")
 
 
 def _is_first_open(event: dict) -> bool:
@@ -438,23 +459,24 @@ def _retention(successes: list[dict], since: float, now: float, days: int) -> di
 
 
 def _compute_product_payload(days: float, now: float) -> dict:
-    window_days = max(0.04, min(float(days), 365.0))
-    since = now - window_days * 86400
+    window_days, since = _window(days, now)
     all_events = _read_events(until=now)
-    window_events = [event for event in all_events if event["ts"] > since]
+    window_events = [event for event in all_events if event["ts"] >= since]
     records = _dedupe_legacy_dictations(
         [record for event in all_events if (record := _dictation_record(event)) is not None]
     )
-    window_records = [record for record in records if record["ts"] > since]
+    window_records = [record for record in records if record["ts"] >= since]
     successes = [record for record in records if record["success"]]
     window_successes = [record for record in window_records if record["success"]]
     all_devices = {event["device_id"] for event in all_events if event["device_id"]}
-    active_by_horizon = {
-        horizon: {
-            event["device_id"] for event in all_events
-            if event["device_id"] and event["ts"] > now - horizon * 86400
+    overview_starts = _overview_period_starts(now)
+    active_by_period = {
+        period: {
+            event["device_id"]
+            for event in all_events
+            if event["device_id"] and event["ts"] >= period_start
         }
-        for horizon in (1, 7, 30)
+        for period, period_start in overview_starts.items()
     }
     quality_eligible = [
         record for record in window_records if record["denominator_ready"] and record["eligible"]
@@ -472,7 +494,7 @@ def _compute_product_payload(days: float, now: float) -> dict:
         if event["device_id"] and _is_first_open(event):
             first_opens.setdefault(event["device_id"], event["ts"])
     cohort = {
-        device: first for device, first in first_opens.items() if since < first <= now
+        device: first for device, first in first_opens.items() if since <= first <= now
     }
     event_times = defaultdict(lambda: defaultdict(list))
     for event in all_events:
@@ -534,9 +556,9 @@ def _compute_product_payload(days: float, now: float) -> dict:
         "installs": len(all_devices),
         "overview": {
             "ever_used": len(all_devices),
-            "dau": len(active_by_horizon[1]),
-            "wau": len(active_by_horizon[7]),
-            "mau": len(active_by_horizon[30]),
+            "dau": len(active_by_period["dau"]),
+            "wau": len(active_by_period["wau"]),
+            "mau": len(active_by_period["mau"]),
         },
         "active_devices": len(active_devices),
         "active_dictators": len(active_dictators),
@@ -608,7 +630,7 @@ def _product_payload(days: float, now: float | None = None) -> dict:
     Explicit ``now`` values bypass the cache so tests and historical
     calculations remain deterministic.
     """
-    window_days = max(0.04, min(float(days), 365.0))
+    window_days, _ = _window(days, now)
     if now is not None:
         return _compute_product_payload(window_days, now)
 
@@ -638,12 +660,14 @@ def summary(days: float = 1.0) -> JSONResponse:
     «Сводную»; metrics[] — витрина GigaType на карточке «Обзора»."""
     product = _product_payload(days)
     window_days = product["window_days"]
-    since = time.time() - window_days * 86400
+    product_now = datetime.fromisoformat(product["updated_at"]).timestamp()
+    _, since = _window(window_days, product_now)
     with _db_lock:
         events = _db.execute(
-            "SELECT COUNT(*) FROM events WHERE ts > ?", (since,)
+            "SELECT COUNT(*) FROM events WHERE ts >= ? AND ts <= ?",
+            (since, product_now),
         ).fetchone()[0]
-    win = "24h" if abs(window_days - 1.0) < 1e-9 else f"{window_days:g}d"
+    win = "today MSK" if window_days == 1 else f"{window_days:g} Moscow dates"
     rate = product["quality"]["success_rate"]
     payload = {
         "updated_at": product["updated_at"],
@@ -671,8 +695,9 @@ def product(days: float = 7.0) -> JSONResponse:
 
 @app.get("/timeseries")
 def timeseries(days: float = 7.0) -> JSONResponse:
-    """Дневные корзины для графиков дашборда (UTC-сутки)."""
-    window_days, since = _window(days)
+    """Дневные корзины для графиков дашборда (московские даты)."""
+    now = time.time()
+    window_days, since = _window(days, now)
     events = _read_events(since=since)
     records = _dedupe_legacy_dictations(
         [record for event in events if (record := _dictation_record(event)) is not None]
@@ -712,8 +737,8 @@ def timeseries(days: float = 7.0) -> JSONResponse:
                 b["latencies"].append(record["latency_ms"])
     # Zero-fill calendar gaps: inactivity must look like a drop, not a visually
     # compressed series. One future day is tolerated by the ingest clock clamp.
-    start_day = datetime.fromtimestamp(since, timezone.utc).date()
-    end_day = datetime.now(timezone.utc).date()
+    start_day = datetime.fromtimestamp(since, REPORTING_TZ).date()
+    end_day = datetime.fromtimestamp(now, REPORTING_TZ).date()
     if buckets:
         end_day = max(end_day, date.fromisoformat(max(buckets)))
     series = []

@@ -22,8 +22,10 @@ IP/device без записи исходных идентификаторов.
 
 Метрики и знаменатели зафиксированы в [`PRODUCT_METRICS.md`](PRODUCT_METRICS.md).
 `GET /product?days=N` отдаёт value, funnel, retention, quality, release health
-и coverage; `/summary` сохраняет общий контракт Traction, `/timeseries` — UTC
-ряды для дашборда.
+и coverage; `/summary` сохраняет общий контракт Traction, `/timeseries` — ряды
+по московским датам для дашборда. Дневные окна календарные: `days=1`
+начинается в 00:00 MSK,
+а не ровно 24 часа назад.
 
 ## История без нового релиза
 

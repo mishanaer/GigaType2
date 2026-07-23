@@ -21,7 +21,7 @@ Raw event volume is a data-quality diagnostic, not a product KPI.
 | Primary | 7-day activation | Mature first-open cohorts that complete an eligible successful dictation within 7 days | Exclude cohorts without a full 7-day observation window |
 | Driver | Successful dictations | Eligible `dictation_finished` events with `outcome=succeeded` | Do not infer success from a generic error count |
 | Driver | Final words delivered | Sum of `final_output_words` for successful dictations | Raw words are a fallback only and coverage must be shown |
-| Driver | Repeat dictators | Active dictators with successful dictation on at least two UTC dates in the window | A simple early repeat signal, not long-term retention |
+| Driver | Repeat dictators | Active dictators with successful dictation on at least two Moscow dates in the window | A simple early repeat signal, not long-term retention |
 | Outcome | D1 / D7 / D30 dictation retention | First-success cohorts with another successful dictation on a later date within N days | Only mature cohorts enter each denominator |
 | Guardrail | Eligible-session success rate | Successful eligible finishes / all eligible finishes | Requires all finishes, not only successful ones |
 | Guardrail | End-to-end latency p50 / p90 | Percentiles of `total_latency_ms` on successful sessions | Report sample size and field coverage |
@@ -52,7 +52,13 @@ the same first-open cohort, never raw event counts.
   completed outcomes are eligible attempts.
 - `install_id` is the identity. PostHog `distinct_id` is only a fallback during
   historical import.
-- UTC dates are used consistently for daily activity and cohorts.
+- `Europe/Moscow` is the reporting timezone for daily activity and cohorts.
+  DAU is the distinct active installation count from 00:00 MSK on the current
+  date, WAU is the current ISO week from Monday 00:00 MSK, and MAU is the
+  current calendar month from its first date 00:00 MSK. These are partial
+  current periods, never trailing 24-hour/7-day/30-day windows. Product
+  seven- and 30-date views still include today plus the previous 6 or 29
+  Moscow calendar dates.
 - `event_id` is the cross-source deduplication key. The same telemetry event may
   arrive from a PostHog backfill and direct Traction ingest.
 

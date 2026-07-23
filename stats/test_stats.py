@@ -8,6 +8,7 @@ import tempfile
 import threading
 import time
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -78,6 +79,52 @@ class ProductMetricsTest(unittest.TestCase):
             "wau": 1,
             "mau": 3,
         })
+
+    def test_overview_uses_moscow_day_iso_week_and_calendar_month(self):
+        calendar_now = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc).timestamp()
+        rows = [
+            {
+                # 00:01 MSK on the current date.
+                "ts": datetime(2026, 7, 7, 21, 1, tzinfo=timezone.utc).timestamp(),
+                "device_id": "current-day",
+                "name": "app_opened",
+                "event_id": "current-day",
+                "properties": {},
+            },
+            {
+                # Monday of the current ISO week.
+                "ts": datetime(2026, 7, 6, 8, 0, tzinfo=timezone.utc).timestamp(),
+                "device_id": "current-week",
+                "name": "app_opened",
+                "event_id": "current-week",
+                "properties": {},
+            },
+            {
+                # Sunday of the previous ISO week, still in the current month.
+                "ts": datetime(2026, 7, 5, 8, 0, tzinfo=timezone.utc).timestamp(),
+                "device_id": "current-month",
+                "name": "app_opened",
+                "event_id": "current-month",
+                "properties": {},
+            },
+            {
+                # 23:59 MSK on the last date of the previous month.
+                "ts": datetime(2026, 6, 30, 20, 59, tzinfo=timezone.utc).timestamp(),
+                "device_id": "previous-month",
+                "name": "app_opened",
+                "event_id": "previous-month",
+                "properties": {},
+            },
+        ]
+        self.assertEqual(insert_events(server._db, rows), 4)
+
+        product = server._product_payload(1, calendar_now)
+
+        self.assertEqual(product["active_devices"], 1)
+        self.assertEqual(product["overview"]["dau"], 1)
+        self.assertEqual(product["overview"]["wau"], 2)
+        self.assertEqual(product["overview"]["mau"], 3)
+        self.assertEqual(product["overview"]["ever_used"], 4)
 
     def test_summary_exposes_only_applicable_canonical_overview_metrics(self):
         self.seed()
