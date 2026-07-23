@@ -143,6 +143,7 @@ async function load() {
     $('value-tiles').innerHTML=
       tile(`Active dictators ${win}`,fmt(product.active_dictators),`${fmt(product.repeat_dictators)} used on 2+ days`)+
       tile(`Successful dictations ${win}`,fmt(product.successful_dictations),`${product.dictations_per_active_dictator?.toFixed(1)||'—'} per active dictator`)+
+      tile('Sessions / DAU today MSK',product.overview.sessions_per_dau?.toFixed(2)||'—','successful dictations / active device')+
       tile(`Words delivered ${win}`,fmt(product.words_delivered),`${product.audio_hours.toFixed(1)}h recorded`)+
       tile('Eligible success rate',pct(product.quality.success_rate),`${fmt(product.quality.eligible_finishes)} completed attempts`)+
       tile('Latency p50',ms(product.quality.latency_p50_ms),`p90 ${ms(product.quality.latency_p90_ms)}`)+
@@ -162,7 +163,7 @@ async function load() {
     const c=product.coverage;
     $('coverage').innerHTML=`Canonical finishes: <b>${fmt(c.canonical_finishes)}</b> · legacy success-only: <b>${fmt(c.legacy_success_only)}</b> · duration: <b>${pct(c.duration)}</b> · latency: <b>${pct(c.latency)}</b> · event id: <b>${pct(c.event_id)}</b>${c.canonical_finishes===0?' · <span class="warning">success rate is unavailable until canonical finishes arrive or PostHog is backfilled</span>':''}`;
     const series=timeseries.series||[];
-    $('table').innerHTML=series.length?`<table><tr><th>day</th><th>dictators</th><th>successes</th><th>attempts</th><th>success</th><th>words</th><th>devices</th><th>errors</th></tr>${series.map(row=>`<tr><td>${esc(row.day)}</td><td>${fmt(row.dictators)}</td><td>${fmt(row.dictations)}</td><td>${fmt(row.attempts)}</td><td>${pct(row.success_rate)}</td><td>${fmt(row.words)}</td><td>${fmt(row.devices)}</td><td>${fmt(row.errors)}</td></tr>`).join('')}</table>`:'no data yet';
+    $('table').innerHTML=series.length?`<table><tr><th>day</th><th>dictators</th><th>successes</th><th>sessions/DAU</th><th>attempts</th><th>success</th><th>words</th><th>devices</th><th>errors</th></tr>${series.map(row=>`<tr><td>${esc(row.day)}</td><td>${fmt(row.dictators)}</td><td>${fmt(row.dictations)}</td><td>${row.sessions_per_dau==null?'—':(+row.sessions_per_dau).toFixed(2)}</td><td>${fmt(row.attempts)}</td><td>${pct(row.success_rate)}</td><td>${fmt(row.words)}</td><td>${fmt(row.devices)}</td><td>${fmt(row.errors)}</td></tr>`).join('')}</table>`:'no data yet';
   } catch(error) { $('sub').textContent='load failed: '+error; }
 }
 

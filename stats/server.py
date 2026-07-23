@@ -478,6 +478,11 @@ def _compute_product_payload(days: float, now: float) -> dict:
         }
         for period, period_start in overview_starts.items()
     }
+    dau = len(active_by_period["dau"])
+    successful_dictations_today = sum(
+        record["ts"] >= overview_starts["dau"] for record in successes
+    )
+    sessions_per_dau = successful_dictations_today / dau if dau else None
     quality_eligible = [
         record for record in window_records if record["denominator_ready"] and record["eligible"]
     ]
@@ -556,9 +561,10 @@ def _compute_product_payload(days: float, now: float) -> dict:
         "installs": len(all_devices),
         "overview": {
             "ever_used": len(all_devices),
-            "dau": len(active_by_period["dau"]),
+            "dau": dau,
             "wau": len(active_by_period["wau"]),
             "mau": len(active_by_period["mau"]),
+            "sessions_per_dau": sessions_per_dau,
         },
         "active_devices": len(active_devices),
         "active_dictators": len(active_dictators),
@@ -681,6 +687,14 @@ def summary(days: float = 1.0) -> JSONResponse:
             {"label": f"Active dictators {win}", "value": _fmt_int(product["active_dictators"])},
             {"label": f"Successful dictations {win}", "value": _fmt_int(product["successful_dictations"])},
             {"label": f"Words delivered {win}", "value": _fmt_int(product["words_delivered"])},
+            {
+                "label": "Sessions / DAU today MSK",
+                "value": (
+                    f"{product['overview']['sessions_per_dau']:.2f}"
+                    if product["overview"]["sessions_per_dau"] is not None
+                    else "—"
+                ),
+            },
             {"label": "Eligible success rate", "value": f"{rate * 100:.1f}%" if rate is not None else "—"},
         ],
     }
@@ -774,6 +788,11 @@ def timeseries(days: float = 7.0) -> JSONResponse:
                     else None
                 ),
                 "latency_p50_ms": _percentile(bucket["latencies"], 0.5),
+                "sessions_per_dau": (
+                    bucket["dictations"] / len(bucket["devices"])
+                    if bucket["devices"]
+                    else None
+                ),
             }
         )
         current_day += timedelta(days=1)
