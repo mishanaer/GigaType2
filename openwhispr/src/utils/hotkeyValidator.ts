@@ -68,6 +68,7 @@ const SPECIAL_KEYS = new Set(
     "Pause",
     "ScrollLock",
     "NumLock",
+    "CapsLock",
   ].concat(Array.from({ length: 24 }, (_, i) => `F${i + 1}`))
 );
 
@@ -159,8 +160,10 @@ const WINDOWS_RESERVED_SHORTCUTS = [
   "End",
   "PrintScreen",
   "Super+E",
+  "Super+A",
   "Super+R",
   "Super+L",
+  "Super+Space",
   "Super+D",
   "Super+Tab",
   "Super+I",
@@ -372,6 +375,7 @@ function normalizeKeyToken(part: string): string {
   if (lowered === "pagedown" || lowered === "pgdown") return "PageDown";
   if (lowered === "scrolllock") return "ScrollLock";
   if (lowered === "numlock") return "NumLock";
+  if (lowered === "capslock") return "CapsLock";
   if (lowered === "delete" || lowered === "del") return "Delete";
   if (lowered === "insert" || lowered === "ins") return "Insert";
   if (lowered === "space") return "Space";

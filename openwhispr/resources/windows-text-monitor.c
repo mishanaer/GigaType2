@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <wchar.h>
 
 #define COBJMACROS
 #include <windows.h>
@@ -37,6 +38,49 @@
 
 static volatile int running = 1;
 static const char BASE64_TABLE[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+static int is_start_surface_foreground(void) {
+    HWND window = GetForegroundWindow();
+    if (!window) return 0;
+
+    DWORD pid = 0;
+    GetWindowThreadProcessId(window, &pid);
+    if (!pid) return 0;
+
+    WCHAR process_path[MAX_PATH] = L"";
+    DWORD process_path_size = MAX_PATH;
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (process) {
+        QueryFullProcessImageNameW(process, 0, process_path, &process_path_size);
+        CloseHandle(process);
+    }
+
+    const WCHAR *process_name = wcsrchr(process_path, L'\\');
+    process_name = process_name ? process_name + 1 : process_path;
+    const WCHAR *start_processes[] = {
+        L"StartMenuExperienceHost.exe",
+        L"SearchHost.exe",
+        L"SearchApp.exe",
+        L"SearchUI.exe",
+        L"ShellExperienceHost.exe",
+    };
+    size_t process_count = sizeof(start_processes) / sizeof(start_processes[0]);
+    for (size_t i = 0; i < process_count; i++) {
+        if (_wcsicmp(process_name, start_processes[i]) == 0) return 1;
+    }
+
+    /* Older Windows builds can host Start directly inside explorer.exe. */
+    if (_wcsicmp(process_name, L"explorer.exe") == 0) {
+        WCHAR class_name[256] = L"";
+        if (GetClassNameW(window, class_name, 256) > 0 &&
+            (_wcsicmp(class_name, L"Windows.UI.Core.CoreWindow") == 0 ||
+             _wcsicmp(class_name, L"Shell_TrayWnd") == 0)) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
 
 void signal_handler(int sig) {
     (void)sig;
@@ -117,9 +161,15 @@ static BSTR read_text_pattern_value(IUIAutomationTextPattern *tp) {
     return text;
 }
 
-int main(void) {
+int main(int argc, char **argv) {
     signal(SIGTERM, signal_handler);
     signal(SIGINT, signal_handler);
+
+    if (argc > 1 && strcmp(argv[1], "--foreground-start-surface") == 0) {
+        printf("START_SURFACE:%d\n", is_start_surface_foreground());
+        fflush(stdout);
+        return 0;
+    }
 
     /* Read original text from stdin (consume but don't use) */
     char stdin_buf[4096];

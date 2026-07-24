@@ -309,8 +309,47 @@
     background: transparent;
   }
 
-  .golos-dictation-capsule:has(.golos-capsule-canvas[data-fallback="true"]) {
+  .golos-dictation-capsule[data-renderer-fallback="true"] .golos-capsule-canvas,
+  .golos-dictation-capsule:has(.golos-capsule-canvas[data-fallback="true"])
+    .golos-capsule-canvas {
     opacity: 0;
+  }
+
+  .golos-dictation-capsule[data-renderer-fallback="true"]::before {
+    content: "";
+    position: absolute;
+    inset: 3px;
+    border-radius: inherit;
+    background:
+      radial-gradient(circle at 28% 55%, rgb(120 92 255 / 78%), transparent 34%),
+      radial-gradient(circle at 72% 45%, rgb(31 194 255 / 72%), transparent 38%),
+      linear-gradient(100deg, #5b2ee8, #1ab6e8 52%, #9554ff);
+    filter: saturate(1.15);
+    animation: golos-capsule-fallback-pulse 1.2s ease-in-out infinite alternate;
+  }
+
+  .golos-dictation-capsule[data-renderer-fallback="true"][data-visual-state="thinking"]::before {
+    background:
+      radial-gradient(circle at 35% 50%, rgb(174 98 255 / 78%), transparent 38%),
+      radial-gradient(circle at 66% 50%, rgb(60 148 255 / 70%), transparent 42%),
+      linear-gradient(100deg, #7645e8, #347ce4 55%, #a34be2);
+  }
+
+  @keyframes golos-capsule-fallback-pulse {
+    from {
+      opacity: 0.72;
+      transform: scaleX(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .golos-dictation-capsule[data-renderer-fallback="true"]::before {
+      animation: none;
+    }
   }
 
   .appshots-loading-window,

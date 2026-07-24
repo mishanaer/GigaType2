@@ -87,22 +87,38 @@ test("uses Fn only when macOS assigns no system action", () => {
   assert.equal(getMacosDefaultHotkey(null), "RightOption");
 });
 
-test("manual Fn rejection returns before the selected hotkey is saved", () => {
+test("manual Fn selection is passed to the native hotkey registration path", () => {
   const source = fs.readFileSync(
     path.join(repoRoot, "src/components/settings/WalletSettingsCells.tsx"),
     "utf8"
   );
   const handlerStart = source.indexOf("const handleHotkeyChange");
-  const availabilityCheck = source.indexOf("await checkFnAvailability()", handlerStart);
-  const invalidCall = source.indexOf("handleHotkeyInvalid();", availabilityCheck);
-  const earlyReturn = source.indexOf("return;", invalidCall);
   const saveCall = source.indexOf("await onHotkeyChange(newHotkey);", handlerStart);
+  const handlerEnd = source.indexOf("const handleHotkeyBlur", handlerStart);
+  const handlerSource = source.slice(handlerStart, handlerEnd);
 
   assert.ok(handlerStart >= 0);
-  assert.ok(availabilityCheck > handlerStart);
-  assert.ok(invalidCall > availabilityCheck);
-  assert.ok(earlyReturn > invalidCall);
-  assert.ok(saveCall > earlyReturn);
+  assert.ok(saveCall > handlerStart);
+  assert.match(handlerSource, /isFnHotkeyAvailable/);
+  assert.doesNotMatch(handlerSource, /if\s*\(!isAvailable\)\s*\{\s*handleHotkeyInvalid/);
+});
+
+test("Caps Lock is captured as an assignable hotkey", () => {
+  const source = fs.readFileSync(
+    path.join(repoRoot, "src/components/ui/HotkeyInput.tsx"),
+    "utf8"
+  );
+  assert.match(source, /CapsLock:\s*"CapsLock"/);
+
+  const modifierSetStart = source.indexOf("const MODIFIER_CODES");
+  const modifierSetEnd = source.indexOf("]);", modifierSetStart);
+  assert.equal(source.slice(modifierSetStart, modifierSetEnd).includes('"CapsLock"'), false);
+
+  const validatorSource = fs.readFileSync(
+    path.join(repoRoot, "src/utils/hotkeyValidator.ts"),
+    "utf8"
+  );
+  assert.match(validatorSource, /"CapsLock"/);
 });
 
 test("onboarding applies the backend-resolved default when no preference exists", () => {

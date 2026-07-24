@@ -44,6 +44,11 @@ class WindowManager {
     this._pendingMeetingNoteNavigation = null;
     this.telemetryManager = null;
     this._onCheckForUpdates = null;
+    this.showDockIcon = true;
+    this._dockVisibilityPromise = Promise.resolve();
+    this._mainWindowRaiseTimers = new Set();
+    this._dictationPanelShowGeneration = 0;
+    this.ensureTrayHandler = null;
 
     app.on("before-quit", () => {
       this.isQuitting = true;
@@ -57,6 +62,36 @@ class WindowManager {
 
   setCheckForUpdatesHandler(fn) {
     this._onCheckForUpdates = fn;
+  }
+
+  setEnsureTrayHandler(fn) {
+    this.ensureTrayHandler = typeof fn === "function" ? fn : null;
+  }
+
+  setShowDockIcon(enabled) {
+    this.showDockIcon = process.platform === "darwin" ? Boolean(enabled) : true;
+    if (process.platform !== "darwin" || !app.dock) {
+      return Promise.resolve(this.showDockIcon);
+    }
+
+    this._dockVisibilityPromise = this._dockVisibilityPromise
+      .catch(() => {})
+      .then(async () => {
+        if (this.showDockIcon) {
+          app.setActivationPolicy("regular");
+          await app.dock.show();
+        } else {
+          app.dock.hide();
+          app.setActivationPolicy("accessory");
+        }
+        debugLogger.info("macOS Dock visibility changed", { visible: this.showDockIcon }, "window");
+        return this.showDockIcon;
+      });
+    return this._dockVisibilityPromise;
+  }
+
+  ensureDockVisibility() {
+    return this.setShowDockIcon(this.showDockIcon);
   }
 
   async createMainWindow() {
@@ -297,7 +332,6 @@ class WindowManager {
     const downTime = Date.now();
 
     if (this.textEditMonitor) this.textEditMonitor.captureTargetPid();
-    this.showDictationPanel();
 
     const safetyTimeoutId = setTimeout(() => {
       if (this.macCompoundPushState?.active) {
@@ -462,8 +496,6 @@ class WindowManager {
     const MIN_HOLD_DURATION_MS = 150;
     const downTime = Date.now();
 
-    this.showDictationPanel();
-
     this.winPushState = {
       active: true,
       downTime,
@@ -510,7 +542,6 @@ class WindowManager {
       return;
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.showDictationPanel();
       this.mainWindow.webContents.send("toggle-dictation");
       this._isDictatingToggle = !this._isDictatingToggle;
       this.meetingDetectionEngine?.setUserRecording(this._isDictatingToggle);
@@ -522,7 +553,6 @@ class WindowManager {
       return;
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.showDictationPanel();
       this.mainWindow.webContents.send("start-dictation");
       this.meetingDetectionEngine?.setUserRecording(true);
     }
@@ -665,9 +695,7 @@ class WindowManager {
 
     this.controlPanelWindow.once("ready-to-show", () => {
       clearVisibilityTimer();
-      if (process.platform === "darwin" && app.dock) {
-        app.dock.show();
-      }
+      void this.ensureDockVisibility();
       this.controlPanelWindow.show();
       this.controlPanelWindow.focus();
     });
@@ -675,7 +703,7 @@ class WindowManager {
     this.controlPanelWindow.on("close", (event) => {
       if (!this.isQuitting) {
         event.preventDefault();
-        this.hideControlPanelToTray();
+        void this.hideControlPanelToTray();
       }
     });
 
@@ -856,7 +884,7 @@ class WindowManager {
     return { success: true, bounds };
   }
 
-  _repositionToCursorDisplay() {
+  _repositionToCursorDisplay(force = false, placement = "bottom") {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
 
     const cursorPos = screen.getCursorScreenPoint();
@@ -868,22 +896,66 @@ class WindowManager {
       y: currentBounds.y + currentBounds.height / 2,
     });
 
-    if (currentDisplay.id === cursorDisplay.id) return;
+    if (!force && currentDisplay.id === cursorDisplay.id) return;
 
     const newPos = WindowPositionUtil.getMainWindowPosition(
       cursorDisplay,
-      { width: currentBounds.width, height: currentBounds.height }
+      {
+        width: currentBounds.width,
+        height: currentBounds.height,
+      },
+      { placement }
     );
     this.mainWindow.setBounds(newPos);
+  }
+
+  _repositionForWindowsStartSurface(showGeneration) {
+    if (
+      process.platform !== "win32" ||
+      typeof this.textEditMonitor?.isWindowsStartSurfaceForeground !== "function"
+    ) {
+      return;
+    }
+
+    this.textEditMonitor
+      .isWindowsStartSurfaceForeground()
+      .then((isStartSurface) => {
+        if (
+          !isStartSurface ||
+          showGeneration !== this._dictationPanelShowGeneration ||
+          !this.mainWindow ||
+          this.mainWindow.isDestroyed() ||
+          !this.mainWindow.isVisible()
+        ) {
+          return;
+        }
+
+        // Start/Search owns the lower center of the display and remains above
+        // ordinary topmost windows. Move the non-focusable capsule to the top
+        // edge instead of competing with the shell's protected z-order.
+        this._repositionToCursorDisplay(true, "top");
+        this.raiseMainWindowWithoutFocus();
+      })
+      .catch((error) => {
+        debugLogger.debug(
+          "Unable to inspect Windows foreground surface",
+          { error: error.message },
+          "window"
+        );
+      });
   }
 
   showDictationPanel(options = {}) {
     const { focus = false } = options;
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      const showGeneration = ++this._dictationPanelShowGeneration;
+      this._clearMainWindowRaiseTimers();
       const wasHidden = !this.mainWindow.isVisible() || this.mainWindow.isMinimized();
 
       if (wasHidden) {
-        this._repositionToCursorDisplay();
+        // Recompute even when Electron reports the same nearest display:
+        // disconnects/scaling changes can leave the old bounds off-screen.
+        this._repositionToCursorDisplay(true);
       }
 
       if (this.mainWindow.isMinimized()) {
@@ -900,21 +972,93 @@ class WindowManager {
       if (focus) {
         this.mainWindow.focus();
       }
-      setTimeout(() => this.enforceMainWindowOnTop(), 0);
+      this.raiseMainWindowWithoutFocus();
+      this._repositionForWindowsStartSurface(showGeneration);
+
+      // Explorer can reassert the Start menu's z-order just after the capsule
+      // is shown. Re-raise during that short shell transition, without
+      // activating the capsule or taking keyboard focus from the input.
+      for (const delayMs of [0, 75, 250]) {
+        const timer = setTimeout(() => {
+          this._mainWindowRaiseTimers.delete(timer);
+          this.raiseMainWindowWithoutFocus();
+        }, delayMs);
+        this._mainWindowRaiseTimers.add(timer);
+      }
     }
   }
 
-  hideControlPanelToTray() {
-    if (!this.controlPanelWindow || this.controlPanelWindow.isDestroyed()) {
-      return;
+  async hideControlPanelToTray() {
+    const controlPanelWindow = this.controlPanelWindow;
+    if (!controlPanelWindow || controlPanelWindow.isDestroyed()) {
+      return false;
     }
 
-    this.controlPanelWindow.hide();
+    // On Windows/Linux the tray is the only recovery path after the taskbar
+    // window is hidden. Never leave a live background process unreachable if
+    // the packaged icon is missing or Explorer discarded the tray object.
+    if (process.platform !== "darwin") {
+      let trayReady = false;
+      try {
+        trayReady = Boolean(await this.ensureTrayHandler?.());
+      } catch (error) {
+        debugLogger.error(
+          "Failed to ensure tray before hiding control panel",
+          { error: error?.message },
+          "tray"
+        );
+      }
+
+      if (!trayReady) {
+        debugLogger.error(
+          "Keeping control panel visible because tray is unavailable",
+          undefined,
+          "tray"
+        );
+        if (!controlPanelWindow.isDestroyed()) {
+          controlPanelWindow.setSkipTaskbar(false);
+          if (!controlPanelWindow.isVisible()) {
+            controlPanelWindow.show();
+          }
+          controlPanelWindow.focus();
+        }
+        return false;
+      }
+    }
+
+    if (!controlPanelWindow.isDestroyed()) {
+      controlPanelWindow.hide();
+      return true;
+    }
+    return false;
   }
 
   hideDictationPanel() {
+    this._dictationPanelShowGeneration += 1;
+    this._clearMainWindowRaiseTimers();
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.hide();
+    }
+  }
+
+  recoverAfterSystemResume() {
+    this.resetWindowsPushState();
+
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      return;
+    }
+
+    // A transparent always-on-top window can retain stale DWM/z-order state
+    // across Windows sleep. Reset it while hidden; the renderer remains the
+    // single owner of visibility and will show it only after recording starts.
+    this.mainWindow.hide();
+    this.mainWindow.setFocusable(false);
+    this.setMainWindowInteractivity(false);
+    this.enforceMainWindowOnTop();
+    this._repositionToCursorDisplay(true);
+
+    if (!this.mainWindow.webContents.isDestroyed()) {
+      this.mainWindow.webContents.send("system-resumed");
     }
   }
 
@@ -940,7 +1084,7 @@ class WindowManager {
     });
 
     this.mainWindow.on("show", () => {
-      this.enforceMainWindowOnTop();
+      this.raiseMainWindowWithoutFocus();
     });
 
     this.mainWindow.on("focus", () => {
@@ -948,17 +1092,28 @@ class WindowManager {
     });
 
     this.mainWindow.on("closed", () => {
+      this._clearMainWindowRaiseTimers();
       this.dragManager.cleanup();
       this.mainWindow = null;
     });
 
     this.mainWindow.webContents.on("render-process-gone", (_event, details) => {
       if (details.reason === "crashed" || details.reason === "killed" || details.reason === "oom") {
+        debugLogger.error(
+          "Dictation overlay renderer process gone",
+          { reason: details.reason, exitCode: details.exitCode },
+          "window"
+        );
         this.telemetryManager?.capture?.("renderer_process_gone", {
           error_area: "app_start",
           reason: details.reason,
           exit_code: details.exitCode,
         });
+        setTimeout(() => {
+          if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+            this.mainWindow.webContents.reload();
+          }
+        }, 500);
       }
     });
   }
@@ -967,6 +1122,32 @@ class WindowManager {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       WindowPositionUtil.setupAlwaysOnTop(this.mainWindow);
     }
+  }
+
+  raiseMainWindowWithoutFocus() {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      return;
+    }
+
+    this.enforceMainWindowOnTop();
+    if (
+      process.platform === "win32" &&
+      this.mainWindow.isVisible() &&
+      typeof this.mainWindow.moveTop === "function"
+    ) {
+      try {
+        this.mainWindow.moveTop();
+      } catch (error) {
+        debugLogger.debug("Unable to raise dictation capsule", { error: error.message }, "window");
+      }
+    }
+  }
+
+  _clearMainWindowRaiseTimers() {
+    for (const timer of this._mainWindowRaiseTimers) {
+      clearTimeout(timer);
+    }
+    this._mainWindowRaiseTimers.clear();
   }
 
   async showMeetingNotification(promptData) {
