@@ -2559,6 +2559,8 @@
     "downloadFailedTitle": "無法下載更新",
     "downloadFailedMessage": "下載更新時發生問題。請稍後再試。",
     "installFailedTitle": "無法安裝更新",
-    "installFailedMessage": "安裝更新時發生問題。請稍後再試。"
+    "installFailedMessage": "安裝更新時發生問題。請稍後再試。",
+    "checkFailedTitle": "無法檢查更新",
+    "checkFailedMessage": "檢查更新時發生問題。請稍後再試。"
   }
 }

@@ -2564,6 +2564,8 @@
     "downloadFailedTitle": "Impossibile scaricare l'aggiornamento",
     "downloadFailedMessage": "Si è verificato un errore durante il download dell'aggiornamento. Riprova più tardi.",
     "installFailedTitle": "Impossibile installare l'aggiornamento",
-    "installFailedMessage": "Si è verificato un errore durante l'installazione dell'aggiornamento. Riprova più tardi."
+    "installFailedMessage": "Si è verificato un errore durante l'installazione dell'aggiornamento. Riprova più tardi.",
+    "checkFailedTitle": "Impossibile controllare gli aggiornamenti",
+    "checkFailedMessage": "Si è verificato un errore durante il controllo degli aggiornamenti. Riprova più tardi."
   }
 }

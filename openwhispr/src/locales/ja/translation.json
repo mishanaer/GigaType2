@@ -2564,6 +2564,8 @@
     "downloadFailedTitle": "アップデートをダウンロードできませんでした",
     "downloadFailedMessage": "アップデートのダウンロード中に問題が発生しました。しばらくしてからもう一度お試しください。",
     "installFailedTitle": "アップデートをインストールできませんでした",
-    "installFailedMessage": "アップデートのインストール中に問題が発生しました。しばらくしてからもう一度お試しください。"
+    "installFailedMessage": "アップデートのインストール中に問題が発生しました。しばらくしてからもう一度お試しください。",
+    "checkFailedTitle": "アップデートを確認できませんでした",
+    "checkFailedMessage": "アップデートの確認中に問題が発生しました。しばらくしてからもう一度お試しください。"
   }
 }
