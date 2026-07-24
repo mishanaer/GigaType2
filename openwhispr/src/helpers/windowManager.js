@@ -48,6 +48,7 @@ class WindowManager {
     this._dockVisibilityPromise = Promise.resolve();
     this._mainWindowRaiseTimers = new Set();
     this._dictationPanelShowGeneration = 0;
+    this.ensureTrayHandler = null;
 
     app.on("before-quit", () => {
       this.isQuitting = true;
@@ -61,6 +62,10 @@ class WindowManager {
 
   setCheckForUpdatesHandler(fn) {
     this._onCheckForUpdates = fn;
+  }
+
+  setEnsureTrayHandler(fn) {
+    this.ensureTrayHandler = typeof fn === "function" ? fn : null;
   }
 
   setShowDockIcon(enabled) {
@@ -698,7 +703,7 @@ class WindowManager {
     this.controlPanelWindow.on("close", (event) => {
       if (!this.isQuitting) {
         event.preventDefault();
-        this.hideControlPanelToTray();
+        void this.hideControlPanelToTray();
       }
     });
 
@@ -983,12 +988,49 @@ class WindowManager {
     }
   }
 
-  hideControlPanelToTray() {
-    if (!this.controlPanelWindow || this.controlPanelWindow.isDestroyed()) {
-      return;
+  async hideControlPanelToTray() {
+    const controlPanelWindow = this.controlPanelWindow;
+    if (!controlPanelWindow || controlPanelWindow.isDestroyed()) {
+      return false;
     }
 
-    this.controlPanelWindow.hide();
+    // On Windows/Linux the tray is the only recovery path after the taskbar
+    // window is hidden. Never leave a live background process unreachable if
+    // the packaged icon is missing or Explorer discarded the tray object.
+    if (process.platform !== "darwin") {
+      let trayReady = false;
+      try {
+        trayReady = Boolean(await this.ensureTrayHandler?.());
+      } catch (error) {
+        debugLogger.error(
+          "Failed to ensure tray before hiding control panel",
+          { error: error?.message },
+          "tray"
+        );
+      }
+
+      if (!trayReady) {
+        debugLogger.error(
+          "Keeping control panel visible because tray is unavailable",
+          undefined,
+          "tray"
+        );
+        if (!controlPanelWindow.isDestroyed()) {
+          controlPanelWindow.setSkipTaskbar(false);
+          if (!controlPanelWindow.isVisible()) {
+            controlPanelWindow.show();
+          }
+          controlPanelWindow.focus();
+        }
+        return false;
+      }
+    }
+
+    if (!controlPanelWindow.isDestroyed()) {
+      controlPanelWindow.hide();
+      return true;
+    }
+    return false;
   }
 
   hideDictationPanel() {

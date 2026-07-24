@@ -138,7 +138,6 @@
         "**/*",
         "!Assets.car",
         "!icon.icns",
-        "!icon.ico",
         "!openwhispr.icon/**",
         "!fonts/**",
         "!README.md"

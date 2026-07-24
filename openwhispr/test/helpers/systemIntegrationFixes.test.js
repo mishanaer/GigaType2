@@ -50,6 +50,24 @@ test("Windows inbound bridges are opt-in and macOS keeps a menu bar recovery pat
   assert.match(settingsSource, /Показывать иконку в Dock/);
 });
 
+test("packaged Windows close-to-tray always has a recoverable tray icon", () => {
+  const mainSource = fs.readFileSync(path.join(repoRoot, "main.js"), "utf8");
+  const builderConfig = fs.readFileSync(path.join(repoRoot, "electron-builder.json"), "utf8");
+  const traySource = fs.readFileSync(path.join(repoRoot, "src/helpers/tray.js"), "utf8");
+  const windowManagerSource = fs.readFileSync(
+    path.join(repoRoot, "src/helpers/windowManager.js"),
+    "utf8"
+  );
+
+  assert.doesNotMatch(builderConfig, /"!icon\.ico"/);
+  assert.match(traySource, /isTrayReady\(\)/);
+  assert.match(traySource, /async ensureTray\(\)/);
+  assert.match(traySource, /process\.resourcesPath, "src", "assets", "icon\.png"/);
+  assert.match(mainSource, /setEnsureTrayHandler\(\(\) => trayManager\.ensureTray\(\)\)/);
+  assert.match(windowManagerSource, /trayReady = Boolean\(await this\.ensureTrayHandler\?\.\(\)\)/);
+  assert.match(windowManagerSource, /Keeping control panel visible because tray is unavailable/);
+});
+
 test("capsule has a visible fallback and bounded renderer retries", () => {
   const componentSource = fs.readFileSync(
     path.join(repoRoot, "src/components/GolosCapsule.tsx"),

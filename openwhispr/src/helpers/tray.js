@@ -11,6 +11,7 @@ class TrayManager {
     this.controlPanelWindow = null;
     this.windowManager = null;
     this.attachedControlPanels = new WeakSet();
+    this.createTrayPromise = null;
   }
 
   setWindows(mainWindow, controlPanelWindow) {
@@ -104,6 +105,40 @@ class TrayManager {
   }
 
   async createTray() {
+    if (this.isTrayReady()) {
+      return true;
+    }
+
+    if (this.createTrayPromise) {
+      return this.createTrayPromise;
+    }
+
+    this.createTrayPromise = this._createTray();
+    try {
+      return await this.createTrayPromise;
+    } finally {
+      this.createTrayPromise = null;
+    }
+  }
+
+  isTrayReady() {
+    if (!this.tray) {
+      return false;
+    }
+
+    if (typeof this.tray.isDestroyed === "function" && this.tray.isDestroyed()) {
+      this.tray = null;
+      return false;
+    }
+
+    return true;
+  }
+
+  async ensureTray() {
+    return this.isTrayReady() || this.createTray();
+  }
+
+  async _createTray() {
     try {
       const trayIcon = await this.loadTrayIcon();
       if (!trayIcon || trayIcon.isEmpty()) {
@@ -121,6 +156,7 @@ class TrayManager {
       this.setupTrayEventHandlers();
       return true;
     } catch (error) {
+      this.tray = null;
       debugLogger.error("Error creating tray icon", { error: error.message }, "tray");
       return false;
     }
@@ -163,7 +199,10 @@ class TrayManager {
           path.join(process.resourcesPath, "assets", fileName),
           path.join(process.resourcesPath, "app.asar.unpacked", "src", "assets", fileName),
           path.join(__dirname, "..", "..", "src", "assets", fileName),
-          path.join(app.getAppPath(), "src", "assets", fileName)
+          path.join(app.getAppPath(), "src", "assets", fileName),
+          path.join(process.resourcesPath, "src", "assets", "icon.png"),
+          path.join(process.resourcesPath, "assets", "icon.png"),
+          path.join(app.getAppPath(), "src", "assets", "icon.png")
         );
       }
     }
@@ -277,15 +316,19 @@ class TrayManager {
       return;
     }
 
+    const activeTray = this.tray;
+
     if (process.platform !== "darwin") {
-      this.tray.on("click", () => {
+      activeTray.on("click", () => {
         void this.showControlPanelFromTray();
       });
     }
 
-    this.tray.on("destroyed", () => {
+    activeTray.on("destroyed", () => {
       debugLogger.debug("Tray icon destroyed", undefined, "tray");
-      this.tray = null;
+      if (this.tray === activeTray) {
+        this.tray = null;
+      }
     });
   }
 }

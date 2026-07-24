@@ -728,6 +728,7 @@ async function startApp() {
   trayManager.setWindows(windowManager.mainWindow, windowManager.controlPanelWindow);
   trayManager.setWindowManager(windowManager);
   trayManager.setCreateControlPanelCallback(() => windowManager.createControlPanelWindow());
+  windowManager.setEnsureTrayHandler(() => trayManager.ensureTray());
   const trayReady = await trayManager.createTray();
   if (process.platform === "darwin") {
     const showDockIcon = environmentManager.getShowDockIcon();

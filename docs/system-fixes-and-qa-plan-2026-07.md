@@ -69,6 +69,13 @@ Follow-up реализация устраняет подтверждённые �
 3. При foreground-процессе `StartMenuExperienceHost`, `SearchHost` и совместимых Windows Search hosts капсула переносится к верхнему краю display. Это обходит защищённый z-order меню «Пуск» без закрытия меню и без `focus()`.
 4. Аппаратный `Fn` на большинстве Windows-клавиатур обрабатывается firmware/драйвером и не создаёт стандартного virtual-key события. UI теперь сообщает «Fn недоступна» в самом режиме назначения; поддержка возможна только через vendor-specific keyboard API/driver.
 
+## Windows close-to-tray follow-up
+
+- Production tray loader ожидает `icon.ico` в `resources/src/assets`, но файл был явно исключён из `extraResources`. В dev-режиме использовался другой путь, поэтому дефект проявлялся только в собранном приложении.
+- `icon.ico` теперь включается в пакет, а `icon.png` остаётся вторым production fallback.
+- Перед скрытием control panel Windows/Linux проверяют живой tray object и при необходимости повторяют его создание. Если tray недоступен, окно остаётся видимым в taskbar: фоновый процесс не может остаться без recovery path.
+- Ручной тест: installer и portable; закрыть панель через `X`, найти Type в notification area (включая overflow `^`), открыть кликом и через context menu; повторить после restart Windows Explorer.
+
 ## Резюме решений
 
 1. На Windows полностью убрать `nircmd.exe` из исходников, сборки и runtime-цепочек. Вставку уже выполняет собственный `windows-fast-paste.exe`; функции управления медиа нужно оставить на GSMTC и перенести fallback в собственный подписанный helper. Все исполняемые файлы внутри дистрибутива должны быть подписаны и проверяться отдельным CI-gate.
