@@ -196,7 +196,7 @@ test("Windows native capture handles Win, Caps Lock and Escape without shell fal
   assert.match(nativeSource, /CAPTURE_CANCEL/);
   assert.match(nativeSource, /EmitCapturedHotkey\("CapsLock"/);
   assert.match(nativeSource, /return 1;[\s\S]*Suppress captured keys/);
-  assert.match(managerSource, /startCapture\(\)/);
+  assert.match(managerSource, /async startCapture\(/);
   assert.match(managerSource, /this\.emit\("capture", hotkey\)/);
   assert.match(inputSource, /if \(code === "Escape"\)[\s\S]*cancelCapture\(\)/);
   assert.match(inputSource, /onWindowsHotkeyCaptured/);

@@ -3,13 +3,7 @@ export type InferenceMode = "providers" | "local" | "self-hosted" | "enterprise"
 export type SelfHostedType = "openai-compatible" | "lan";
 
 export type GigaamHealthStatus =
-  | "unavailable"
-  | "stopped"
-  | "starting"
-  | "loading"
-  | "ok"
-  | "error"
-  | "unknown";
+  "unavailable" | "stopped" | "starting" | "loading" | "ok" | "error" | "unknown";
 
 export interface GigaamSidecarStatus {
   available: boolean;
@@ -226,11 +220,7 @@ export interface AudioDiagnosticsResult {
 
 export type SystemAudioMode = "native" | "loopback" | "portal" | "unsupported";
 export type SystemAudioStrategy =
-  | "native"
-  | "loopback"
-  | "browser-portal"
-  | "portal-helper"
-  | "unsupported";
+  "native" | "loopback" | "browser-portal" | "portal-helper" | "unsupported";
 
 export interface SystemAudioAccessResult {
   granted: boolean;
@@ -358,7 +348,10 @@ declare global {
       resizeMainWindow?: (
         sizeKey: "BASE" | "WITH_MENU" | "WITH_TOAST" | "EXPANDED"
       ) => Promise<{ success: boolean; message?: string }>;
-      resizeControlPanelToContent?: (height: number, width?: number) => Promise<{
+      resizeControlPanelToContent?: (
+        height: number,
+        width?: number
+      ) => Promise<{
         success: boolean;
         message?: string;
         bounds?: { x: number; y: number; width: number; height: number };
@@ -683,7 +676,12 @@ declare global {
       setHotkeyListeningMode?: (
         enabled: boolean,
         newHotkey?: string | null
-      ) => Promise<{ success: boolean }>;
+      ) => Promise<{
+        success: boolean;
+        nativeReady?: boolean;
+        skipped?: boolean;
+        error?: string;
+      }>;
       getHotkeyModeInfo?: () => Promise<{
         isUsingGnome: boolean;
         isUsingHyprland: boolean;
@@ -761,9 +759,7 @@ declare global {
       getActivationMode?: () => Promise<"tap" | "push">;
       saveActivationMode?: (mode: "tap" | "push") => Promise<void>;
       getShowDockIcon?: () => Promise<boolean>;
-      setShowDockIcon?: (
-        enabled: boolean
-      ) => Promise<{ success: boolean; visible: boolean }>;
+      setShowDockIcon?: (enabled: boolean) => Promise<{ success: boolean; visible: boolean }>;
 
       // Debug logging
       getLogLevel?: () => Promise<string>;

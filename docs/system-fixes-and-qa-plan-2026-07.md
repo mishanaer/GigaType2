@@ -36,6 +36,21 @@ Follow-up реализация устраняет подтверждённые �
 3. Во время назначения low-level capture подавляет принятую последовательность до shell и возвращает канонический хоткей в renderer.
 4. Escape завершает capture без `onChange`, поэтому старое назначение остаётся активным.
 
+## Результаты второго ручного Windows-прогона
+
+Проверена unsigned сборка из commit `247c9d3a92c8b5873c275316463c66f5f30218a3`.
+
+- `HOTKEY-10`: пройден — Escape закрывает capture и сохраняет старый хоткей.
+- `CAP-08`: пройден для режима «Дублировать» — одинаковая капсула на двух экранах является ожидаемым результатом зеркального вывода Windows.
+- `HOTKEY-09`: частично — `Win+F3` назначается, но `Win+буква`/`Win+L` могли уйти Windows; при `Win+L` система блокировалась.
+- `CAP-04`: улучшено, но после resume оставались редкие невидимые первые сессии.
+- `CAP-10`: не пройден — при открытом меню «Пуск» диктовка запускалась, но капсула оставалась под shell surface и не была видна.
+
+Второй follow-up закрывает две найденные гонки:
+
+1. UI переходит в состояние «слушаю хоткей» только после `READY` от установленного low-level Windows hook. До подтверждения renderer не принимает сочетание; таймаут отменяет capture и восстанавливает прежний хоткей. Поэтому `Win+L`/`Win+буква` не имеют окна, в котором событие может уйти Explorer.
+2. На Windows капсула использует уровень `screen-saver`, после `showInactive()` вызывается `moveTop()`, а z-order повторно подтверждается через 0/75/250 мс. Ни один из этих путей не вызывает `focus()`, поэтому активный input/поиск сохраняется.
+
 ## Резюме решений
 
 1. На Windows полностью убрать `nircmd.exe` из исходников, сборки и runtime-цепочек. Вставку уже выполняет собственный `windows-fast-paste.exe`; функции управления медиа нужно оставить на GSMTC и перенести fallback в собственный подписанный helper. Все исполняемые файлы внутри дистрибутива должны быть подписаны и проверяться отдельным CI-gate.
@@ -203,10 +218,10 @@ Unsigned dev artifact можно оставить только для разра
 
 Вместо распределённых `if (platform...)` завести capability model:
 
-| Клавиша | macOS tap | macOS push | Windows tap | Windows push |
-|---|---:|---:|---:|---:|
-| Fn/Globe | native | native down/up | недоступно на большинстве клавиатур | недоступно |
-| Caps Lock | Electron/native | только после native down/up backend | Electron/native | existing low-level hook после доработки |
+| Клавиша   |       macOS tap |                          macOS push |                         Windows tap |                            Windows push |
+| --------- | --------------: | ----------------------------------: | ----------------------------------: | --------------------------------------: |
+| Fn/Globe  |          native |                      native down/up | недоступно на большинстве клавиатур |                              недоступно |
+| Caps Lock | Electron/native | только после native down/up backend |                     Electron/native | existing low-level hook после доработки |
 
 UI показывает только реально поддерживаемые комбинации и объясняет ограничение до сохранения.
 
@@ -506,6 +521,14 @@ macOS:
 
 Ожидание: старые callbacks не скрывают новую сессию; итоговое состояние соответствует последней команде.
 
+**CAP-10 — Открытое меню «Пуск»**
+
+1. Открыть меню «Пуск», оставить курсор в поле поиска.
+2. Запустить и завершить диктовку 30 раз в режимах «Нажатие» и «Удержание».
+3. Повторить сразу после unlock и после sleep/wake.
+
+Ожидание: капсула видна над меню «Пуск» с первой сессии; поиск остаётся активным, капсула не получает focus/click; распознанный текст попадает в исходное поле согласно обычному контракту вставки.
+
 ### HOTKEY: Fn и Caps Lock
 
 **HOTKEY-01 — Fn без системного действия**
@@ -642,15 +665,19 @@ macOS:
 - Electron App: activation policy `regular/accessory/prohibited`
 
   https://www.electronjs.org/docs/latest/api/app
+
 - Electron Dock: `dock.hide()`, `dock.show()` и ограничение повторного `hide()` в течение секунды
 
   https://www.electronjs.org/docs/latest/api/dock
+
 - Electron Keyboard Shortcuts: `Capslock` входит в список accelerator key codes
 
   https://www.electronjs.org/docs/latest/tutorial/keyboard-shortcuts
+
 - Microsoft Win32 `SendInput`: UIPI разрешает injection только в процесс равного или более низкого integrity level
 
   https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendinput
+
 - Microsoft Windows Firewall rules: inbound по умолчанию блокируется, outbound обычно разрешён; prompt относится к входящему исключению
 
   https://learn.microsoft.com/en-us/windows/security/operating-system-security/network-security/windows-firewall/rules

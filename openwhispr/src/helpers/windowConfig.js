@@ -232,7 +232,11 @@ class WindowPositionUtil {
         window.setAlwaysOnTop(true, "floating", 1);
       }
     } else if (process.platform === "win32") {
-      window.setAlwaysOnTop(true, "pop-up-menu");
+      // The Start menu and other Windows shell surfaces can cover
+      // "pop-up-menu" windows even though Electron still reports them as
+      // always-on-top. Use the strongest non-focus-stealing level for the
+      // transient dictation capsule.
+      window.setAlwaysOnTop(true, "screen-saver");
     } else if (isGnomeWayland) {
       window.setAlwaysOnTop(true, "floating");
     } else {

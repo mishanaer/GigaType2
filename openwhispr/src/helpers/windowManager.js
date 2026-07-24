@@ -46,6 +46,7 @@ class WindowManager {
     this._onCheckForUpdates = null;
     this.showDockIcon = true;
     this._dockVisibilityPromise = Promise.resolve();
+    this._mainWindowRaiseTimers = new Set();
 
     app.on("before-quit", () => {
       this.isQuitting = true;
@@ -901,6 +902,7 @@ class WindowManager {
   showDictationPanel(options = {}) {
     const { focus = false } = options;
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this._clearMainWindowRaiseTimers();
       const wasHidden = !this.mainWindow.isVisible() || this.mainWindow.isMinimized();
 
       if (wasHidden) {
@@ -923,7 +925,18 @@ class WindowManager {
       if (focus) {
         this.mainWindow.focus();
       }
-      setTimeout(() => this.enforceMainWindowOnTop(), 0);
+      this.raiseMainWindowWithoutFocus();
+
+      // Explorer can reassert the Start menu's z-order just after the capsule
+      // is shown. Re-raise during that short shell transition, without
+      // activating the capsule or taking keyboard focus from the input.
+      for (const delayMs of [0, 75, 250]) {
+        const timer = setTimeout(() => {
+          this._mainWindowRaiseTimers.delete(timer);
+          this.raiseMainWindowWithoutFocus();
+        }, delayMs);
+        this._mainWindowRaiseTimers.add(timer);
+      }
     }
   }
 
@@ -936,6 +949,7 @@ class WindowManager {
   }
 
   hideDictationPanel() {
+    this._clearMainWindowRaiseTimers();
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.hide();
     }
@@ -984,7 +998,7 @@ class WindowManager {
     });
 
     this.mainWindow.on("show", () => {
-      this.enforceMainWindowOnTop();
+      this.raiseMainWindowWithoutFocus();
     });
 
     this.mainWindow.on("focus", () => {
@@ -992,6 +1006,7 @@ class WindowManager {
     });
 
     this.mainWindow.on("closed", () => {
+      this._clearMainWindowRaiseTimers();
       this.dragManager.cleanup();
       this.mainWindow = null;
     });
@@ -1021,6 +1036,32 @@ class WindowManager {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       WindowPositionUtil.setupAlwaysOnTop(this.mainWindow);
     }
+  }
+
+  raiseMainWindowWithoutFocus() {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      return;
+    }
+
+    this.enforceMainWindowOnTop();
+    if (
+      process.platform === "win32" &&
+      this.mainWindow.isVisible() &&
+      typeof this.mainWindow.moveTop === "function"
+    ) {
+      try {
+        this.mainWindow.moveTop();
+      } catch (error) {
+        debugLogger.debug("Unable to raise dictation capsule", { error: error.message }, "window");
+      }
+    }
+  }
+
+  _clearMainWindowRaiseTimers() {
+    for (const timer of this._mainWindowRaiseTimers) {
+      clearTimeout(timer);
+    }
+    this._mainWindowRaiseTimers.clear();
   }
 
   async showMeetingNotification(promptData) {

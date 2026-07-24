@@ -22,10 +22,19 @@ class WindowsKeyManager extends EventEmitter {
   }
 
   handleOutputLine(line, key) {
+    if (key !== this.currentKey) {
+      debugLogger.debug("[WindowsKeyManager] Ignoring stale listener output", {
+        line,
+        key,
+        currentKey: this.currentKey,
+      });
+      return;
+    }
+
     if (line === "READY") {
       debugLogger.debug("[WindowsKeyManager] Listener ready", { key });
       this.isReady = true;
-      this.emit("ready");
+      this.emit("ready", key);
       return;
     }
 
@@ -72,8 +81,73 @@ class WindowsKeyManager extends EventEmitter {
    * process suppresses the captured keystrokes so Win+letter shortcuts do not
    * escape to the shell while the settings field is armed.
    */
-  startCapture() {
-    this.startProcess(["--capture"], "__capture__");
+  async startCapture(timeoutMs = 2000) {
+    const captureIdentity = "__capture__";
+    const proc = this.startProcess(["--capture"], captureIdentity);
+    if (!proc) {
+      return { success: false, reason: "unavailable" };
+    }
+
+    if (this.process === proc && this.currentKey === captureIdentity && this.isReady) {
+      return { success: true };
+    }
+
+    return await new Promise((resolve) => {
+      let settled = false;
+      let timeout = null;
+
+      const cleanup = () => {
+        this.off("ready", handleReady);
+        proc.off("error", handleFailure);
+        proc.off("exit", handleExit);
+        if (timeout) clearTimeout(timeout);
+      };
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(result);
+      };
+      const handleReady = (key) => {
+        if (
+          key === captureIdentity &&
+          this.process === proc &&
+          this.currentKey === captureIdentity
+        ) {
+          finish({ success: true });
+        }
+      };
+      const handleFailure = (error) => {
+        finish({ success: false, reason: error?.message || "listener-error" });
+      };
+      const handleExit = (code, signal) => {
+        finish({
+          success: false,
+          reason: `listener-exited:${code ?? "null"}:${signal ?? "null"}`,
+        });
+      };
+
+      this.on("ready", handleReady);
+      proc.once("error", handleFailure);
+      proc.once("exit", handleExit);
+
+      // stdout is asynchronous, but check once more after listeners are
+      // attached so a very fast READY line cannot slip through the handoff.
+      if (this.process === proc && this.currentKey === captureIdentity && this.isReady) {
+        finish({ success: true });
+        return;
+      }
+
+      timeout = setTimeout(() => {
+        debugLogger.warn("[WindowsKeyManager] Timed out waiting for capture listener", {
+          timeoutMs,
+        });
+        if (this.process === proc && this.currentKey === captureIdentity) {
+          this.stop();
+        }
+        finish({ success: false, reason: "ready-timeout" });
+      }, timeoutMs);
+    });
   }
 
   restart(key = this.currentKey) {
@@ -86,12 +160,12 @@ class WindowsKeyManager extends EventEmitter {
 
   startProcess(args, identity) {
     if (!this.isSupported) {
-      return;
+      return null;
     }
 
     // If already running with the same key, do nothing
     if (this.process && this.currentKey === identity) {
-      return;
+      return this.process;
     }
 
     // Stop any existing listener
@@ -101,7 +175,7 @@ class WindowsKeyManager extends EventEmitter {
     if (!listenerPath) {
       // Binary not found - this is OK, Push-to-Talk will use fallback mode
       this.emit("unavailable", new Error("Windows key listener binary not found"));
-      return;
+      return null;
     }
 
     this.hasReportedError = false;
@@ -122,7 +196,7 @@ class WindowsKeyManager extends EventEmitter {
     } catch (error) {
       debugLogger.error("[WindowsKeyManager] Failed to spawn process", { error: error.message });
       this.reportError(error);
-      return;
+      return null;
     }
 
     let lineBuffer = "";
@@ -182,6 +256,8 @@ class WindowsKeyManager extends EventEmitter {
         );
       }
     });
+
+    return proc;
   }
 
   /**

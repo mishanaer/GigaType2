@@ -24,14 +24,8 @@ test("built-in GigaAM defaults to Electron IPC instead of a TCP listener", async
 test("Windows package and runtime no longer depend on NirCmd", () => {
   const packageJson = fs.readFileSync(path.join(repoRoot, "package.json"), "utf8");
   const builderConfig = fs.readFileSync(path.join(repoRoot, "electron-builder.json"), "utf8");
-  const clipboardSource = fs.readFileSync(
-    path.join(repoRoot, "src/helpers/clipboard.js"),
-    "utf8"
-  );
-  const mediaSource = fs.readFileSync(
-    path.join(repoRoot, "src/helpers/mediaPlayer.js"),
-    "utf8"
-  );
+  const clipboardSource = fs.readFileSync(path.join(repoRoot, "src/helpers/clipboard.js"), "utf8");
+  const mediaSource = fs.readFileSync(path.join(repoRoot, "src/helpers/mediaPlayer.js"), "utf8");
 
   for (const source of [packageJson, builderConfig, clipboardSource, mediaSource]) {
     assert.doesNotMatch(source, /nircmd/i);
@@ -82,11 +76,32 @@ test("capsule visibility has one renderer owner and Windows resume restores the 
   assert.match(windowManagerSource, /recoverAfterSystemResume\(\)/);
   assert.match(windowManagerSource, /this\.mainWindow\.setFocusable\(false\)/);
   assert.match(windowManagerSource, /this\.setMainWindowInteractivity\(false\)/);
-  assert.match(
-    mainSource,
-    /const recoverWindowsAfterResume[\s\S]*recoverAfterSystemResume/
-  );
+  assert.match(mainSource, /const recoverWindowsAfterResume[\s\S]*recoverAfterSystemResume/);
   assert.match(mainSource, /powerMonitor\.on\("resume"[\s\S]*recoverWindowsAfterResume/);
   assert.match(mainSource, /powerMonitor\.on\("unlock-screen", recoverWindowsAfterResume\)/);
   assert.match(mainSource, /windowsKeyManager\.restart\(currentHotkey\)/);
+});
+
+test("Windows capture waits for the native hook and the capsule recovers above shell surfaces", () => {
+  const ipcSource = fs.readFileSync(path.join(repoRoot, "src/helpers/ipcHandlers.js"), "utf8");
+  const hotkeyInputSource = fs.readFileSync(
+    path.join(repoRoot, "src/components/ui/HotkeyInput.tsx"),
+    "utf8"
+  );
+  const windowConfigSource = fs.readFileSync(
+    path.join(repoRoot, "src/helpers/windowConfig.js"),
+    "utf8"
+  );
+  const windowManagerSource = fs.readFileSync(
+    path.join(repoRoot, "src/helpers/windowManager.js"),
+    "utf8"
+  );
+
+  assert.match(ipcSource, /await this\.windowsKeyManager\.startCapture\(\)/);
+  assert.match(hotkeyInputSource, /result\?\.nativeReady === false/);
+  assert.match(hotkeyInputSource, /captureReadyRef\.current/);
+  assert.match(windowConfigSource, /win32[\s\S]*setAlwaysOnTop\(true, "screen-saver"\)/);
+  assert.match(windowManagerSource, /raiseMainWindowWithoutFocus\(\)/);
+  assert.match(windowManagerSource, /this\.mainWindow\.moveTop\(\)/);
+  assert.match(windowManagerSource, /for \(const delayMs of \[0, 75, 250\]\)/);
 });

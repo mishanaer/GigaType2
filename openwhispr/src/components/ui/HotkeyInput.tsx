@@ -198,6 +198,7 @@ export function HotkeyInput({
 }: HotkeyInputProps & HotkeyInputVariant) {
   const { t } = useTranslation();
   const [isCapturing, setIsCapturing] = useState(false);
+  const [isCaptureArming, setIsCaptureArming] = useState(false);
   const [activeModifiers, setActiveModifiers] = useState<Set<string>>(new Set());
   const [validationWarning, setValidationWarning] = useState<string | null>(null);
   const [isFnHeld, setIsFnHeld] = useState(false);
@@ -207,6 +208,8 @@ export function HotkeyInput({
   const warningTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fnHeldRef = useRef(false);
   const fnCapturedKeyRef = useRef(false);
+  const captureRequestedRef = useRef(false);
+  const captureReadyRef = useRef(false);
   const heldModifiersRef = useRef<{
     ctrl: boolean;
     meta: boolean;
@@ -271,8 +274,11 @@ export function HotkeyInput({
 
   const cancelCapture = useCallback(() => {
     logger.debug("capture cancelled", {}, CAPTURE_LOG_SCOPE);
+    captureRequestedRef.current = false;
+    captureReadyRef.current = false;
     lastCapturedHotkeyRef.current = null;
     setIsCapturing(false);
+    setIsCaptureArming(false);
     setActiveModifiers(new Set());
     setValidationWarning(null);
     clearFnHeld();
@@ -310,6 +316,8 @@ export function HotkeyInput({
 
       setValidationWarning(null);
       logger.debug("captured", { hotkey }, CAPTURE_LOG_SCOPE);
+      captureRequestedRef.current = false;
+      captureReadyRef.current = false;
       let registered: boolean | void = false;
       try {
         registered = await onChange(hotkey);
@@ -328,6 +336,7 @@ export function HotkeyInput({
         lastCapturedHotkeyRef.current = hotkey;
       }
       setIsCapturing(false);
+      setIsCaptureArming(false);
       setActiveModifiers(new Set());
       clearFnHeld();
       containerRef.current?.blur();
@@ -340,6 +349,11 @@ export function HotkeyInput({
       if (disabled) return;
       e.preventDefault();
       e.stopPropagation();
+
+      // On Windows the low-level hook is what prevents Win+letter shortcuts
+      // from escaping to Explorer. Do not accept renderer events until that
+      // hook has explicitly reported READY.
+      if (isWindows && !captureReadyRef.current) return;
 
       logger.debug(
         "keydown",
@@ -483,15 +497,60 @@ export function HotkeyInput({
     [disabled, isCapturing, finalizeCapture]
   );
 
-  const handleFocus = useCallback(() => {
-    if (!disabled) {
-      logger.debug("capture armed", { currentValue: value }, CAPTURE_LOG_SCOPE);
+  const handleFocus = useCallback(async () => {
+    if (disabled || captureRequestedRef.current) return;
+
+    logger.debug("capture arming", { currentValue: value }, CAPTURE_LOG_SCOPE);
+    captureRequestedRef.current = true;
+    captureReadyRef.current = !isWindows;
+    setIsCapturing(!isWindows);
+    setIsCaptureArming(isWindows);
+    setValidationWarning(null);
+    clearFnHeld();
+
+    const setListeningMode = window.electronAPI?.setHotkeyListeningMode;
+    if (!setListeningMode) {
+      captureReadyRef.current = true;
+      setIsCaptureArming(false);
       setIsCapturing(true);
-      setValidationWarning(null);
-      clearFnHeld();
-      window.electronAPI?.setHotkeyListeningMode?.(true);
+      return;
     }
-  }, [disabled, clearFnHeld, value]);
+
+    try {
+      const result = await setListeningMode(true);
+      if (!captureRequestedRef.current) return;
+
+      if (result?.success === false || result?.nativeReady === false) {
+        logger.warn(
+          "native capture failed to arm",
+          { error: result?.error || "listener-not-ready" },
+          CAPTURE_LOG_SCOPE
+        );
+        captureRequestedRef.current = false;
+        captureReadyRef.current = false;
+        setIsCaptureArming(false);
+        setIsCapturing(false);
+        containerRef.current?.blur();
+        return;
+      }
+
+      logger.debug("capture armed", { currentValue: value }, CAPTURE_LOG_SCOPE);
+      captureReadyRef.current = true;
+      setIsCaptureArming(false);
+      setIsCapturing(true);
+    } catch (error) {
+      logger.warn(
+        "capture failed to arm",
+        { error: error instanceof Error ? error.message : String(error) },
+        CAPTURE_LOG_SCOPE
+      );
+      captureRequestedRef.current = false;
+      captureReadyRef.current = false;
+      setIsCaptureArming(false);
+      setIsCapturing(false);
+      containerRef.current?.blur();
+    }
+  }, [disabled, clearFnHeld, isWindows, value]);
 
   const handleBlur = useCallback(() => {
     logger.debug(
@@ -499,7 +558,10 @@ export function HotkeyInput({
       { capturedHotkey: lastCapturedHotkeyRef.current },
       CAPTURE_LOG_SCOPE
     );
+    captureRequestedRef.current = false;
+    captureReadyRef.current = false;
     setIsCapturing(false);
+    setIsCaptureArming(false);
     setActiveModifiers(new Set());
     setValidationWarning(null);
     clearFnHeld();
@@ -516,6 +578,8 @@ export function HotkeyInput({
 
   useEffect(() => {
     return () => {
+      captureRequestedRef.current = false;
+      captureReadyRef.current = false;
       window.electronAPI?.setHotkeyListeningMode?.(false, null);
       if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
     };
@@ -548,20 +612,20 @@ export function HotkeyInput({
   }, [isCapturing, isMac, finalizeCapture]);
 
   useEffect(() => {
-    if (!isCapturing || !isWindows) return;
+    if (!isWindows) return;
 
     const disposeCaptured = window.electronAPI?.onWindowsHotkeyCaptured?.((hotkey) => {
-      finalizeCapture(hotkey);
+      if (captureRequestedRef.current) finalizeCapture(hotkey);
     });
     const disposeCancelled = window.electronAPI?.onWindowsHotkeyCaptureCancelled?.(() => {
-      cancelCapture();
+      if (captureRequestedRef.current) cancelCapture();
     });
 
     return () => {
       disposeCaptured?.();
       disposeCancelled?.();
     };
-  }, [isCapturing, isWindows, finalizeCapture, cancelCapture]);
+  }, [isWindows, finalizeCapture, cancelCapture]);
 
   const displayValue = formatHotkeyLabel(value);
   const isGlobe = isGlobeLikeHotkey(value);
@@ -577,6 +641,7 @@ export function HotkeyInput({
         role="button"
         aria-label={t("hotkeyInput.ariaLabel")}
         data-capturing={isCapturing || undefined}
+        data-capture-arming={isCaptureArming || undefined}
         onKeyDown={handleKeyDown}
         onKeyUp={handleKeyUp}
         onMouseDown={handleMouseDown}
@@ -675,6 +740,7 @@ export function HotkeyInput({
       role="button"
       aria-label={t("hotkeyInput.ariaLabel")}
       data-capturing={isCapturing || undefined}
+      data-capture-arming={isCaptureArming || undefined}
       onKeyDown={handleKeyDown}
       onKeyUp={handleKeyUp}
       onMouseDown={handleMouseDown}
@@ -693,7 +759,7 @@ export function HotkeyInput({
             : `rounded-md border cursor-pointer ${
                 disabled
                   ? "bg-muted/30 border-border cursor-not-allowed opacity-50"
-                : isCapturing
+                  : isCapturing
                     ? "bg-primary/5 border-primary/30 ring-2 ring-ring/20"
                     : "bg-muted border-border hover:border-ring/60 hover:bg-card"
               }`
@@ -794,7 +860,11 @@ export function HotkeyInput({
           </div>
         ) : (
           <div className="flex items-center justify-center gap-2 text-muted-foreground">
-            <span className={isAppshotsSettings ? "text-[17px] font-[500] leading-[21px]" : "text-sm font-medium"}>
+            <span
+              className={
+                isAppshotsSettings ? "text-[17px] font-[500] leading-[21px]" : "text-sm font-medium"
+              }
+            >
               {t("hotkeyInput.clickToSet")}
             </span>
           </div>

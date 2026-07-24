@@ -27,10 +27,7 @@ const {
   DEFAULT_EXPECTED_SPEAKER_COUNT,
   MAX_SPEAKER_COUNT,
 } = require("../constants/speakerDetection.json");
-const {
-  DEFAULT_SPEECH_VAD_CONFIG,
-  sanitizeSpeechVadConfig,
-} = require("./speechVadConfig");
+const { DEFAULT_SPEECH_VAD_CONFIG, sanitizeSpeechVadConfig } = require("./speechVadConfig");
 const {
   isBuiltInGigaamEndpoint,
   resolveGigaamTranscriptionUrl,
@@ -977,26 +974,18 @@ class IPCHandlers {
       return this.databaseManager.updateAgentConversationTitle(id, title);
     });
 
-    handle(
-      "db-add-agent-message",
-      async (event, conversationId, role, content, metadata) => {
-        const result = this.databaseManager.addAgentMessage(
-          conversationId,
-          role,
-          content,
-          metadata
-        );
-        if (this.vectorIndex?.isReady?.()) {
-          const conv = this.databaseManager.getAgentConversation(conversationId);
-          if (conv && conv.messages?.length % 3 === 0) {
-            this.vectorIndex
-              .upsertConversationChunks(conversationId, conv.title, conv.messages)
-              .catch(() => {});
-          }
+    handle("db-add-agent-message", async (event, conversationId, role, content, metadata) => {
+      const result = this.databaseManager.addAgentMessage(conversationId, role, content, metadata);
+      if (this.vectorIndex?.isReady?.()) {
+        const conv = this.databaseManager.getAgentConversation(conversationId);
+        if (conv && conv.messages?.length % 3 === 0) {
+          this.vectorIndex
+            .upsertConversationChunks(conversationId, conv.title, conv.messages)
+            .catch(() => {});
         }
-        return result;
       }
-    );
+      return result;
+    });
 
     handle("db-get-agent-messages", async (event, conversationId) => {
       return this.databaseManager.getAgentMessages(conversationId);
@@ -1054,9 +1043,7 @@ class IPCHandlers {
 
     // Notes sync
     handle("db-get-pending-notes", () => this.databaseManager.getPendingNotes());
-    handle("db-get-pending-note-deletes", () =>
-      this.databaseManager.getPendingNoteDeletes()
-    );
+    handle("db-get-pending-note-deletes", () => this.databaseManager.getPendingNoteDeletes());
     handle("db-get-note-by-client-id", (_, clientNoteId) =>
       this.databaseManager.getNoteByClientId(clientNoteId)
     );
@@ -1066,9 +1053,7 @@ class IPCHandlers {
     handle("db-mark-note-synced", (_, id, cloudId) =>
       this.databaseManager.markNoteSynced(id, cloudId)
     );
-    handle("db-mark-note-sync-error", (_, id) =>
-      this.databaseManager.markNoteSyncError(id)
-    );
+    handle("db-mark-note-sync-error", (_, id) => this.databaseManager.markNoteSyncError(id));
     handle("db-hard-delete-note", (_, id) => {
       const result = this.databaseManager.hardDeleteNote(id);
       if (result?.success) {
@@ -1091,9 +1076,7 @@ class IPCHandlers {
       this.databaseManager.markFolderSynced(id, cloudId)
     );
     handle("db-get-folder-id-map", () => this.databaseManager.getFolderIdMap());
-    handle("db-get-pending-folder-deletes", () =>
-      this.databaseManager.getPendingFolderDeletes()
-    );
+    handle("db-get-pending-folder-deletes", () => this.databaseManager.getPendingFolderDeletes());
     handle("db-hard-delete-folder", (_, id) => {
       const result = this.databaseManager.hardDeleteFolder(id);
       if (result?.success) {
@@ -1112,9 +1095,7 @@ class IPCHandlers {
     });
 
     // Conversations sync
-    handle("db-get-pending-conversations", () =>
-      this.databaseManager.getPendingConversations()
-    );
+    handle("db-get-pending-conversations", () => this.databaseManager.getPendingConversations());
     handle("db-get-pending-conversation-deletes", () =>
       this.databaseManager.getPendingConversationDeletes()
     );
@@ -1136,9 +1117,7 @@ class IPCHandlers {
     });
 
     // Transcriptions sync
-    handle("db-get-pending-transcriptions", () =>
-      this.databaseManager.getPendingTranscriptions()
-    );
+    handle("db-get-pending-transcriptions", () => this.databaseManager.getPendingTranscriptions());
     handle("db-get-transcription-by-client-id", (_, clientId) =>
       this.databaseManager.getTranscriptionByClientId(clientId)
     );
@@ -1425,10 +1404,7 @@ class IPCHandlers {
 
         const currentDebugLog = debugLogger.getLogPath();
         const latestDebugLog = currentDebugLog || (await findLatestDebugLog(logsDir));
-        const logPaths = [
-          latestDebugLog,
-          path.join(logsDir, "gigaam-sidecar.log"),
-        ].filter(Boolean);
+        const logPaths = [latestDebugLog, path.join(logsDir, "gigaam-sidecar.log")].filter(Boolean);
         const uniqueLogPaths = [...new Set(logPaths)];
         const sections = (await Promise.all(uniqueLogPaths.map(readLogFileTail))).filter(Boolean);
         const transcriptions = this.databaseManager.getTranscriptions(DEBUG_TRANSCRIPTION_LIMIT);
@@ -1591,7 +1567,16 @@ class IPCHandlers {
     });
 
     handle("set-hotkey-listening-mode", async (event, enabled, newHotkey = null) => {
-      if (this._hotkeyCaptureMode === enabled) return { success: true, skipped: true };
+      if (this._hotkeyCaptureMode === enabled) {
+        if (enabled && process.platform === "win32" && this.windowsKeyManager) {
+          const nativeReady =
+            this.windowsKeyManager.currentKey === "__capture__" &&
+            this.windowsKeyManager.isReady === true;
+          return { success: nativeReady, nativeReady, skipped: true };
+        }
+        return { success: true, skipped: true };
+      }
+      let nativeCaptureResult = { success: true };
       this._hotkeyCaptureMode = enabled;
       this.windowManager.setHotkeyListeningMode(enabled);
       ipcMain.emit("hotkey-listening-mode-changed", null, enabled);
@@ -1661,7 +1646,12 @@ class IPCHandlers {
         // that Windows does not reliably deliver to Chromium.
         if (process.platform === "win32" && this.windowsKeyManager) {
           debugLogger.log("[IPC] Starting native Windows hotkey capture mode");
-          this.windowsKeyManager.startCapture();
+          nativeCaptureResult = await this.windowsKeyManager.startCapture();
+          if (!nativeCaptureResult.success) {
+            debugLogger.warn("[IPC] Native Windows hotkey capture failed to become ready", {
+              reason: nativeCaptureResult.reason,
+            });
+          }
         }
 
         // On Linux, stop the Linux key listener
@@ -1833,7 +1823,11 @@ class IPCHandlers {
         }
       }
 
-      return { success: true };
+      return {
+        success: nativeCaptureResult.success,
+        nativeReady: nativeCaptureResult.success,
+        error: nativeCaptureResult.success ? undefined : nativeCaptureResult.reason,
+      };
     });
 
     handle("get-hotkey-mode-info", async () => {
@@ -2065,56 +2059,49 @@ class IPCHandlers {
       }
     });
 
-    handle(
-      "process-enterprise-reasoning",
-      async (event, text, modelId, _agentName, config) => {
-        const {
-          isEnterpriseProvider,
-          mapEnterpriseError,
-          pickEnterpriseConfig,
-          validateEnterpriseEndpoint,
-        } = require("./enterpriseProviderErrors");
-        const provider = config?.provider;
-        try {
-          if (!isEnterpriseProvider(provider)) {
-            throw new Error(`Unsupported enterprise provider: ${provider}`);
-          }
-          if (!modelId) {
-            throw new Error("No model specified for enterprise reasoning");
-          }
-
-          validateEnterpriseEndpoint(config?.azureEndpoint);
-
-          const { generateText } = require("ai");
-          const { getEnterpriseAIModel } = require("./enterpriseAiProviders");
-
-          const model = getEnterpriseAIModel(
-            provider,
-            modelId,
-            pickEnterpriseConfig(config)
-          );
-
-          const timeoutMs = config?.timeoutMs || 60000;
-          // Opus 4.7 / GPT-5 / o-series dropped `temperature`; renderer
-          // derives support from the model registry and we honor that here.
-          const useTemperature = config?.supportsTemperature !== false;
-          const { text: generated } = await generateText({
-            model,
-            system: config?.systemPrompt || "",
-            prompt: text,
-            maxOutputTokens: config?.maxTokens || 4096,
-            ...(useTemperature ? { temperature: config?.temperature ?? 0.3 } : {}),
-            abortSignal: AbortSignal.timeout(timeoutMs),
-          });
-
-          return { success: true, text: (generated || "").trim() };
-        } catch (err) {
-          debugLogger.error("Enterprise reasoning error:", err);
-          const mapped = mapEnterpriseError(provider, err, config || {});
-          return { success: false, error: mapped.message, retryable: mapped.retryable };
+    handle("process-enterprise-reasoning", async (event, text, modelId, _agentName, config) => {
+      const {
+        isEnterpriseProvider,
+        mapEnterpriseError,
+        pickEnterpriseConfig,
+        validateEnterpriseEndpoint,
+      } = require("./enterpriseProviderErrors");
+      const provider = config?.provider;
+      try {
+        if (!isEnterpriseProvider(provider)) {
+          throw new Error(`Unsupported enterprise provider: ${provider}`);
         }
+        if (!modelId) {
+          throw new Error("No model specified for enterprise reasoning");
+        }
+
+        validateEnterpriseEndpoint(config?.azureEndpoint);
+
+        const { generateText } = require("ai");
+        const { getEnterpriseAIModel } = require("./enterpriseAiProviders");
+
+        const model = getEnterpriseAIModel(provider, modelId, pickEnterpriseConfig(config));
+
+        const timeoutMs = config?.timeoutMs || 60000;
+        // Opus 4.7 / GPT-5 / o-series dropped `temperature`; renderer
+        // derives support from the model registry and we honor that here.
+        const useTemperature = config?.supportsTemperature !== false;
+        const { text: generated } = await generateText({
+          model,
+          system: config?.systemPrompt || "",
+          prompt: text,
+          maxOutputTokens: config?.maxTokens || 4096,
+          ...(useTemperature ? { temperature: config?.temperature ?? 0.3 } : {}),
+          abortSignal: AbortSignal.timeout(timeoutMs),
+        });
+
+        return { success: true, text: (generated || "").trim() };
+      } catch (err) {
+        debugLogger.error("Enterprise reasoning error:", err);
+        const mapped = mapEnterpriseError(provider, err, config || {});
+        return { success: false, error: mapped.message, retryable: mapped.retryable };
       }
-    );
+    });
 
     handle("get-dictation-key", async () => {
       return this.environmentManager.getDictationKey();
@@ -2245,12 +2232,9 @@ class IPCHandlers {
       }
     });
 
-    handle(
-      "process-anthropic-reasoning",
-      async (_event, _text, _modelId, _agentName, _config) => {
-        return { success: false, error: "Cloud reasoning providers are disabled" };
-      }
-    );
+    handle("process-anthropic-reasoning", async (_event, _text, _modelId, _agentName, _config) => {
+      return { success: false, error: "Cloud reasoning providers are disabled" };
+    });
 
     handle("check-local-reasoning-available", async () => {
       try {
@@ -3898,11 +3882,10 @@ class IPCHandlers {
 
         const { diarizationPcmPath, diarizationSegments, diarizationStartedAt } =
           await captureMeetingDiarizationState();
-        const transcript =
-          diarizationSegments
-            .map((segment) => segment.text)
-            .join(" ")
-            .trim();
+        const transcript = diarizationSegments
+          .map((segment) => segment.text)
+          .join(" ")
+          .trim();
 
         const sessionSpeakerConfigSnapshot = this.activeMeetingSpeakerConfig;
         const noteIdSnapshot = meetingNoteId;
