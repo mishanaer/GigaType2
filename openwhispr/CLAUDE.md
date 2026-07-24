@@ -47,14 +47,14 @@ Type is an Electron-based desktop dictation application that uses GigaAM for spe
 - **windows-mic-listener.c**: C source for WASAPI mic session monitor (event-driven mic detection)
 - **macos-mic-listener.swift**: Swift source for CoreAudio mic property listener (event-driven mic detection)
 - **globe-listener.swift**: Swift source for macOS Globe/Fn key detection
-- **bin/**: Directory for compiled native binaries (nircmd, key/mic listeners, sidecars)
+- **bin/**: Directory for compiled native binaries (paste/key/mic listeners and sidecars)
 
 ### Helper Modules (src/helpers/)
 
 - **audioManager.js**: Handles audio device management
 - **clipboard.js**: Cross-platform clipboard operations
   - macOS: AppleScript-based paste with accessibility permission check
-  - Windows: PowerShell SendKeys with nircmd.exe fallback
+  - Windows: first-party SendInput helper with PowerShell SendKeys fallback
   - Linux: Native XTest binary + compositor-aware fallbacks (xdotool, wtype, ydotool)
 - **database.js**: SQLite operations for transcription history
 - **debugLogger.js**: Debug logging system with file output
@@ -108,7 +108,7 @@ Type is an Electron-based desktop dictation application that uses GigaAM for spe
 - **vectorIndex.js**: Qdrant collection management — upsert, delete, search, batch reindex
 - **windowConfig.js**: Centralized window configuration
 - **windowManager.js**: Window creation and lifecycle management
-- **cliBridge.js**: Loopback HTTP server on ports 8200–8219, bearer-token auth (token at `~/.openwhispr/cli-bridge.json`), 127.0.0.1-only. Used by the unified CLI to talk to a running desktop app.
+- **cliBridge.js**: Optional loopback HTTP server on ports 8200–8219, bearer-token auth (token at `~/.openwhispr/cli-bridge.json`), 127.0.0.1-only. It is disabled by default on Windows to avoid an inbound-firewall prompt; `TYPE_CLI_BRIDGE=1` opts in.
 - **postMigrationDetector.js**: Detects users returning from the pre-Gizmo bundle ID via a `.bundle-migrated` sentinel in userData; consumed by `ipcHandlers.js` to drive the `PostMigrationOnboarding` modal
 
 ### React Components (src/components/)
@@ -143,7 +143,7 @@ Type is an Electron-based desktop dictation application that uses GigaAM for spe
 
 ### GigaAM Integration
 
-- **Local ASR engine (no Python)**: `main.js` starts `GigaamLocalAsrManager` (`src/helpers/gigaamLocalAsr.js`). It serves the same OpenAI-compatible HTTP API the old PyInstaller sidecar did (`http://127.0.0.1:8765-8775/v1/audio/transcriptions`, `/health`), but inference runs in the shared ONNX utility process (`src/workers/onnxWorker.js`, handlers `gigaam.load` / `gigaam.transcribe`) via onnxruntime-node
+- **Local ASR engine (no Python)**: `main.js` starts `GigaamLocalAsrManager` (`src/helpers/gigaamLocalAsr.js`). App-owned transcription travels over Electron IPC (no inbound TCP/firewall rule); inference runs in the shared ONNX utility process (`src/workers/onnxWorker.js`, handlers `gigaam.load` / `gigaam.transcribe`) via onnxruntime-node. Developers can opt into the legacy loopback HTTP API with `GIGAAM_HTTP_BRIDGE=1`.
 - **ASR model**: `gigaam-v3-e2e-rnnt` (fp32, `istupakov/gigaam-v3-onnx`). Reuses the legacy HF snapshot cache under `userData/model-cache/huggingface/...`; fresh installs download 4 files (~892 MB) to `userData/model-cache/gigaam/gigaam-v3-e2e-rnnt/`
 - **Featurizer**: exact port of onnx-asr's GigaamPreprocessor v3 (n_fft=win=320, hop=160, 64 mels); precomputed window/mel-fbank embedded in `src/workers/gigaamFbankAssets.js`
 - **onnxruntime version lock**: onnxruntime-node is pinned to the exact version sherpa-onnx links (`libonnxruntime.1.23.2.dylib`); afterPack replaces the bin copy with a symlink into app.asar.unpacked. Do not bump one without the other
@@ -181,7 +181,6 @@ Always-on offline semantic search that finds notes by meaning, not just keywords
 ### Build Scripts (scripts/)
 
 - **download-llama-server.js**: Downloads llama.cpp server for local LLM inference
-- **download-nircmd.js**: Downloads nircmd.exe for Windows clipboard operations
 - **download-windows-key-listener.js**: Downloads prebuilt Windows key listener binary
 - **download-windows-mic-listener.js**: Downloads prebuilt Windows mic listener binary
 - **download-sherpa-onnx.js**: Downloads sherpa-onnx diarization binary
@@ -597,7 +596,7 @@ const { t } = useTranslation();
      - X11: xdotool fallback if native binary unavailable
      - GNOME/KDE Wayland: xdotool (XWayland apps) → ydotool (requires ydotoold daemon)
      - wlroots Wayland (Sway, Hyprland): wtype → xdotool → ydotool
-   - Windows: PowerShell SendKeys (built-in) or nircmd.exe (bundled)
+   - Windows: first-party SendInput helper or PowerShell SendKeys fallback
 
 4. **Build Issues**:
    - Use `npm run pack` for unsigned builds (CSC_IDENTITY_AUTO_DISCOVERY=false)

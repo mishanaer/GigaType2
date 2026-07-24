@@ -31,7 +31,10 @@ const {
   DEFAULT_SPEECH_VAD_CONFIG,
   sanitizeSpeechVadConfig,
 } = require("./speechVadConfig");
-const { resolveGigaamTranscriptionUrl } = require("../utils/gigaamTranscription.cjs");
+const {
+  isBuiltInGigaamEndpoint,
+  resolveGigaamTranscriptionUrl,
+} = require("../utils/gigaamTranscription.cjs");
 const DevServerManager = require("./devServerManager");
 const { isAllowedIpcSenderUrl, isSafeExternalUrl } = require("./securityPolicy");
 
@@ -232,8 +235,21 @@ async function transcribeBufferWithGigaam(
     fileName = "audio.wav",
     contentType = "audio/wav",
     language,
-  } = {}
+  } = {},
+  localAsrManager = null
 ) {
+  if (isBuiltInGigaamEndpoint(baseUrl)) {
+    if (!localAsrManager) {
+      throw new Error("Built-in GigaAM engine is unavailable");
+    }
+    const result = await localAsrManager.transcribeAudioBuffer(audioBuffer);
+    return {
+      success: true,
+      text: typeof result?.text === "string" ? result.text : "",
+      source: "gigaam",
+      model,
+    };
+  }
   const transcriptionUrl = resolveGigaamTranscriptionUrl(baseUrl);
   const fields = { model };
   if (language) fields.language = language;
@@ -277,6 +293,7 @@ class IPCHandlers {
     this.audioTapManager = managers.audioTapManager;
     this.linuxPortalAudioManager = managers.linuxPortalAudioManager;
     this.telemetryManager = managers.telemetryManager;
+    this.gigaamLocalAsrManager = managers.gigaamLocalAsrManager;
     this.sessionId = crypto.randomUUID();
     this._hotkeyCaptureMode = false;
     this._hotkeyCaptureRefocusWindow = null;
@@ -561,7 +578,6 @@ class IPCHandlers {
     handle("hide-window", () => {
       if (process.platform === "darwin") {
         this.windowManager.hideDictationPanel();
-        if (app.dock) app.dock.show();
       } else {
         this.windowManager.hideDictationPanel();
       }
@@ -1240,19 +1256,43 @@ class IPCHandlers {
         const audioBuffer = fs.readFileSync(filePath);
         const ext = path.extname(filePath).toLowerCase().replace(".", "");
         const contentType = AUDIO_MIME_TYPES[ext] || "audio/mpeg";
-        return await transcribeBufferWithGigaam(audioBuffer, {
-          baseUrl:
-            options.baseUrl ||
-            options.remoteTranscriptionUrl ||
-            options.gigaamBaseUrl ||
-            process.env.GIGAAM_API_BASE,
-          model: options.model || GIGAAM_TRANSCRIPTION_MODEL,
-          fileName: path.basename(filePath),
-          contentType,
-          language: options.language,
-        });
+        return await transcribeBufferWithGigaam(
+          audioBuffer,
+          {
+            baseUrl:
+              options.baseUrl ||
+              options.remoteTranscriptionUrl ||
+              options.gigaamBaseUrl ||
+              process.env.GIGAAM_API_BASE,
+            model: options.model || GIGAAM_TRANSCRIPTION_MODEL,
+            fileName: path.basename(filePath),
+            contentType,
+            language: options.language,
+          },
+          this.gigaamLocalAsrManager
+        );
       } catch (error) {
         debugLogger.error("Audio file transcription error", { error: error.message });
+        return { success: false, error: error.message };
+      }
+    });
+
+    handle("transcribe-local-gigaam", async (_event, request = {}) => {
+      try {
+        const audio = request.audio;
+        if (!audio || typeof audio.byteLength !== "number") {
+          return { success: false, error: "Audio payload is required" };
+        }
+        const result = await this.gigaamLocalAsrManager.transcribeAudioBuffer(
+          Buffer.from(audio.buffer, audio.byteOffset || 0, audio.byteLength)
+        );
+        return {
+          success: true,
+          text: typeof result?.text === "string" ? result.text : "",
+          model: request.model || GIGAAM_TRANSCRIPTION_MODEL,
+        };
+      } catch (error) {
+        debugLogger.error("Local GigaAM IPC transcription error", { error: error.message });
         return { success: false, error: error.message };
       }
     });
@@ -2062,6 +2102,17 @@ class IPCHandlers {
       return this.windowManager?.hotkeyManager?.isFnHotkeyAvailable() ?? false;
     });
 
+    handle("get-show-dock-icon", async () => {
+      return this.environmentManager.getShowDockIcon();
+    });
+
+    handle("set-show-dock-icon", async (_event, enabled) => {
+      const visible = Boolean(enabled);
+      this.environmentManager.saveShowDockIcon(visible);
+      await this.windowManager.setShowDockIcon(visible);
+      return { success: true, visible };
+    });
+
     handle("get-activation-mode", async () => {
       return this.environmentManager.getActivationMode();
     });
@@ -2663,16 +2714,20 @@ class IPCHandlers {
             ? preferredLanguage.split("-")[0]
             : undefined;
 
-        result = await transcribeBufferWithGigaam(buffer, {
-          baseUrl:
-            settings?.remoteTranscriptionUrl ||
-            settings?.gigaamBaseUrl ||
-            process.env.GIGAAM_API_BASE,
-          model: GIGAAM_TRANSCRIPTION_MODEL,
-          fileName: "audio.webm",
-          contentType: "audio/webm",
-          language,
-        });
+        result = await transcribeBufferWithGigaam(
+          buffer,
+          {
+            baseUrl:
+              settings?.remoteTranscriptionUrl ||
+              settings?.gigaamBaseUrl ||
+              process.env.GIGAAM_API_BASE,
+            model: GIGAAM_TRANSCRIPTION_MODEL,
+            fileName: "audio.webm",
+            contentType: "audio/webm",
+            language,
+          },
+          this.gigaamLocalAsrManager
+        );
 
         if (!result?.text) {
           return { success: false, error: "No transcription engine available" };
@@ -3326,13 +3381,17 @@ class IPCHandlers {
       const wav = pcm16ToWav(pcm16k);
 
       try {
-        const result = await transcribeBufferWithGigaam(wav, {
-          baseUrl: meetingGigaamBaseUrl || process.env.GIGAAM_API_BASE,
-          model: meetingGigaamModel,
-          fileName: `${source}.wav`,
-          contentType: "audio/wav",
-          language: meetingLanguage,
-        });
+        const result = await transcribeBufferWithGigaam(
+          wav,
+          {
+            baseUrl: meetingGigaamBaseUrl || process.env.GIGAAM_API_BASE,
+            model: meetingGigaamModel,
+            fileName: `${source}.wav`,
+            contentType: "audio/wav",
+            language: meetingLanguage,
+          },
+          this.gigaamLocalAsrManager
+        );
 
         if (result?.success && result.text?.trim()) {
           const text = result.text.trim();

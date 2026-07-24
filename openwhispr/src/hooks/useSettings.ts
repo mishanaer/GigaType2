@@ -36,6 +36,7 @@ export interface MicrophoneSettings {
   preferBuiltInMic: boolean;
   selectedMicDeviceId: string;
   hideCapsule: boolean;
+  showDockIcon: boolean;
 }
 
 export interface PrivacySettings {
@@ -149,6 +150,8 @@ function useSettingsInternal() {
     setSelectedMicDeviceId: store.setSelectedMicDeviceId,
     hideCapsule: store.hideCapsule,
     setHideCapsule: store.setHideCapsule,
+    showDockIcon: store.showDockIcon,
+    setShowDockIcon: store.setShowDockIcon,
     showTranscriptionPreview: store.showTranscriptionPreview,
     setShowTranscriptionPreview: store.setShowTranscriptionPreview,
     noteFilesEnabled: store.noteFilesEnabled,

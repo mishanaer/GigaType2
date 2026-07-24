@@ -204,6 +204,7 @@ const BOOLEAN_SETTINGS = new Set([
   "useDictationAgent",
   "preferBuiltInMic",
   "hideCapsule",
+  "showDockIcon",
   "audioCuesEnabled",
   "pauseMediaOnDictation",
   "startMinimized",
@@ -523,6 +524,7 @@ export interface SettingsState
   audioCuesEnabled: boolean;
   pauseMediaOnDictation: boolean;
   startMinimized: boolean;
+  showDockIcon: boolean;
   gcalAccounts: GoogleCalendarAccount[];
   gcalConnected: boolean;
   gcalEmail: string;
@@ -652,6 +654,7 @@ export interface SettingsState
   setAudioCuesEnabled: (value: boolean) => void;
   setPauseMediaOnDictation: (value: boolean) => void;
   setStartMinimized: (enabled: boolean) => void;
+  setShowDockIcon: (enabled: boolean) => void;
   setGcalAccounts: (accounts: GoogleCalendarAccount[]) => void;
   setNotificationsEnabled: (value: boolean) => void;
   setNotifyMeetingDetection: (value: boolean) => void;
@@ -705,7 +708,7 @@ function createBooleanSetter(key: string) {
 
 const GIGATYPE_ASR_DEFAULTS_APPLIED_KEY = "_gigatypeAsrDefaultsApplied";
 const LOCAL_GIGAAM_API_BASE_RE =
-  /^http:\/\/127\.0\.0\.1:(?:876[5-9]|877[0-5])\/v1(?:\/audio\/transcriptions)?\/?$/i;
+  /^(?:type-local:\/\/gigaam\/v1|http:\/\/127\.0\.0\.1:(?:876[5-9]|877[0-5])\/v1(?:\/audio\/transcriptions)?)\/?$/i;
 
 function isLocalGigaamApiBase(value: string | null | undefined): boolean {
   return LOCAL_GIGAAM_API_BASE_RE.test((value || "").trim());
@@ -868,6 +871,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   preferBuiltInMic: readBoolean("preferBuiltInMic", true),
   selectedMicDeviceId: readString("selectedMicDeviceId", ""),
   hideCapsule: readBoolean("hideCapsule", false),
+  showDockIcon: readBoolean("showDockIcon", true),
 
   theme: FIXED_THEME,
   telemetryEnabled: false,
@@ -1146,6 +1150,19 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setPreferBuiltInMic: createBooleanSetter("preferBuiltInMic"),
   setSelectedMicDeviceId: createStringSetter("selectedMicDeviceId"),
   setHideCapsule: createBooleanSetter("hideCapsule"),
+  setShowDockIcon: (enabled: boolean) => {
+    if (isBrowser) localStorage.setItem("showDockIcon", String(enabled));
+    set({ showDockIcon: enabled });
+    if (isBrowser) {
+      window.electronAPI?.setShowDockIcon?.(enabled).catch((err) => {
+        logger.warn(
+          "Failed to update macOS Dock visibility",
+          { error: (err as Error).message },
+          "settings"
+        );
+      });
+    }
+  },
 
   setTheme: () => {
     if (isBrowser) localStorage.setItem("theme", FIXED_THEME);
@@ -1600,6 +1617,10 @@ export async function initializeSettings(): Promise<void> {
       });
       await window.electronAPI.saveActivationMode?.(activationMode);
       window.electronAPI.notifyActivationModeChanged?.(activationMode);
+
+      const showDockIcon = (await window.electronAPI.getShowDockIcon?.()) ?? true;
+      localStorage.setItem("showDockIcon", String(showDockIcon));
+      useSettingsStore.setState({ showDockIcon });
     } catch (err) {
       logger.warn(
         "Failed to sync runtime settings on startup",

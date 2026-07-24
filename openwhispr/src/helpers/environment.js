@@ -24,6 +24,7 @@ const PERSISTED_KEYS = [
   "MEETING_KEY",
   "ACTIVATION_MODE",
   "START_MINIMIZED",
+  "SHOW_DOCK_ICON",
   "UI_LANGUAGE",
   "TRANSCRIPTION_GPU_INDEX",
   "INTELLIGENCE_GPU_INDEX",
@@ -317,6 +318,16 @@ class EnvironmentManager {
 
   saveStartMinimized(_enabled) {
     const result = this._saveKey("START_MINIMIZED", "false");
+    this.saveRuntimeConfigToEnvFile().catch(() => {});
+    return result;
+  }
+
+  getShowDockIcon() {
+    return this._getKey("SHOW_DOCK_ICON") !== "false";
+  }
+
+  saveShowDockIcon(enabled) {
+    const result = this._saveKey("SHOW_DOCK_ICON", enabled ? "true" : "false");
     this.saveRuntimeConfigToEnvFile().catch(() => {});
     return result;
   }

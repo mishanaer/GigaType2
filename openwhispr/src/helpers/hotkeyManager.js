@@ -82,7 +82,8 @@ function normalizeToAccelerator(hotkey) {
     .replace(/\bRight(Command|Cmd)\b/g, "Command")
     .replace(/\bRight(Control|Ctrl)\b/g, "Control")
     .replace(/\bRight(Alt|Option)\b/g, "Alt")
-    .replace(/\bRightShift\b/g, "Shift");
+    .replace(/\bRightShift\b/g, "Shift")
+    .replace(/\bCapsLock\b/gi, "Capslock");
   return accelerator;
 }
 
@@ -365,6 +366,11 @@ class HotkeyManager extends EventEmitter {
 
     const previousHotkey = slot.hotkey;
 
+    // Check app-owned conflicts before releasing the working shortcut. A
+    // failed assignment must never leave dictation without its old hotkey.
+    const conflict = this._findSlotConflict(slotName, hotkey);
+    if (conflict) return conflict;
+
     // Unregister the previous hotkey for this slot (skip native-listener-only hotkeys)
     if (
       previousHotkey &&
@@ -385,9 +391,6 @@ class HotkeyManager extends EventEmitter {
     }
 
     try {
-      const conflict = this._findSlotConflict(slotName, hotkey);
-      if (conflict) return conflict;
-
       if (isMouseButtonHotkey(hotkey)) {
         if (process.platform !== "darwin") {
           return {

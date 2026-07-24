@@ -1,7 +1,10 @@
 import logger from "../utils/logger";
 import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
 import { isSecureEndpoint } from "../utils/urlUtils";
-import { resolveGigaamTranscriptionUrl } from "../utils/gigaamTranscription";
+import {
+  isBuiltInGigaamEndpoint,
+  resolveGigaamTranscriptionUrl,
+} from "../utils/gigaamTranscription";
 import { getBaseLanguageCode } from "../utils/languageSupport";
 import { stripSingleTerminalPeriod } from "../utils/transcriptionFormatting";
 import {
@@ -776,6 +779,29 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       const apiCallStart = performance.now();
 
+      if (isBuiltInGigaamEndpoint(endpoint)) {
+        const audio = new Uint8Array(await optimizedAudio.arrayBuffer());
+        const result = await window.electronAPI.transcribeLocalGigaam({
+          audio,
+          model,
+          language,
+          fileName: `audio.${extension}`,
+          contentType: mimeType,
+        });
+        if (!result?.success) {
+          throw new Error(result?.error || "Local GigaAM transcription failed");
+        }
+        const rawText = result.text || "";
+        if (!rawText.trim()) {
+          throw new Error(
+            "No text transcribed - audio may be too short, silent, or in an unsupported format"
+          );
+        }
+        timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
+        const text = await this.processTranscription(rawText, "gigaam");
+        return { success: true, text, rawText, source: "gigaam", timings };
+      }
+
       logger.debug(
         "Making transcription API request",
         {
@@ -1002,7 +1028,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         return endpoint;
       };
 
-      if (!isSecureEndpoint(endpoint)) {
+      if (!isBuiltInGigaamEndpoint(endpoint) && !isSecureEndpoint(endpoint)) {
         throw new Error(`Insecure GigaAM transcription endpoint: ${endpoint}`);
       }
 

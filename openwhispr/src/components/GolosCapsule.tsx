@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SiriRenderer, type SiriGlassMaterial } from "./golos-siri/renderer";
 import type { SiriWaveAppearance } from "./golos-siri/shaders";
 import { createSiriState, type SiriBands } from "./golos-siri/state";
@@ -45,6 +45,10 @@ export function GolosCapsule({
   const glassMaterialRef = useRef(glassMaterial);
   const waveAppearanceRef = useRef(waveAppearance);
   const reducedMotionRef = useRef(false);
+  const retryCountRef = useRef(0);
+  const retryTimerRef = useRef<number | null>(null);
+  const [rendererGeneration, setRendererGeneration] = useState(0);
+  const [usingFallback, setUsingFallback] = useState(false);
 
   levelRef.current = audioLevel;
   timeScaleRef.current = Math.max(0.05, Math.min(4, timeScale));
@@ -90,6 +94,8 @@ export function GolosCapsule({
     };
 
     const handleRendererRestored = () => {
+      retryCountRef.current = 0;
+      setUsingFallback(false);
       if (reducedMotion) {
         renderStaticFrame();
       } else {
@@ -97,7 +103,33 @@ export function GolosCapsule({
       }
     };
 
+    const handleRendererError = (event: Event) => {
+      setUsingFallback(true);
+      const message = (event as CustomEvent<{ message?: string }>).detail?.message;
+      window.electronAPI?.log?.({
+        level: "warn",
+        message: "Capsule WebGL renderer failed; using CSS fallback",
+        meta: { message, retry: retryCountRef.current },
+        scope: "capsule",
+      });
+
+      if (retryCountRef.current >= 2 || retryTimerRef.current !== null) return;
+      retryCountRef.current += 1;
+      retryTimerRef.current = window.setTimeout(() => {
+        retryTimerRef.current = null;
+        setRendererGeneration((value) => value + 1);
+      }, 750 * retryCountRef.current);
+    };
+
     canvas.addEventListener("siri-render-restored", handleRendererRestored);
+    canvas.addEventListener("siri-render-error", handleRendererError);
+    if (renderer.error) {
+      handleRendererError(
+        new CustomEvent("siri-render-error", {
+          detail: { message: renderer.error.message },
+        })
+      );
+    }
     if (reducedMotion) {
       renderStaticFrame();
     } else {
@@ -107,14 +139,19 @@ export function GolosCapsule({
     return () => {
       cancelAnimationFrame(frameRef.current);
       frameRef.current = 0;
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
       canvas.removeEventListener("siri-render-restored", handleRendererRestored);
+      canvas.removeEventListener("siri-render-error", handleRendererError);
       renderer.dispose();
       siriRef.current = null;
       rendererRef.current = null;
     };
     // Phase changes are synchronized below so the WebGL choreography is not remounted.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [rendererGeneration]);
 
   useEffect(() => {
     const siri = siriRef.current;
@@ -142,6 +179,8 @@ export function GolosCapsule({
   return (
     <div
       className="golos-dictation-capsule"
+      data-renderer-fallback={usingFallback ? "true" : undefined}
+      data-visual-state={phase === "transcribing" ? "thinking" : "listening"}
       role="status"
       aria-label={phase === "transcribing" ? "Распознаём речь" : "Идёт запись"}
     >

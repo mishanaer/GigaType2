@@ -140,15 +140,22 @@ Type tries clipboard methods in order: `wl-copy` (most reliable) → renderer `n
 
 **Antivirus / Windows Defender blocking binaries:**
 
-FFmpeg or bundled sidecars may be quarantined silently. Add Type to exclusions: Settings → Virus & threat protection → Exclusions.
+Do not add broad antivirus exclusions. Install a production-signed Type build and
+send the detection name, quarantined file path, Type version, and artifact SHA-256
+to support so the bundled first-party helper can be investigated.
 
 **Permission errors:**
 
-Right-click Type → Run as administrator (or set permanently in Properties → Compatibility).
+Type is designed to run without administrator rights. Windows blocks simulated
+input into elevated applications; move focus to a non-elevated target instead of
+running Type as administrator.
 
-**Firewall blocking cloud mode:**
+**Network access:**
 
-Allow Type through Windows Firewall when using cloud transcription providers.
+Type does not need an inbound Windows Firewall exception for public or private
+networks. Cloud providers use outbound HTTPS. If outbound traffic is restricted
+by an organization, ask the administrator to allow the hosts in
+`docs/network-allowlist.md`.
 
 **Complete reset (after uninstalling):**
 

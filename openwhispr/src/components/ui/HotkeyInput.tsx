@@ -109,6 +109,7 @@ const CODE_TO_KEY: Record<string, string> = {
   ScrollLock: "Scrolllock",
   PrintScreen: "PrintScreen",
   NumLock: "Numlock",
+  CapsLock: "CapsLock",
   // Numpad keys
   Numpad0: "num0",
   Numpad1: "num1",
@@ -142,7 +143,6 @@ const MODIFIER_CODES = new Set([
   "AltRight",
   "MetaLeft",
   "MetaRight",
-  "CapsLock",
 ]);
 
 export interface HotkeyInputProps {

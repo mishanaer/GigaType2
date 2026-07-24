@@ -9,11 +9,10 @@ const { findAvailablePort, resolveBinaryPath } = require("../utils/serverUtils")
 const onnxWorkerClient = require("./onnxWorkerClient");
 const { downloadFile } = require("./downloadUtils");
 
-// Drop-in replacement for the former PyInstaller GigaAM sidecar. Serves the
-// same OpenAI-compatible HTTP API (`/v1/audio/transcriptions`, `/health`) on
-// the same port range and emits the same status objects, but inference runs
-// in the shared ONNX utility process (onnxWorker.js) via onnxruntime-node —
-// no Python, no external binary.
+// Local GigaAM engine. App-owned requests use Electron IPC so the packaged
+// application does not open an inbound TCP listener (and therefore does not
+// need a Windows Firewall exception). The legacy loopback HTTP bridge is only
+// available as an explicit developer opt-in.
 
 const HOST = "127.0.0.1";
 const PORT_RANGE_START = 8765;
@@ -40,6 +39,7 @@ const TARGET_SAMPLE_RATE = 16000;
 const MAX_TRANSCRIPTION_CHUNK_SECONDS = 25;
 const MAX_TRANSCRIPTION_CHUNK_SAMPLES = TARGET_SAMPLE_RATE * MAX_TRANSCRIPTION_CHUNK_SECONDS;
 const LOOPBACK_CORS_ORIGIN_PATTERN = /^http:\/\/(localhost|127\.0\.0\.1):\d+$/;
+const BUILT_IN_API_BASE = "type-local://gigaam/v1";
 
 function getPcmChunkRanges(sampleCount, maxChunkSamples = MAX_TRANSCRIPTION_CHUNK_SAMPLES) {
   if (!Number.isInteger(sampleCount) || sampleCount < 0) {
@@ -194,6 +194,7 @@ class GigaamLocalAsrManager extends EventEmitter {
     this.modelProgress = 0;
     this.modelStage = "stopped";
     this._lastProgressEmit = 0;
+    this.httpBridgeEnabled = process.env.GIGAAM_HTTP_BRIDGE === "1";
   }
 
   // The local engine ships with the app on every platform.
@@ -277,7 +278,7 @@ class GigaamLocalAsrManager extends EventEmitter {
 
   async start() {
     if (this.startupPromise) return this.startupPromise;
-    if (this.ready && this.server) return;
+    if (this.ready) return;
 
     this.startupPromise = this._doStart();
     try {
@@ -297,21 +298,21 @@ class GigaamLocalAsrManager extends EventEmitter {
   async _doStart() {
     if (this.server) await this.stop();
 
-    this.port = await findAvailablePort(PORT_RANGE_START, PORT_RANGE_END);
+    this.port = null;
     this.healthStatus = "loading";
     this.healthDetail = "starting local ASR";
     this.modelStage = "checking";
     this.modelProgress = 0;
     this._emitStatus();
 
-    // The HTTP server comes up immediately so /health reflects model download
-    // and load progress, matching the old sidecar's behavior.
-    await this._startServer();
-
-    debugLogger.info("GigaAM local ASR server listening", {
-      port: this.port,
-      apiBaseUrl: this.getApiBaseUrl(),
-    });
+    if (this.httpBridgeEnabled) {
+      this.port = await findAvailablePort(PORT_RANGE_START, PORT_RANGE_END);
+      await this._startServer();
+      debugLogger.warn("GigaAM developer HTTP bridge enabled", {
+        port: this.port,
+        apiBaseUrl: this.getApiBaseUrl(),
+      });
+    }
 
     try {
       const baseDir = await this._ensureModelFiles();
@@ -340,7 +341,11 @@ class GigaamLocalAsrManager extends EventEmitter {
       this.modelStage = "ready";
       this.modelProgress = 100;
       this._emitStatus();
-      debugLogger.info("GigaAM local ASR ready", { port: this.port, modelDir: baseDir });
+      debugLogger.info("GigaAM local ASR ready", {
+        transport: this.httpBridgeEnabled ? "loopback-http" : "electron-ipc",
+        port: this.port,
+        modelDir: baseDir,
+      });
     } catch (error) {
       debugLogger.error("GigaAM local ASR startup failed", { error: error.message });
       this.ready = false;
@@ -503,6 +508,20 @@ class GigaamLocalAsrManager extends EventEmitter {
     return result;
   }
 
+  async transcribeAudioBuffer(audioBuffer) {
+    if (!this.ready || this.healthStatus !== "ok") {
+      throw new Error(
+        `GigaAM model not ready (${this.healthStatus}: ${this.healthDetail || "initializing"})`
+      );
+    }
+    const buffer = Buffer.isBuffer(audioBuffer) ? audioBuffer : Buffer.from(audioBuffer);
+    if (buffer.length > MAX_REQUEST_BYTES) {
+      throw new Error("audio payload is too large");
+    }
+    const pcm = await this._decodeToPcm(buffer);
+    return this._transcribePcm(pcm);
+  }
+
   _requestGigaamChunk(pcmBuffer) {
     return onnxWorkerClient.request("gigaam.transcribe", { pcmBuffer }, [], {
       timeoutMs: TRANSCRIBE_TIMEOUT_MS,
@@ -598,13 +617,13 @@ class GigaamLocalAsrManager extends EventEmitter {
   }
 
   getApiBaseUrl() {
-    return this.port ? `http://${HOST}:${this.port}/v1` : null;
+    return this.port ? `http://${HOST}:${this.port}/v1` : BUILT_IN_API_BASE;
   }
 
   getStatus() {
     return {
       available: this.isAvailable(),
-      running: this.ready && this.server !== null,
+      running: this.ready,
       port: this.port,
       apiBaseUrl: this.getApiBaseUrl(),
       healthStatus: this.healthStatus,

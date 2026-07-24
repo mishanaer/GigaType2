@@ -359,7 +359,7 @@ test("Windows restores the previous clipboard when an editable field is detected
       allowClipboardFallback: true,
     });
 
-    // Restore is scheduled after RESTORE_DELAYS.win32_nircmd (80ms).
+    // Restore is scheduled after RESTORE_DELAYS.win32_fast (80ms).
     await new Promise((resolve) => setTimeout(resolve, 150));
 
     assert.equal(spawnCalls[0].command, "/tmp/windows-fast-paste.exe");

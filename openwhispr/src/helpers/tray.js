@@ -68,10 +68,7 @@ class TrayManager {
       this.attachControlPanelListeners(this.controlPanelWindow);
 
       if (this.controlPanelWindow && !this.controlPanelWindow.isDestroyed()) {
-        // Show dock icon on macOS when control panel opens
-        if (process.platform === "darwin" && app.dock) {
-          app.dock.show();
-        }
+        void this.windowManager?.ensureDockVisibility?.();
         if (this.controlPanelWindow.isMinimized()) {
           this.controlPanelWindow.restore();
         }
@@ -111,7 +108,7 @@ class TrayManager {
       const trayIcon = await this.loadTrayIcon();
       if (!trayIcon || trayIcon.isEmpty()) {
         debugLogger.error("Failed to load tray icon", undefined, "tray");
-        return;
+        return false;
       }
 
       this.tray = new Tray(trayIcon);
@@ -122,8 +119,10 @@ class TrayManager {
 
       this.updateTrayMenu();
       this.setupTrayEventHandlers();
+      return true;
     } catch (error) {
       debugLogger.error("Error creating tray icon", { error: error.message }, "tray");
+      return false;
     }
   }
 

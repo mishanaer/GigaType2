@@ -7,8 +7,6 @@ class MediaPlayer {
   constructor() {
     this._linuxBinaryChecked = false;
     this._linuxBinaryPath = null;
-    this._nircmdChecked = false;
-    this._nircmdPath = null;
     this._macBinaryChecked = false;
     this._macBinaryPath = null;
     this._pausedPlayers = []; // MPRIS players we paused (Linux)
@@ -34,28 +32,6 @@ class MediaPlayer {
         if (fs.existsSync(candidate)) {
           fs.accessSync(candidate, fs.constants.X_OK);
           this._linuxBinaryPath = candidate;
-          return candidate;
-        }
-      } catch {
-        continue;
-      }
-    }
-    return null;
-  }
-
-  _resolveNircmd() {
-    if (this._nircmdChecked) return this._nircmdPath;
-    this._nircmdChecked = true;
-
-    const candidates = [
-      path.join(process.resourcesPath || "", "bin", "nircmd.exe"),
-      path.join(__dirname, "..", "..", "resources", "bin", "nircmd.exe"),
-    ];
-
-    for (const candidate of candidates) {
-      try {
-        if (fs.existsSync(candidate)) {
-          this._nircmdPath = candidate;
           return candidate;
         }
       } catch {
@@ -479,15 +455,6 @@ try {
   }
 
   _sendWindowsMediaKey() {
-    const nircmd = this._resolveNircmd();
-    if (nircmd) {
-      const result = spawnSync(nircmd, ["sendkeypress", "0xB3"], {
-        stdio: "pipe",
-        timeout: 3000,
-      });
-      if (result.status === 0) return true;
-    }
-
     const result = spawnSync(
       "powershell",
       [

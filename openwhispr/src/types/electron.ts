@@ -526,6 +526,13 @@ declare global {
           [key: string]: unknown;
         }
       ) => Promise<{ success: boolean; text?: string; error?: string }>;
+      transcribeLocalGigaam: (request: {
+        audio: Uint8Array;
+        model?: string;
+        language?: string;
+        fileName?: string;
+        contentType?: string;
+      }) => Promise<{ success: boolean; text?: string; error?: string; model?: string }>;
       getPathForFile: (file: File) => string;
 
       // Note event listeners
@@ -750,6 +757,10 @@ declare global {
       // Activation mode persistence (file-based for reliable startup)
       getActivationMode?: () => Promise<"tap" | "push">;
       saveActivationMode?: (mode: "tap" | "push") => Promise<void>;
+      getShowDockIcon?: () => Promise<boolean>;
+      setShowDockIcon?: (
+        enabled: boolean
+      ) => Promise<{ success: boolean; visible: boolean }>;
 
       // Debug logging
       getLogLevel?: () => Promise<string>;

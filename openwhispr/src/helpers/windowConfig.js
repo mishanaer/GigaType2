@@ -62,6 +62,9 @@ const MAIN_WINDOW_CONFIG = {
     nodeIntegration: false,
     contextIsolation: true,
     sandbox: true,
+    // The overlay is normally unfocused and can stay hidden between
+    // recordings. Keep its animation/context alive across macOS sleep/wake.
+    backgroundThrottling: false,
   },
   frame: false,
   alwaysOnTop: true,

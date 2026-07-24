@@ -44,6 +44,8 @@ class WindowManager {
     this._pendingMeetingNoteNavigation = null;
     this.telemetryManager = null;
     this._onCheckForUpdates = null;
+    this.showDockIcon = true;
+    this._dockVisibilityPromise = Promise.resolve();
 
     app.on("before-quit", () => {
       this.isQuitting = true;
@@ -57,6 +59,32 @@ class WindowManager {
 
   setCheckForUpdatesHandler(fn) {
     this._onCheckForUpdates = fn;
+  }
+
+  setShowDockIcon(enabled) {
+    this.showDockIcon = process.platform === "darwin" ? Boolean(enabled) : true;
+    if (process.platform !== "darwin" || !app.dock) {
+      return Promise.resolve(this.showDockIcon);
+    }
+
+    this._dockVisibilityPromise = this._dockVisibilityPromise
+      .catch(() => {})
+      .then(async () => {
+        if (this.showDockIcon) {
+          app.setActivationPolicy("regular");
+          await app.dock.show();
+        } else {
+          app.dock.hide();
+          app.setActivationPolicy("accessory");
+        }
+        debugLogger.info("macOS Dock visibility changed", { visible: this.showDockIcon }, "window");
+        return this.showDockIcon;
+      });
+    return this._dockVisibilityPromise;
+  }
+
+  ensureDockVisibility() {
+    return this.setShowDockIcon(this.showDockIcon);
   }
 
   async createMainWindow() {
@@ -665,9 +693,7 @@ class WindowManager {
 
     this.controlPanelWindow.once("ready-to-show", () => {
       clearVisibilityTimer();
-      if (process.platform === "darwin" && app.dock) {
-        app.dock.show();
-      }
+      void this.ensureDockVisibility();
       this.controlPanelWindow.show();
       this.controlPanelWindow.focus();
     });
@@ -954,11 +980,21 @@ class WindowManager {
 
     this.mainWindow.webContents.on("render-process-gone", (_event, details) => {
       if (details.reason === "crashed" || details.reason === "killed" || details.reason === "oom") {
+        debugLogger.error(
+          "Dictation overlay renderer process gone",
+          { reason: details.reason, exitCode: details.exitCode },
+          "window"
+        );
         this.telemetryManager?.capture?.("renderer_process_gone", {
           error_area: "app_start",
           reason: details.reason,
           exit_code: details.exitCode,
         });
+        setTimeout(() => {
+          if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+            this.mainWindow.webContents.reload();
+          }
+        }, 500);
       }
     });
   }

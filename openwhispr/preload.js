@@ -111,6 +111,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getFileSize: (filePath) => ipcRenderer.invoke("get-file-size", filePath),
   transcribeAudioFile: (filePath, options) =>
     ipcRenderer.invoke("transcribe-audio-file", filePath, options),
+  transcribeLocalGigaam: (request) => ipcRenderer.invoke("transcribe-local-gigaam", request),
   getPathForFile: (file) => webUtils.getPathForFile(file),
 
   onNoteAdded: (callback) => {
@@ -292,6 +293,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // Activation mode persistence (file-based for reliable startup)
   getActivationMode: () => ipcRenderer.invoke("get-activation-mode"),
   saveActivationMode: (mode) => ipcRenderer.invoke("save-activation-mode", mode),
+  getShowDockIcon: () => ipcRenderer.invoke("get-show-dock-icon"),
+  setShowDockIcon: (enabled) => ipcRenderer.invoke("set-show-dock-icon", enabled),
 
   saveRuntimeConfigToEnv: () => ipcRenderer.invoke("save-runtime-config-to-env"),
   syncStartupPreferences: (prefs) => ipcRenderer.invoke("sync-startup-preferences", prefs),

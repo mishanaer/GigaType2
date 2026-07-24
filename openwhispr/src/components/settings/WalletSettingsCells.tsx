@@ -17,6 +17,7 @@ interface AudioDevice {
 interface WalletSettingsCellsProps {
   dictationKey: string;
   onHotkeyChange: (hotkey: string) => Promise<boolean | void> | boolean | void;
+  onFnConflictWarning?: () => void;
   hotkeyDisabled?: boolean;
   validateHotkey?: (hotkey: string) => string | null | undefined;
   activationMode: "tap" | "push";
@@ -27,6 +28,8 @@ interface WalletSettingsCellsProps {
   onDeviceSelect: (deviceId: string) => void;
   hideCapsule: boolean;
   onHideCapsuleChange: (value: boolean) => void;
+  showDockIcon?: boolean;
+  onShowDockIconChange?: (value: boolean) => void;
   devicesOverride?: AudioDevice[];
 }
 
@@ -42,6 +45,7 @@ const getHotkeyLabel = (hotkey: string) => {
 export default function WalletSettingsCells({
   dictationKey,
   onHotkeyChange,
+  onFnConflictWarning,
   hotkeyDisabled = false,
   validateHotkey,
   activationMode,
@@ -52,6 +56,8 @@ export default function WalletSettingsCells({
   onDeviceSelect,
   hideCapsule,
   onHideCapsuleChange,
+  showDockIcon = true,
+  onShowDockIconChange,
   devicesOverride,
 }: WalletSettingsCellsProps) {
   const [captureKey, setCaptureKey] = useState(0);
@@ -108,7 +114,8 @@ export default function WalletSettingsCells({
   );
   const activeMicrophoneLabel =
     microphoneOptions.find((device) => device.deviceId === activeDeviceId)?.label ?? "Системный";
-  const isWindowsOrLinux = getCachedPlatform() !== "darwin";
+  const isMac = getCachedPlatform() === "darwin";
+  const isWindowsOrLinux = !isMac;
 
   const beginHotkeyCapture = useCallback(() => {
     if (hotkeyDisabled || isHotkeyArmed) {
@@ -147,22 +154,13 @@ export default function WalletSettingsCells({
 
   const handleHotkeyChange = useCallback(
     async (newHotkey: string) => {
-      if (isGlobeLikeHotkey(newHotkey)) {
-        const checkFnAvailability = window.electronAPI?.isFnHotkeyAvailable;
-        if (!checkFnAvailability) {
-          handleHotkeyInvalid();
-          return;
-        }
-
+      if (isGlobeLikeHotkey(newHotkey) && window.electronAPI?.isFnHotkeyAvailable) {
         try {
-          const isAvailable = await checkFnAvailability();
-          if (!isAvailable) {
-            handleHotkeyInvalid();
-            return;
+          if (!(await window.electronAPI.isFnHotkeyAvailable())) {
+            onFnConflictWarning?.();
           }
         } catch {
-          handleHotkeyInvalid();
-          return;
+          onFnConflictWarning?.();
         }
       }
 
@@ -173,7 +171,7 @@ export default function WalletSettingsCells({
       }
       setIsHotkeyArmed(false);
     },
-    [handleHotkeyInvalid, onHotkeyChange]
+    [handleHotkeyInvalid, onFnConflictWarning, onHotkeyChange]
   );
 
   const handleHotkeyBlur = useCallback(() => {
@@ -301,6 +299,20 @@ export default function WalletSettingsCells({
             >
               <Cell.Text title="Показывать капсулу" />
             </Cell>
+
+            {isMac && onShowDockIconChange && (
+              <Cell
+                end={
+                  <Switch
+                    value={showDockIcon}
+                    onChange={onShowDockIconChange}
+                    ariaLabel="Показывать иконку в Dock"
+                  />
+                }
+              >
+                <Cell.Text title="Показывать иконку в Dock" />
+              </Cell>
+            )}
 
           </SectionList.Item>
         </SectionList>

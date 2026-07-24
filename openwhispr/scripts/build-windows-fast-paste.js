@@ -178,7 +178,7 @@ async function main() {
   }
 
   console.warn("[windows-fast-paste] Could not obtain Windows fast-paste binary.");
-  console.warn("[windows-fast-paste] Windows paste will use nircmd/PowerShell fallback.");
+  console.warn("[windows-fast-paste] Windows paste will use the PowerShell fallback.");
 }
 
 main().catch((error) => {

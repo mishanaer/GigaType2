@@ -71,7 +71,7 @@ jobs:
         run: npm run download:gigaam-model
 
       # prebuild:win (auto pre-hook) downloads llama-server / qdrant / sherpa /
-      # vad / diarization / nircmd / windows helper binaries, then
+      # vad / diarization / Windows helper binaries, then
       # electron-builder packages the unsigned NSIS installer + portable exe.
       # --publish never: electron-builder auto-publishes when it detects CI,
       # which then fails trying to resolve a repository/token. We only want the
