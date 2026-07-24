@@ -1139,15 +1139,6 @@ declare global {
         action: string
       ) => Promise<{ success: boolean }>;
       joinCalendarMeeting?: (eventId: string) => Promise<{ success: boolean }>;
-      onUpdateNotificationData?: (
-        callback: (data: { version: string; releaseDate?: string }) => void
-      ) => () => void;
-      getUpdateNotificationData?: () => Promise<{
-        version: string;
-        releaseDate?: string;
-      } | null>;
-      updateNotificationReady?: () => Promise<void>;
-      updateNotificationRespond?: (action: string) => Promise<{ success: boolean }>;
       onPreviewText?: (callback: (text: string) => void) => () => void;
       onPreviewAppend?: (callback: (text: string) => void) => () => void;
       onPreviewHold?: (callback: (payload: { showCleanup: boolean }) => void) => () => void;

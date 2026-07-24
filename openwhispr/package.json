@@ -1,6 +1,6 @@
 {
   "name": "open-whispr",
-  "version": "1.8.0",
+  "version": "2.0.0",
   "description": "A desktop dictation application using GigaAM for speech-to-text transcription",
   "main": "main.js",
   "private": true,

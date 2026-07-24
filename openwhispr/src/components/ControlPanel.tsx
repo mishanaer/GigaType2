@@ -9,7 +9,6 @@ import GigaamAsrStatusPanel from "./GigaamAsrStatusPanel";
 import GigaamModelPreparationStep from "./GigaamModelPreparationStep";
 import SettingsWorkspace from "./SettingsWorkspace";
 import { useToast } from "./ui/useToast";
-import { useUpdater } from "../hooks/useUpdater";
 import { useGigaamSidecarStatus } from "../hooks/useGigaamSidecarStatus";
 import { useAppshotsAppleSkin } from "../hooks/useAppshotsAppleSkin";
 import { shouldShowGigaamModelPreparation } from "../utils/gigaamModelStatus";
@@ -29,10 +28,7 @@ export default function ControlPanel() {
     restart: restartGigaam,
     isRestarting: isRestartingGigaam,
   } = useGigaamSidecarStatus();
-  const { status: updateStatus, isDownloading, error: updateError } = useUpdater();
   const [showPostMigration, setShowPostMigration] = useState(false);
-  const updateReadyToastShown = useRef(false);
-  const updateErrorToastShown = useRef<Error | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const resizeFrameRef = useRef<number | null>(null);
 
@@ -47,35 +43,6 @@ export default function ControlPanel() {
     await window.electronAPI?.markBundleMigrated?.();
     setShowPostMigration(false);
   }, []);
-
-  useEffect(() => {
-    if (updateStatus.updateDownloaded && !isDownloading) {
-      if (!updateReadyToastShown.current) {
-        updateReadyToastShown.current = true;
-        toast({
-          title: t("controlPanel.update.readyTitle"),
-          description: t("controlPanel.update.readyDescription"),
-          variant: "success",
-        });
-      }
-    } else {
-      updateReadyToastShown.current = false;
-    }
-  }, [updateStatus.updateDownloaded, isDownloading, toast, t]);
-
-  useEffect(() => {
-    if (updateError && updateError !== updateErrorToastShown.current) {
-      updateErrorToastShown.current = updateError;
-      toast({
-        title: t("controlPanel.update.problemTitle"),
-        description: t("controlPanel.update.problemDescription"),
-        variant: "destructive",
-      });
-    }
-    if (!updateError) {
-      updateErrorToastShown.current = null;
-    }
-  }, [updateError, toast, t]);
 
   useEffect(() => {
     const cleanup = window.electronAPI?.onAccessibilityMissing?.(async () => {
