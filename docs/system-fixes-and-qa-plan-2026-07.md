@@ -11,12 +11,30 @@
 - `nircmd.exe` полностью удалён из runtime, packaging и release workflows; штатная вставка использует собственный `windows-fast-paste`, fallback — PowerShell без `ExecutionPolicy Bypass`;
 - встроенный GigaAM больше не открывает TCP-порт по умолчанию и вызывается через Electron IPC; legacy HTTP включается только `GIGAAM_HTTP_BRIDGE=1`;
 - Windows CLI HTTP bridge выключен по умолчанию и включается только `TYPE_CLI_BRIDGE=1`, поэтому штатный запуск не требует входящего Firewall rule;
-- капсула имеет видимый CSS fallback, две bounded-попытки пересоздания WebGL renderer, `backgroundThrottling: false` и reload overlay после renderer crash;
+- капсула имеет видимый CSS fallback, две bounded-попытки пересоздания WebGL renderer, `backgroundThrottling: false`, reload после renderer crash и один источник истины видимости в renderer; после Windows resume overlay возвращается в hidden/non-focusable/click-through и Windows hook запускается заново;
 - ручное назначение Fn снова разрешено; при занятом системном действии показывается предупреждение, но сохранение не блокируется;
-- Caps Lock захватывается как special key, проходит валидацию и регистрируется как Electron `Capslock` accelerator (приёмочный контракт этого PR — режим «Нажатие»);
+- Windows capture переведён на существующий low-level helper: `Win+клавиша`, `Caps Lock` и `Caps Lock+клавиша` принимаются без запуска системного сочетания; `Escape` отменяет capture; Caps Lock работает через native down/up backend в режимах «Нажатие» и «Удержание»;
 - на macOS всегда создаётся menu-bar item, добавлена сохраняемая настройка Dock, а скрытие Dock не применяется, если recovery icon создать не удалось.
 
-Остаются отдельными follow-up: Windows Named Pipe для CLI вместо opt-in TCP compatibility mode, Authenticode/signing gate, настоящий Caps Lock key-up backend для режима «Удержание», main-process coordinator настройки капсулы и расширенная GPU telemetry.
+Остаются отдельными follow-up: Windows Named Pipe для CLI вместо opt-in TCP compatibility mode, Authenticode/signing gate, main-process coordinator настройки капсулы и расширенная GPU telemetry.
+
+## Результаты первого ручного Windows-прогона
+
+Проверена unsigned сборка из commit `cb67b5031791fcff0170ddb6915e70ad73e15d87`.
+
+- `WIN-NET-04`: пройден — локальное распознавание работает без интернета.
+- `HOTKEY-07`: пройден — после неуспешного назначения старый хоткей продолжает работать.
+- `CAP-01`: не пройден — сразу после загрузки капсула могла появиться и тут же исчезнуть; через 1–2 минуты поведение стабилизировалось.
+- `CAP-04`: не пройден — после sleep/wake звук и распознавание работали, но капсула могла не показываться; позже восстанавливалась. Наблюдалось взаимодействие с поиском Start, поэтому отдельно проверяется, что overlay не получает focus.
+- `HOTKEY-08`: не пройден — `Win+F-key` и `Win+цифра` принимались, а часть `Win+буква` уходила Windows; Caps Lock не принимался; Escape ошибочно сохранялся как хоткей.
+- `CAP-08`: требует уточнения режима дисплеев. В «Дублировать» одинаковая капсула на двух экранах является выводом Windows; в «Расширить» должна существовать одна капсула только на display курсора.
+
+Follow-up реализация устраняет подтверждённые причины:
+
+1. Renderer показывает окно только после фактического перехода audio state в `recording | processing`; main больше не показывает пустое окно до этого перехода.
+2. `powerMonitor.resume` скрывает и восстанавливает свойства overlay, затем пересоздаёт требуемый low-level Windows hook.
+3. Во время назначения low-level capture подавляет принятую последовательность до shell и возвращает канонический хоткей в renderer.
+4. Escape завершает capture без `onChange`, поэтому старое назначение остаётся активным.
 
 ## Резюме решений
 
@@ -520,11 +538,11 @@ macOS:
 
 Ожидание: во время назначения поведение соответствует выбранному продуктом контракту и не даёт случайного двойного срабатывания; после снятия назначения обычный Caps Lock полностью восстановлен.
 
-**HOTKEY-06 — Caps Lock push (follow-up, не gate этого PR)**
+**HOTKEY-06 — Caps Lock push**
 
 Выбрать режим «Удержание» и попытаться назначить Caps Lock.
 
-Ожидание целевой версии: понятное предложение перейти в «Нажатие», старый хоткей остаётся активным. После реализации backend: start на down, stop на up, включая короткие и длинные удержания. Для этого PR Caps Lock принимается в режиме «Нажатие».
+Ожидание: start на physical down, stop на physical up, включая короткие и длинные удержания; Caps Lock не переключает регистр, пока назначен хоткеем.
 
 **HOTKEY-07 — Неуспешная регистрация**
 
@@ -537,6 +555,22 @@ macOS:
 Проверить Escape, blur, повторный click, invalid key, быстрое открытие/закрытие settings.
 
 Ожидание: global shortcuts/native listeners всегда восстанавливаются; клавиатура не остаётся «перехваченной».
+
+**HOTKEY-09 — Windows shell combinations**
+
+1. Назначить по очереди `Win+F3`, `Win+1`, `Win+A`, `Win+L`, `Caps Lock`, `Caps Lock+A`.
+2. Для каждого успешного назначения проверить tap/push, restart и sleep/wake.
+3. Для зарезервированного/невалидного сочетания проверить shake/error и старый хоткей.
+
+Ожидание: поле получает каждую физическую последовательность; во время capture не открываются Start, Lock, Settings и другие Windows actions; успешное сочетание срабатывает один раз, отказ не снимает старое.
+
+**HOTKEY-10 — Escape отменяет назначение**
+
+1. Запомнить рабочий хоткей.
+2. Открыть capture и нажать Escape.
+3. Повторить после попытки `Win+L` и после blur.
+
+Ожидание: Escape не становится хоткеем, capture закрывается, старый хоткей сразу продолжает работать.
 
 ### MAC-PRESENCE: Dock и menu bar
 

@@ -60,6 +60,19 @@ function isModifierOnlyHotkey(hotkey) {
   return hotkey.split("+").every((part) => MODIFIER_NAMES.has(part.toLowerCase()));
 }
 
+function hasCapsLockToken(hotkey) {
+  return String(hotkey || "")
+    .split("+")
+    .some((part) => part.trim().toLowerCase() === "capslock");
+}
+
+function isWindowsNativeHotkey(hotkey) {
+  return (
+    process.platform === "win32" &&
+    (hasCapsLockToken(hotkey) || isRightSideModifier(hotkey) || isModifierOnlyHotkey(hotkey))
+  );
+}
+
 function isGlobeLikeHotkey(hotkey) {
   return hotkey === "GLOBE" || hotkey === "Fn";
 }
@@ -308,7 +321,8 @@ class HotkeyManager extends EventEmitter {
       !isGlobeLikeHotkey(hk) &&
       !isMouseButtonHotkey(hk) &&
       !isRightSideModifier(hk) &&
-      !isModifierOnlyHotkey(hk)
+      !isModifierOnlyHotkey(hk) &&
+      !isWindowsNativeHotkey(hk)
     ) {
       const accel = normalizeToAccelerator(hk);
       try {
@@ -356,6 +370,7 @@ class HotkeyManager extends EventEmitter {
       !isMouseButtonHotkey(hotkey) &&
       !isRightSideModifier(hotkey) &&
       !isModifierOnlyHotkey(hotkey) &&
+      !isWindowsNativeHotkey(hotkey) &&
       globalShortcut.isRegistered(checkAccelerator)
     ) {
       debugLogger.log(
@@ -377,7 +392,8 @@ class HotkeyManager extends EventEmitter {
       !isGlobeLikeHotkey(previousHotkey) &&
       !isMouseButtonHotkey(previousHotkey) &&
       !isRightSideModifier(previousHotkey) &&
-      !isModifierOnlyHotkey(previousHotkey)
+      !isModifierOnlyHotkey(previousHotkey) &&
+      !isWindowsNativeHotkey(previousHotkey)
     ) {
       const prevAccelerator = normalizeToAccelerator(previousHotkey);
       try {
@@ -447,6 +463,13 @@ class HotkeyManager extends EventEmitter {
         return { success: true, hotkey };
       }
 
+      if (isWindowsNativeHotkey(hotkey)) {
+        slot.hotkey = hotkey;
+        slot.accelerator = null;
+        debugLogger.log(`[HotkeyManager] Windows native hotkey "${hotkey}" set successfully`);
+        return { success: true, hotkey };
+      }
+
       const accelerator = normalizeToAccelerator(hotkey);
 
       const alreadyRegistered = globalShortcut.isRegistered(accelerator);
@@ -500,7 +523,8 @@ class HotkeyManager extends EventEmitter {
       isGlobeLikeHotkey(hotkey) ||
       isMouseButtonHotkey(hotkey) ||
       isRightSideModifier(hotkey) ||
-      isModifierOnlyHotkey(hotkey)
+      isModifierOnlyHotkey(hotkey) ||
+      isWindowsNativeHotkey(hotkey)
         ? null
         : normalizeToAccelerator(hotkey);
 
@@ -532,7 +556,8 @@ class HotkeyManager extends EventEmitter {
       isGlobeLikeHotkey(previousHotkey) ||
       isMouseButtonHotkey(previousHotkey) ||
       isRightSideModifier(previousHotkey) ||
-      isModifierOnlyHotkey(previousHotkey)
+      isModifierOnlyHotkey(previousHotkey) ||
+      isWindowsNativeHotkey(previousHotkey)
     ) {
       return;
     }
@@ -1273,4 +1298,6 @@ module.exports.isGlobeLikeHotkey = isGlobeLikeHotkey;
 module.exports.hasFnOrGlobeToken = hasFnOrGlobeToken;
 module.exports.isModifierOnlyHotkey = isModifierOnlyHotkey;
 module.exports.isRightSideModifier = isRightSideModifier;
+module.exports.hasCapsLockToken = hasCapsLockToken;
+module.exports.isWindowsNativeHotkey = isWindowsNativeHotkey;
 module.exports.isMouseButtonHotkey = isMouseButtonHotkey;

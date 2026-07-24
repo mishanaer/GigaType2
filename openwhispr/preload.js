@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onToggleDictation: registerListener("toggle-dictation", (callback) => () => callback()),
   onStartDictation: registerListener("start-dictation", (callback) => () => callback()),
   onStopDictation: registerListener("stop-dictation", (callback) => () => callback()),
+  onSystemResumed: registerListener("system-resumed", (callback) => () => callback()),
 
   // Database functions
   saveTranscription: (text, rawText, options) =>
@@ -408,6 +409,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("globe-key-released", listener);
     return () => ipcRenderer.removeListener("globe-key-released", listener);
   },
+  onWindowsHotkeyCaptured: registerListener(
+    "windows-hotkey-captured",
+    (callback) => (_event, hotkey) => callback(hotkey)
+  ),
+  onWindowsHotkeyCaptureCancelled: registerListener(
+    "windows-hotkey-capture-cancelled",
+    (callback) => () => callback()
+  ),
 
   // Hotkey registration events (for notifying user when hotkey fails)
   onHotkeyFallbackUsed: (callback) => {

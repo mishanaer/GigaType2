@@ -161,6 +161,11 @@ test("registration failures are wired to the settings capsule shake", () => {
     "utf8"
   );
   assert.match(inputSource, /finalizeCapture\(e\.key \|\| code \|\| "Unsupported"\)/);
+  assert.match(inputSource, /registered = await onChange\(hotkey\)/);
+  assert.match(
+    inputSource,
+    /if \(registered === false\)[\s\S]*lastCapturedHotkeyRef\.current = null/
+  );
 });
 
 test("native Windows listener rejects Fn instead of falling back to the bare key", () => {
@@ -173,11 +178,66 @@ test("native Windows listener rejects Fn instead of falling back to the bare key
   assert.match(source, /if \(g_hasUnsupportedFnToken\)/);
 });
 
-test("native Linux listener rejects Fn instead of falling back to the bare key", () => {
-  const source = fs.readFileSync(
-    path.join(repoRoot, "resources", "linux-key-listener.c"),
+test("Windows native capture handles Win, Caps Lock and Escape without shell fallthrough", () => {
+  const nativeSource = fs.readFileSync(
+    path.join(repoRoot, "resources", "windows-key-listener.c"),
     "utf8"
   );
+  const managerSource = fs.readFileSync(
+    path.join(repoRoot, "src", "helpers", "windowsKeyManager.js"),
+    "utf8"
+  );
+  const inputSource = fs.readFileSync(
+    path.join(repoRoot, "src", "components", "ui", "HotkeyInput.tsx"),
+    "utf8"
+  );
+
+  assert.match(nativeSource, /--capture/);
+  assert.match(nativeSource, /CAPTURE_CANCEL/);
+  assert.match(nativeSource, /EmitCapturedHotkey\("CapsLock"/);
+  assert.match(nativeSource, /return 1;[\s\S]*Suppress captured keys/);
+  assert.match(managerSource, /startCapture\(\)/);
+  assert.match(managerSource, /this\.emit\("capture", hotkey\)/);
+  assert.match(inputSource, /if \(code === "Escape"\)[\s\S]*cancelCapture\(\)/);
+  assert.match(inputSource, /onWindowsHotkeyCaptured/);
+});
+
+test("Caps Lock hotkeys use the native Windows backend and remain valid", () => {
+  const { validateHotkey } = loadHotkeyValidator();
+  assert.equal(validateHotkey("CapsLock", "win32").valid, true);
+  assert.equal(validateHotkey("CapsLock+A", "win32").valid, true);
+  assert.equal(validateHotkey("Super+CapsLock+A", "win32").valid, true);
+
+  const calls = [];
+  const globalShortcut = {
+    isRegistered: () => false,
+    register: (...args) => {
+      calls.push(["register", ...args]);
+      return true;
+    },
+    unregister: (...args) => calls.push(["unregister", ...args]),
+    unregisterAll: () => calls.push(["unregisterAll"]),
+  };
+  const HotkeyManager = loadHotkeyManager(globalShortcut);
+  const platformDescriptor = Object.getOwnPropertyDescriptor(process, "platform");
+
+  try {
+    Object.defineProperty(process, "platform", { configurable: true, value: "win32" });
+    const manager = new HotkeyManager();
+    const result = manager.setupShortcuts("CapsLock+A", () => {});
+    assert.equal(result.success, true);
+    assert.equal(manager.getCurrentHotkey(), "CapsLock+A");
+    assert.equal(
+      calls.some(([name]) => name === "register"),
+      false
+    );
+  } finally {
+    Object.defineProperty(process, "platform", platformDescriptor);
+  }
+});
+
+test("native Linux listener rejects Fn instead of falling back to the bare key", () => {
+  const source = fs.readFileSync(path.join(repoRoot, "resources", "linux-key-listener.c"), "utf8");
   const managerSource = fs.readFileSync(
     path.join(repoRoot, "src", "helpers", "linuxKeyManager.js"),
     "utf8"

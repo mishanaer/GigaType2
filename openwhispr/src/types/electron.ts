@@ -366,6 +366,7 @@ declare global {
       onToggleDictation: (callback: () => void) => () => void;
       onStartDictation?: (callback: () => void) => () => void;
       onStopDictation?: (callback: () => void) => () => void;
+      onSystemResumed?: (callback: () => void) => () => void;
 
       // Database operations
       saveTranscription: (
@@ -708,6 +709,8 @@ declare global {
       // Globe key listener for hotkey capture (macOS only)
       onGlobeKeyPressed?: (callback: () => void) => () => void;
       onGlobeKeyReleased?: (callback: () => void) => () => void;
+      onWindowsHotkeyCaptured?: (callback: (hotkey: string) => void) => () => void;
+      onWindowsHotkeyCaptureCancelled?: (callback: () => void) => () => void;
 
       // Hotkey registration events
       onHotkeyFallbackUsed?: (

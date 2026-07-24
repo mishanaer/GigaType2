@@ -18,12 +18,20 @@
 static HHOOK g_hook = NULL;
 static DWORD g_targetVk = 0;
 static BOOL g_isKeyDown = FALSE;
+static BOOL g_captureMode = FALSE;
+static BOOL g_captureCompleted = FALSE;
+static BOOL g_captureHadBaseKey = FALSE;
+static BOOL g_capsLockDown = FALSE;
+static BOOL g_suppressRequiredModifiersUntilReleased = FALSE;
+static unsigned int g_captureModifierMask = 0;
+static DWORD g_captureLastModifierVk = 0;
 
 // Modifier key requirements
 static BOOL g_requireCtrl = FALSE;
 static BOOL g_requireAlt = FALSE;
 static BOOL g_requireShift = FALSE;
 static BOOL g_requireWin = FALSE;
+static BOOL g_requireCapsLock = FALSE;
 static BOOL g_useModifiersOnly = FALSE;
 static BOOL g_ctrlDown = FALSE;
 static BOOL g_altDown = FALSE;
@@ -31,6 +39,11 @@ static BOOL g_shiftDown = FALSE;
 static BOOL g_leftWinDown = FALSE;
 static BOOL g_rightWinDown = FALSE;
 static BOOL g_hasUnsupportedFnToken = FALSE;
+
+#define CAPTURE_CTRL  0x01
+#define CAPTURE_WIN   0x02
+#define CAPTURE_ALT   0x04
+#define CAPTURE_SHIFT 0x08
 
 static BOOL IsCtrlVk(DWORD vkCode) {
     return vkCode == VK_CONTROL || vkCode == VK_LCONTROL || vkCode == VK_RCONTROL;
@@ -46,6 +59,19 @@ static BOOL IsShiftVk(DWORD vkCode) {
 
 static BOOL IsWinVk(DWORD vkCode) {
     return vkCode == VK_LWIN || vkCode == VK_RWIN;
+}
+
+static BOOL IsRightModifierVk(DWORD vkCode) {
+    return vkCode == VK_RCONTROL || vkCode == VK_RMENU ||
+           vkCode == VK_RSHIFT || vkCode == VK_RWIN;
+}
+
+static unsigned int ModifierMaskForVk(DWORD vkCode) {
+    if (IsCtrlVk(vkCode)) return CAPTURE_CTRL;
+    if (IsWinVk(vkCode)) return CAPTURE_WIN;
+    if (IsAltVk(vkCode)) return CAPTURE_ALT;
+    if (IsShiftVk(vkCode)) return CAPTURE_SHIFT;
+    return 0;
 }
 
 static void UpdateModifierState(DWORD vkCode, BOOL isKeyDown) {
@@ -71,6 +97,11 @@ static void UpdateModifierState(DWORD vkCode, BOOL isKeyDown) {
 
     if (vkCode == VK_RWIN) {
         g_rightWinDown = isKeyDown;
+        return;
+    }
+
+    if (vkCode == VK_CAPITAL) {
+        g_capsLockDown = isKeyDown;
     }
 }
 
@@ -78,7 +109,8 @@ static BOOL IsRequiredModifierEvent(DWORD vkCode) {
     return (g_requireCtrl && IsCtrlVk(vkCode)) ||
            (g_requireAlt && IsAltVk(vkCode)) ||
            (g_requireShift && IsShiftVk(vkCode)) ||
-           (g_requireWin && IsWinVk(vkCode));
+           (g_requireWin && IsWinVk(vkCode)) ||
+           (g_requireCapsLock && vkCode == VK_CAPITAL);
 }
 
 // Sync tracked modifier state with actual key state for keys that are NOT
@@ -96,6 +128,8 @@ static void SyncModifierState(DWORD currentVkCode) {
         g_leftWinDown = (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0;
     if (currentVkCode != VK_RWIN)
         g_rightWinDown = (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+    if (currentVkCode != VK_CAPITAL)
+        g_capsLockDown = (GetAsyncKeyState(VK_CAPITAL) & 0x8000) != 0;
 }
 
 static BOOL AreRequiredModifiersPressed(void) {
@@ -103,7 +137,179 @@ static BOOL AreRequiredModifiersPressed(void) {
     if (g_requireAlt && !g_altDown) return FALSE;
     if (g_requireShift && !g_shiftDown) return FALSE;
     if (g_requireWin && !(g_leftWinDown || g_rightWinDown)) return FALSE;
+    if (g_requireCapsLock && !g_capsLockDown) return FALSE;
     return TRUE;
+}
+
+static const char* CaptureKeyName(DWORD vkCode) {
+    static char name[16];
+
+    if (vkCode >= 'A' && vkCode <= 'Z') {
+        name[0] = (char)vkCode;
+        name[1] = '\0';
+        return name;
+    }
+    if (vkCode >= '0' && vkCode <= '9') {
+        name[0] = (char)vkCode;
+        name[1] = '\0';
+        return name;
+    }
+    if (vkCode >= VK_F1 && vkCode <= VK_F24) {
+        snprintf(name, sizeof(name), "F%lu", (unsigned long)(vkCode - VK_F1 + 1));
+        return name;
+    }
+
+    switch (vkCode) {
+        case VK_SPACE: return "Space";
+        case VK_TAB: return "Tab";
+        case VK_RETURN: return "Enter";
+        case VK_BACK: return "Backspace";
+        case VK_INSERT: return "Insert";
+        case VK_DELETE: return "Delete";
+        case VK_HOME: return "Home";
+        case VK_END: return "End";
+        case VK_PRIOR: return "PageUp";
+        case VK_NEXT: return "PageDown";
+        case VK_UP: return "Up";
+        case VK_DOWN: return "Down";
+        case VK_LEFT: return "Left";
+        case VK_RIGHT: return "Right";
+        case VK_PAUSE: return "Pause";
+        case VK_SCROLL: return "ScrollLock";
+        case VK_SNAPSHOT: return "PrintScreen";
+        case VK_NUMLOCK: return "NumLock";
+        case VK_OEM_3: return "`";
+        case VK_OEM_MINUS: return "-";
+        case VK_OEM_PLUS: return "=";
+        case VK_OEM_4: return "[";
+        case VK_OEM_6: return "]";
+        case VK_OEM_5: return "\\";
+        case VK_OEM_1: return ";";
+        case VK_OEM_7: return "'";
+        case VK_OEM_COMMA: return ",";
+        case VK_OEM_PERIOD: return ".";
+        case VK_OEM_2: return "/";
+        case VK_NUMPAD0: return "num0";
+        case VK_NUMPAD1: return "num1";
+        case VK_NUMPAD2: return "num2";
+        case VK_NUMPAD3: return "num3";
+        case VK_NUMPAD4: return "num4";
+        case VK_NUMPAD5: return "num5";
+        case VK_NUMPAD6: return "num6";
+        case VK_NUMPAD7: return "num7";
+        case VK_NUMPAD8: return "num8";
+        case VK_NUMPAD9: return "num9";
+        case VK_ADD: return "numadd";
+        case VK_SUBTRACT: return "numsub";
+        case VK_MULTIPLY: return "nummult";
+        case VK_DIVIDE: return "numdiv";
+        case VK_DECIMAL: return "numdec";
+        default: return NULL;
+    }
+}
+
+static void AppendCapturePart(char* buffer, size_t size, const char* part) {
+    if (!part || !*part) return;
+    if (buffer[0] != '\0') strncat(buffer, "+", size - strlen(buffer) - 1);
+    strncat(buffer, part, size - strlen(buffer) - 1);
+}
+
+static void EmitCapturedHotkey(const char* baseKey, BOOL includeCapsLock) {
+    char hotkey[256] = "";
+    if (g_ctrlDown) AppendCapturePart(hotkey, sizeof(hotkey), "Control");
+    if (g_leftWinDown || g_rightWinDown)
+        AppendCapturePart(hotkey, sizeof(hotkey), "Super");
+    if (g_altDown) AppendCapturePart(hotkey, sizeof(hotkey), "Alt");
+    if (g_shiftDown) AppendCapturePart(hotkey, sizeof(hotkey), "Shift");
+    if (includeCapsLock) AppendCapturePart(hotkey, sizeof(hotkey), "CapsLock");
+    AppendCapturePart(hotkey, sizeof(hotkey), baseKey);
+
+    if (hotkey[0] != '\0') {
+        printf("CAPTURE %s\n", hotkey);
+        fflush(stdout);
+        g_captureCompleted = TRUE;
+    }
+}
+
+static void EmitCapturedModifierOnly(void) {
+    char hotkey[128] = "";
+    unsigned int mask = g_captureModifierMask;
+    int count = ((mask & CAPTURE_CTRL) != 0) + ((mask & CAPTURE_WIN) != 0) +
+                ((mask & CAPTURE_ALT) != 0) + ((mask & CAPTURE_SHIFT) != 0);
+
+    if (count == 1 && IsRightModifierVk(g_captureLastModifierVk)) {
+        if (g_captureLastModifierVk == VK_RCONTROL) strcpy(hotkey, "RightControl");
+        else if (g_captureLastModifierVk == VK_RMENU) strcpy(hotkey, "RightAlt");
+        else if (g_captureLastModifierVk == VK_RSHIFT) strcpy(hotkey, "RightShift");
+        else if (g_captureLastModifierVk == VK_RWIN) strcpy(hotkey, "RightSuper");
+    } else if (count >= 2) {
+        if (mask & CAPTURE_CTRL) AppendCapturePart(hotkey, sizeof(hotkey), "Control");
+        if (mask & CAPTURE_WIN) AppendCapturePart(hotkey, sizeof(hotkey), "Super");
+        if (mask & CAPTURE_ALT) AppendCapturePart(hotkey, sizeof(hotkey), "Alt");
+        if (mask & CAPTURE_SHIFT) AppendCapturePart(hotkey, sizeof(hotkey), "Shift");
+    }
+
+    if (hotkey[0] != '\0') {
+        printf("CAPTURE %s\n", hotkey);
+        fflush(stdout);
+        g_captureCompleted = TRUE;
+    }
+}
+
+static LRESULT HandleCaptureEvent(WPARAM wParam, KBDLLHOOKSTRUCT* kbd) {
+    BOOL isKeyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
+    BOOL isKeyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
+    BOOL isModifier = IsCtrlVk(kbd->vkCode) || IsAltVk(kbd->vkCode) ||
+                      IsShiftVk(kbd->vkCode) || IsWinVk(kbd->vkCode);
+
+    if (!isKeyDown && !isKeyUp) return 1;
+    if (g_captureCompleted) return 1;
+
+    if (isModifier) {
+        if (isKeyDown) {
+            UpdateModifierState(kbd->vkCode, TRUE);
+            g_captureModifierMask |= ModifierMaskForVk(kbd->vkCode);
+            g_captureLastModifierVk = kbd->vkCode;
+        } else {
+            UpdateModifierState(kbd->vkCode, FALSE);
+            if (!g_ctrlDown && !g_altDown && !g_shiftDown &&
+                !g_leftWinDown && !g_rightWinDown && !g_captureHadBaseKey) {
+                EmitCapturedModifierOnly();
+                if (!g_captureCompleted) {
+                    g_captureModifierMask = 0;
+                    g_captureLastModifierVk = 0;
+                }
+            }
+        }
+        return 1;
+    }
+
+    if (kbd->vkCode == VK_ESCAPE && isKeyDown) {
+        printf("CAPTURE_CANCEL\n");
+        fflush(stdout);
+        g_captureCompleted = TRUE;
+        return 1;
+    }
+
+    if (kbd->vkCode == VK_CAPITAL) {
+        if (isKeyDown) {
+            g_capsLockDown = TRUE;
+        } else {
+            g_capsLockDown = FALSE;
+            if (!g_captureHadBaseKey) EmitCapturedHotkey("CapsLock", FALSE);
+        }
+        return 1;
+    }
+
+    if (isKeyDown) {
+        const char* keyName = CaptureKeyName(kbd->vkCode);
+        g_captureHadBaseKey = TRUE;
+        if (keyName) EmitCapturedHotkey(keyName, g_capsLockDown);
+    }
+
+    // Suppress captured keys so Win+L, Win+letter, CapsLock, etc. do not
+    // activate Windows while the settings field is waiting for a shortcut.
+    return 1;
 }
 
 // Map key name to virtual key code
@@ -192,10 +398,27 @@ DWORD ParseKeyCode(const char* keyName) {
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
         KBDLLHOOKSTRUCT* kbd = (KBDLLHOOKSTRUCT*)lParam;
+        if (g_captureMode) {
+            return HandleCaptureEvent(wParam, kbd);
+        }
         BOOL isKeyDown = (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN);
         BOOL isKeyUp = (wParam == WM_KEYUP || wParam == WM_SYSKEYUP);
         BOOL isModifierEvent = IsCtrlVk(kbd->vkCode) || IsAltVk(kbd->vkCode) ||
-                               IsShiftVk(kbd->vkCode) || IsWinVk(kbd->vkCode);
+                               IsShiftVk(kbd->vkCode) || IsWinVk(kbd->vkCode) ||
+                               kbd->vkCode == VK_CAPITAL;
+        BOOL suppressEvent = FALSE;
+
+        // Caps Lock is a physical state-changing key. When it is part of the
+        // configured hotkey, reserve it from the first down event so the
+        // shortcut never toggles the user's typing case.
+        if (g_requireCapsLock && kbd->vkCode == VK_CAPITAL) {
+            suppressEvent = TRUE;
+        }
+
+        if (g_suppressRequiredModifiersUntilReleased &&
+            IsRequiredModifierEvent(kbd->vkCode)) {
+            suppressEvent = TRUE;
+        }
 
         if ((isKeyDown || isKeyUp) && isModifierEvent) {
             UpdateModifierState(kbd->vkCode, isKeyDown);
@@ -233,26 +456,39 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
                     fflush(stdout);
                 }
             }
-            return CallNextHookEx(g_hook, nCode, wParam, lParam);
+            return suppressEvent ? 1 : CallNextHookEx(g_hook, nCode, wParam, lParam);
         }
 
         // Check for the target key
         if (kbd->vkCode == g_targetVk) {
             if (isKeyDown) {
                 // Only trigger if modifiers are satisfied and not already down
-                if (!g_isKeyDown && AreRequiredModifiersPressed()) {
-                    g_isKeyDown = TRUE;
-                    printf("KEY_DOWN\n");
-                    fflush(stdout);
+                if (AreRequiredModifiersPressed()) {
+                    suppressEvent = TRUE;
+                    if (!g_isKeyDown) {
+                        g_isKeyDown = TRUE;
+                        g_suppressRequiredModifiersUntilReleased = TRUE;
+                        printf("KEY_DOWN\n");
+                        fflush(stdout);
+                    }
                 }
             } else if (isKeyUp) {
                 // Target key released
                 if (g_isKeyDown) {
+                    suppressEvent = TRUE;
                     g_isKeyDown = FALSE;
                     printf("KEY_UP\n");
                     fflush(stdout);
                 }
             }
+        }
+
+        if (g_suppressRequiredModifiersUntilReleased && !AreRequiredModifiersPressed()) {
+            g_suppressRequiredModifiersUntilReleased = FALSE;
+        }
+
+        if (suppressEvent) {
+            return 1;
         }
     }
     return CallNextHookEx(g_hook, nCode, wParam, lParam);
@@ -281,6 +517,7 @@ DWORD ParseCompoundHotkey(const char* hotkey) {
     g_requireAlt = FALSE;
     g_requireShift = FALSE;
     g_requireWin = FALSE;
+    g_requireCapsLock = FALSE;
     g_useModifiersOnly = FALSE;
     g_hasUnsupportedFnToken = FALSE;
 
@@ -311,6 +548,8 @@ DWORD ParseCompoundHotkey(const char* hotkey) {
                    _stricmp(token, "Cmd") == 0) {
             // Windows key
             g_requireWin = TRUE;
+        } else if (_stricmp(token, "CapsLock") == 0 && strchr(hotkey, '+') != NULL) {
+            g_requireCapsLock = TRUE;
         } else if (_stricmp(token, "Fn") == 0 ||
                    _stricmp(token, "Globe") == 0) {
             // Windows has no standard Fn virtual key. Reject the shortcut
@@ -339,23 +578,34 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    g_targetVk = ParseCompoundHotkey(argv[1]);
+    if (_stricmp(argv[1], "--capture") == 0) {
+        g_captureMode = TRUE;
+    } else {
+        g_targetVk = ParseCompoundHotkey(argv[1]);
+    }
+    if (g_captureMode) {
+        fprintf(stderr, "Capturing one Windows hotkey\n");
+    }
     if (g_hasUnsupportedFnToken) {
         fprintf(stderr, "Error: Fn/Globe is not a supported Windows hotkey modifier\n");
         return 1;
     }
-    if (g_targetVk == 0 && (g_requireCtrl || g_requireAlt || g_requireShift || g_requireWin)) {
+    if (!g_captureMode && g_targetVk == 0 &&
+        (g_requireCtrl || g_requireAlt || g_requireShift || g_requireWin || g_requireCapsLock)) {
         g_useModifiersOnly = TRUE;
     }
 
-    if (g_targetVk == 0 && !g_useModifiersOnly) {
+    if (!g_captureMode && g_targetVk == 0 && !g_useModifiersOnly) {
         fprintf(stderr, "Error: Invalid key '%s'\n", argv[1]);
         return 1;
     }
 
     // Log what we're listening for
-    fprintf(stderr, "Listening for: %s (VK=0x%02X, Ctrl=%d, Alt=%d, Shift=%d, Win=%d, ModOnly=%d)\n",
-            argv[1], g_targetVk, g_requireCtrl, g_requireAlt, g_requireShift, g_requireWin, g_useModifiersOnly);
+    if (!g_captureMode) {
+        fprintf(stderr, "Listening for: %s (VK=0x%02lX, Ctrl=%d, Alt=%d, Shift=%d, Win=%d, CapsLock=%d, ModOnly=%d)\n",
+                argv[1], g_targetVk, g_requireCtrl, g_requireAlt, g_requireShift, g_requireWin,
+                g_requireCapsLock, g_useModifiersOnly);
+    }
 
     // Set up console handler for clean shutdown
     SetConsoleCtrlHandler(ConsoleHandler, TRUE);

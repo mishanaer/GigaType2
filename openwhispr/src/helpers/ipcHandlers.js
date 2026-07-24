@@ -297,6 +297,7 @@ class IPCHandlers {
     this.sessionId = crypto.randomUUID();
     this._hotkeyCaptureMode = false;
     this._hotkeyCaptureRefocusWindow = null;
+    this._hotkeyCaptureWindow = null;
     this._activeRecordingPipeline = null;
     this.audioStorageManager = new AudioStorageManager();
     this._audioCleanupInterval = null;
@@ -310,6 +311,30 @@ class IPCHandlers {
       ...DEFAULT_SPEECH_VAD_CONFIG,
     };
     liveSpeakerIdentifier.setDiarizationManager(this.diarizationManager);
+    if (this.windowsKeyManager) {
+      this.windowsKeyManager.on("capture", (hotkey) => {
+        const captureWindow = this._hotkeyCaptureWindow;
+        if (
+          this._hotkeyCaptureMode &&
+          captureWindow &&
+          !captureWindow.isDestroyed() &&
+          !captureWindow.webContents.isDestroyed()
+        ) {
+          captureWindow.webContents.send("windows-hotkey-captured", hotkey);
+        }
+      });
+      this.windowsKeyManager.on("capture-cancel", () => {
+        const captureWindow = this._hotkeyCaptureWindow;
+        if (
+          this._hotkeyCaptureMode &&
+          captureWindow &&
+          !captureWindow.isDestroyed() &&
+          !captureWindow.webContents.isDestroyed()
+        ) {
+          captureWindow.webContents.send("windows-hotkey-capture-cancelled");
+        }
+      });
+    }
     this._setupAudioCleanup();
     this.setupHandlers();
   }
@@ -1579,6 +1604,7 @@ class IPCHandlers {
       // capturing window temporarily focusable and focus it; restore on exit.
       if (enabled) {
         const captureWin = BrowserWindow.fromWebContents(event.sender);
+        this._hotkeyCaptureWindow = captureWin;
         if (captureWin && !captureWin.isDestroyed() && !captureWin.isFocusable()) {
           this._hotkeyCaptureRefocusWindow = captureWin;
           captureWin.setFocusable(true);
@@ -1588,6 +1614,9 @@ class IPCHandlers {
         const captureWin = this._hotkeyCaptureRefocusWindow;
         this._hotkeyCaptureRefocusWindow = null;
         if (!captureWin.isDestroyed()) captureWin.setFocusable(false);
+      }
+      if (!enabled) {
+        this._hotkeyCaptureWindow = null;
       }
 
       // When exiting capture mode with a new hotkey, use that to avoid reading stale state
@@ -1599,13 +1628,15 @@ class IPCHandlers {
         isModifierOnlyHotkey,
         isRightSideModifier,
         isMouseButtonHotkey,
+        isWindowsNativeHotkey,
       } = require("./hotkeyManager");
       const usesNativeListener = (hotkey) =>
         !hotkey ||
         isGlobeLikeHotkey(hotkey) ||
         isMouseButtonHotkey(hotkey) ||
         isModifierOnlyHotkey(hotkey) ||
-        isRightSideModifier(hotkey);
+        isRightSideModifier(hotkey) ||
+        isWindowsNativeHotkey(hotkey);
 
       if (enabled) {
         // Entering capture mode — unregister ALL slots so none intercept keypresses.
@@ -1625,10 +1656,12 @@ class IPCHandlers {
           }
         }
 
-        // On Windows, stop the Windows key listener
+        // On Windows, replace the active PTT hook with a one-shot native
+        // capture hook. This sees and suppresses Win/CapsLock combinations
+        // that Windows does not reliably deliver to Chromium.
         if (process.platform === "win32" && this.windowsKeyManager) {
-          debugLogger.log("[IPC] Stopping Windows key listener for hotkey capture mode");
-          this.windowsKeyManager.stop();
+          debugLogger.log("[IPC] Starting native Windows hotkey capture mode");
+          this.windowsKeyManager.startCapture();
         }
 
         // On Linux, stop the Linux key listener
@@ -1701,7 +1734,8 @@ class IPCHandlers {
             !isGlobeLikeHotkey(effectiveHotkey) &&
             (activationMode === "push" ||
               isModifierOnlyHotkey(effectiveHotkey) ||
-              isRightSideModifier(effectiveHotkey));
+              isRightSideModifier(effectiveHotkey) ||
+              isWindowsNativeHotkey(effectiveHotkey));
           if (needsListener) {
             debugLogger.log(`[IPC] Restarting Windows key listener for hotkey: ${effectiveHotkey}`);
             this.windowsKeyManager.start(effectiveHotkey);

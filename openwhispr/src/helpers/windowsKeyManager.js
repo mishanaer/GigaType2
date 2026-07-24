@@ -41,6 +41,21 @@ class WindowsKeyManager extends EventEmitter {
       return;
     }
 
+    if (line === "CAPTURE_CANCEL") {
+      debugLogger.debug("[WindowsKeyManager] Native hotkey capture cancelled");
+      this.emit("capture-cancel");
+      return;
+    }
+
+    if (line.startsWith("CAPTURE ")) {
+      const hotkey = line.slice("CAPTURE ".length).trim();
+      if (hotkey) {
+        debugLogger.debug("[WindowsKeyManager] Native hotkey captured", { hotkey });
+        this.emit("capture", hotkey);
+      }
+      return;
+    }
+
     debugLogger.debug("[WindowsKeyManager] Unknown output", { line });
   }
 
@@ -49,12 +64,33 @@ class WindowsKeyManager extends EventEmitter {
    * @param {string} key - The key to listen for (e.g., "`", "F8", "F11", "CommandOrControl+F11")
    */
   start(key = "`") {
+    this.startProcess([key], key);
+  }
+
+  /**
+   * Capture one Windows shortcut through the low-level hook. The native
+   * process suppresses the captured keystrokes so Win+letter shortcuts do not
+   * escape to the shell while the settings field is armed.
+   */
+  startCapture() {
+    this.startProcess(["--capture"], "__capture__");
+  }
+
+  restart(key = this.currentKey) {
+    if (!key || key === "__capture__") {
+      return;
+    }
+    this.stop();
+    this.start(key);
+  }
+
+  startProcess(args, identity) {
     if (!this.isSupported) {
       return;
     }
 
     // If already running with the same key, do nothing
-    if (this.process && this.currentKey === key) {
+    if (this.process && this.currentKey === identity) {
       return;
     }
 
@@ -70,15 +106,16 @@ class WindowsKeyManager extends EventEmitter {
 
     this.hasReportedError = false;
     this.isReady = false;
-    this.currentKey = key;
+    this.currentKey = identity;
 
     debugLogger.debug("[WindowsKeyManager] Starting key listener", {
-      key,
+      key: identity,
+      args,
       binaryPath: listenerPath,
     });
 
     try {
-      this.process = spawn(listenerPath, [key], {
+      this.process = spawn(listenerPath, args, {
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
       });
@@ -97,7 +134,7 @@ class WindowsKeyManager extends EventEmitter {
       for (const raw of lines) {
         const line = raw.trim();
         if (!line) continue;
-        this.handleOutputLine(line, key);
+        this.handleOutputLine(line, identity);
       }
     });
 
@@ -120,7 +157,7 @@ class WindowsKeyManager extends EventEmitter {
     proc.on("exit", (code, signal) => {
       const trailingLine = lineBuffer.trim();
       if (trailingLine) {
-        this.handleOutputLine(trailingLine, key);
+        this.handleOutputLine(trailingLine, identity);
         lineBuffer = "";
       }
 

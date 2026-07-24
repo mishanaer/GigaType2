@@ -325,7 +325,6 @@ class WindowManager {
     const downTime = Date.now();
 
     if (this.textEditMonitor) this.textEditMonitor.captureTargetPid();
-    this.showDictationPanel();
 
     const safetyTimeoutId = setTimeout(() => {
       if (this.macCompoundPushState?.active) {
@@ -490,8 +489,6 @@ class WindowManager {
     const MIN_HOLD_DURATION_MS = 150;
     const downTime = Date.now();
 
-    this.showDictationPanel();
-
     this.winPushState = {
       active: true,
       downTime,
@@ -538,7 +535,6 @@ class WindowManager {
       return;
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.showDictationPanel();
       this.mainWindow.webContents.send("toggle-dictation");
       this._isDictatingToggle = !this._isDictatingToggle;
       this.meetingDetectionEngine?.setUserRecording(this._isDictatingToggle);
@@ -550,7 +546,6 @@ class WindowManager {
       return;
     }
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      this.showDictationPanel();
       this.mainWindow.webContents.send("start-dictation");
       this.meetingDetectionEngine?.setUserRecording(true);
     }
@@ -882,7 +877,7 @@ class WindowManager {
     return { success: true, bounds };
   }
 
-  _repositionToCursorDisplay() {
+  _repositionToCursorDisplay(force = false) {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
 
     const cursorPos = screen.getCursorScreenPoint();
@@ -894,12 +889,12 @@ class WindowManager {
       y: currentBounds.y + currentBounds.height / 2,
     });
 
-    if (currentDisplay.id === cursorDisplay.id) return;
+    if (!force && currentDisplay.id === cursorDisplay.id) return;
 
-    const newPos = WindowPositionUtil.getMainWindowPosition(
-      cursorDisplay,
-      { width: currentBounds.width, height: currentBounds.height }
-    );
+    const newPos = WindowPositionUtil.getMainWindowPosition(cursorDisplay, {
+      width: currentBounds.width,
+      height: currentBounds.height,
+    });
     this.mainWindow.setBounds(newPos);
   }
 
@@ -909,7 +904,9 @@ class WindowManager {
       const wasHidden = !this.mainWindow.isVisible() || this.mainWindow.isMinimized();
 
       if (wasHidden) {
-        this._repositionToCursorDisplay();
+        // Recompute even when Electron reports the same nearest display:
+        // disconnects/scaling changes can leave the old bounds off-screen.
+        this._repositionToCursorDisplay(true);
       }
 
       if (this.mainWindow.isMinimized()) {
@@ -941,6 +938,27 @@ class WindowManager {
   hideDictationPanel() {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.hide();
+    }
+  }
+
+  recoverAfterSystemResume() {
+    this.resetWindowsPushState();
+
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      return;
+    }
+
+    // A transparent always-on-top window can retain stale DWM/z-order state
+    // across Windows sleep. Reset it while hidden; the renderer remains the
+    // single owner of visibility and will show it only after recording starts.
+    this.mainWindow.hide();
+    this.mainWindow.setFocusable(false);
+    this.setMainWindowInteractivity(false);
+    this.enforceMainWindowOnTop();
+    this._repositionToCursorDisplay(true);
+
+    if (!this.mainWindow.webContents.isDestroyed()) {
+      this.mainWindow.webContents.send("system-resumed");
     }
   }
 

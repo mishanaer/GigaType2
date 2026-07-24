@@ -147,7 +147,7 @@ const MODIFIER_CODES = new Set([
 
 export interface HotkeyInputProps {
   value: string;
-  onChange: (hotkey: string) => void;
+  onChange: (hotkey: string) => Promise<boolean | void> | boolean | void;
   onInvalid?: (hotkey: string, errorMessage: string) => void;
   onBlur?: () => void;
   disabled?: boolean;
@@ -269,8 +269,18 @@ export function HotkeyInput({
     fnCapturedKeyRef.current = false;
   }, []);
 
+  const cancelCapture = useCallback(() => {
+    logger.debug("capture cancelled", {}, CAPTURE_LOG_SCOPE);
+    lastCapturedHotkeyRef.current = null;
+    setIsCapturing(false);
+    setActiveModifiers(new Set());
+    setValidationWarning(null);
+    clearFnHeld();
+    containerRef.current?.blur();
+  }, [clearFnHeld]);
+
   const finalizeCapture = useCallback(
-    (hotkey: string) => {
+    async (hotkey: string) => {
       if (warningTimeoutRef.current) {
         clearTimeout(warningTimeoutRef.current);
         warningTimeoutRef.current = null;
@@ -300,8 +310,23 @@ export function HotkeyInput({
 
       setValidationWarning(null);
       logger.debug("captured", { hotkey }, CAPTURE_LOG_SCOPE);
-      lastCapturedHotkeyRef.current = hotkey;
-      onChange(hotkey);
+      let registered: boolean | void = false;
+      try {
+        registered = await onChange(hotkey);
+      } catch (error) {
+        logger.warn(
+          "registration rejected",
+          { hotkey, error: error instanceof Error ? error.message : String(error) },
+          CAPTURE_LOG_SCOPE
+        );
+      }
+      if (registered === false) {
+        // Registration is transactional: leave the old shortcut as the
+        // effective value when the backend rejects the candidate.
+        lastCapturedHotkeyRef.current = null;
+      } else {
+        lastCapturedHotkeyRef.current = hotkey;
+      }
       setIsCapturing(false);
       setActiveModifiers(new Set());
       clearFnHeld();
@@ -333,6 +358,10 @@ export function HotkeyInput({
       // reaches the app. A few devices expose Fn/FnLock; reject those events
       // explicitly so the settings capsule can provide invalid-input feedback.
       const code = e.nativeEvent.code;
+      if (code === "Escape") {
+        cancelCapture();
+        return;
+      }
       if (!isMac && (code === "Fn" || code === "FnLock" || e.key === "Fn" || e.key === "FnLock")) {
         finalizeCapture("Fn");
         return;
@@ -394,7 +423,7 @@ export function HotkeyInput({
       }
       // If no base key, modifiers are held - don't finalize yet
     },
-    [disabled, isMac, isWindows, finalizeCapture]
+    [disabled, isMac, isWindows, finalizeCapture, cancelCapture]
   );
 
   const handleKeyUp = useCallback(
@@ -517,6 +546,22 @@ export function HotkeyInput({
       disposeUp?.();
     };
   }, [isCapturing, isMac, finalizeCapture]);
+
+  useEffect(() => {
+    if (!isCapturing || !isWindows) return;
+
+    const disposeCaptured = window.electronAPI?.onWindowsHotkeyCaptured?.((hotkey) => {
+      finalizeCapture(hotkey);
+    });
+    const disposeCancelled = window.electronAPI?.onWindowsHotkeyCaptureCancelled?.(() => {
+      cancelCapture();
+    });
+
+    return () => {
+      disposeCaptured?.();
+      disposeCancelled?.();
+    };
+  }, [isCapturing, isWindows, finalizeCapture, cancelCapture]);
 
   const displayValue = formatHotkeyLabel(value);
   const isGlobe = isGlobeLikeHotkey(value);

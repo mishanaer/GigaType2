@@ -68,3 +68,25 @@ test("capsule has a visible fallback and bounded renderer retries", () => {
   assert.match(cssSource, /golos-capsule-fallback-pulse/);
   assert.doesNotMatch(cssSource, /data-fallback="true"\]\)\s*\{\s*opacity:\s*0/);
 });
+
+test("capsule visibility has one renderer owner and Windows resume restores the overlay hook", () => {
+  const appSource = fs.readFileSync(path.join(repoRoot, "src/App.jsx"), "utf8");
+  const windowManagerSource = fs.readFileSync(
+    path.join(repoRoot, "src/helpers/windowManager.js"),
+    "utf8"
+  );
+  const mainSource = fs.readFileSync(path.join(repoRoot, "main.js"), "utf8");
+
+  assert.match(appSource, /if \(isCapsuleVisible && !hideCapsule\)[\s\S]*showDictationPanel/);
+  assert.match(appSource, /else \{[\s\S]*hideDictationPanel/);
+  assert.match(windowManagerSource, /recoverAfterSystemResume\(\)/);
+  assert.match(windowManagerSource, /this\.mainWindow\.setFocusable\(false\)/);
+  assert.match(windowManagerSource, /this\.setMainWindowInteractivity\(false\)/);
+  assert.match(
+    mainSource,
+    /const recoverWindowsAfterResume[\s\S]*recoverAfterSystemResume/
+  );
+  assert.match(mainSource, /powerMonitor\.on\("resume"[\s\S]*recoverWindowsAfterResume/);
+  assert.match(mainSource, /powerMonitor\.on\("unlock-screen", recoverWindowsAfterResume\)/);
+  assert.match(mainSource, /windowsKeyManager\.restart\(currentHotkey\)/);
+});

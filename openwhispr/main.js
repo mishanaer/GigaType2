@@ -656,11 +656,35 @@ async function startApp() {
   });
 
   const { powerMonitor } = require("electron");
+  let windowsResumeRecoveryTimer = null;
+  const recoverWindowsAfterResume = () => {
+    windowManager?.recoverAfterSystemResume?.();
+
+    if (process.platform !== "win32" || !windowsKeyManager) return;
+    if (windowsResumeRecoveryTimer) clearTimeout(windowsResumeRecoveryTimer);
+    // resume can arrive before the interactive desktop is unlocked. Re-run
+    // from unlock-screen and debounce both events into one hook restart.
+    windowsResumeRecoveryTimer = setTimeout(() => {
+      windowsResumeRecoveryTimer = null;
+      if (!isLiveWindow(windowManager?.mainWindow)) return;
+      const currentHotkey = hotkeyManager?.getCurrentHotkey?.();
+      if (!currentHotkey || hotkeyManager?.isInListeningMode?.()) return;
+      const { isWindowsNativeHotkey } = require("./src/helpers/hotkeyManager");
+      const needsNativeListener =
+        windowManager.getActivationMode() === "push" || isWindowsNativeHotkey(currentHotkey);
+      if (needsNativeListener) {
+        windowsKeyManager.restart(currentHotkey);
+      }
+    }, 750);
+  };
+
   powerMonitor.on("resume", () => {
     if (googleCalendarManager) {
       googleCalendarManager.onWakeFromSleep();
     }
+    recoverWindowsAfterResume();
   });
+  powerMonitor.on("unlock-screen", recoverWindowsAfterResume);
 
   // Auto-download diarization models if binary is available
   if (
@@ -760,7 +784,6 @@ async function startApp() {
               debugLogger?.debug("[Globe] Ignored — cooldown active");
               return;
             }
-            windowManager.showDictationPanel();
             if (!globeKeyIsRecording) {
               globeKeyIsRecording = true;
               debugLogger?.debug("[Globe] Starting dictation (push immediate)");
@@ -836,7 +859,6 @@ async function startApp() {
       if (activationMode === "push") {
         const now = Date.now();
         if (now - rightModLastStopTime < POST_STOP_COOLDOWN_MS) return;
-        windowManager.showDictationPanel();
         const pressTime = now;
         rightModDownTime = pressTime;
         rightModIsRecording = false;
@@ -913,7 +935,6 @@ async function startApp() {
       if (activationMode === "push") {
         const now = Date.now();
         if (now - mouseButtonLastStopTime < POST_STOP_COOLDOWN_MS) return;
-        windowManager.showDictationPanel();
         const pressTime = now;
         mouseButtonDownTime = pressTime;
         mouseButtonIsRecording = false;
@@ -1005,6 +1026,7 @@ async function startApp() {
     const {
       isGlobeLikeHotkey: isGlobeLike,
       isModifierOnlyHotkey,
+      isWindowsNativeHotkey,
     } = require("./src/helpers/hotkeyManager");
     const isValidHotkey = (hotkey) => hotkey && !isGlobeLike(hotkey);
 
@@ -1014,7 +1036,9 @@ async function startApp() {
     const needsNativeListener = (hotkey, mode) => {
       if (!isValidHotkey(hotkey)) return false;
       if (mode === "push") return true;
-      return isRightSideMod(hotkey) || isModifierOnlyHotkey(hotkey);
+      return (
+        isRightSideMod(hotkey) || isModifierOnlyHotkey(hotkey) || isWindowsNativeHotkey(hotkey)
+      );
     };
 
     windowsKeyManager.on("key-down", (_key) => {
