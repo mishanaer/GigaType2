@@ -3,7 +3,6 @@ import App from "./App.jsx";
 import AppLoadingFallback from "./components/AppLoadingFallback.tsx";
 import MeetingNotificationOverlay from "./components/MeetingNotificationOverlay.tsx";
 import TranscriptionPreviewOverlay from "./components/TranscriptionPreviewOverlay.tsx";
-import UpdateNotificationOverlay from "./components/UpdateNotificationOverlay.tsx";
 import { useTheme } from "./hooks/useTheme";
 import logger from "./utils/logger";
 import {
@@ -121,10 +120,6 @@ export default function AppRouter() {
 
   if (params.includes("meeting-notification=true")) {
     return <MeetingNotificationOverlay />;
-  }
-
-  if (params.includes("update-notification=true")) {
-    return <UpdateNotificationOverlay />;
   }
 
   if (params.includes("transcription-preview=true")) {

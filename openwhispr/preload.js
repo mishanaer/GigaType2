@@ -612,11 +612,4 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.invoke("meeting-notification-respond", detectionId, action),
   joinCalendarMeeting: (eventId) => ipcRenderer.invoke("join-calendar-meeting", eventId),
 
-  onUpdateNotificationData: registerListener(
-    "update-notification-data",
-    (callback) => (_event, data) => callback(data)
-  ),
-  getUpdateNotificationData: () => ipcRenderer.invoke("get-update-notification-data"),
-  updateNotificationReady: () => ipcRenderer.invoke("update-notification-ready"),
-  updateNotificationRespond: (action) => ipcRenderer.invoke("update-notification-respond", action),
 });

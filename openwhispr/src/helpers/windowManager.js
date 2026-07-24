@@ -26,8 +26,6 @@ class WindowManager {
     this.notificationWindow = null;
     this._notificationTimeout = null;
     this.transcriptionPreviewWindow = null;
-    this.updateNotificationWindow = null;
-    this._updateNotificationDismissed = false;
     this.notificationPrefs = {
       notificationsEnabled: false,
       notifyMeetingDetection: false,
@@ -1062,95 +1060,6 @@ class WindowManager {
       this.notificationWindow.close();
     }
     this.notificationWindow = null;
-  }
-
-  async showUpdateNotification(info) {
-    if (this._updateNotificationDismissed) return;
-    if (this.updateNotificationWindow && !this.updateNotificationWindow.isDestroyed()) {
-      this.updateNotificationWindow.close();
-      this.updateNotificationWindow = null;
-    }
-    if (this._updateNotificationAutoDismiss) {
-      clearTimeout(this._updateNotificationAutoDismiss);
-      this._updateNotificationAutoDismiss = null;
-    }
-
-    const display = screen.getPrimaryDisplay();
-    const position = WindowPositionUtil.getNotificationPosition(display);
-
-    this.updateNotificationWindow = new BrowserWindow({
-      ...NOTIFICATION_WINDOW_CONFIG,
-      ...position,
-    });
-
-    WindowPositionUtil.setupAlwaysOnTop(this.updateNotificationWindow);
-
-    if (process.env.NODE_ENV === "development") {
-      await DevServerManager.waitForDevServer();
-      await this.updateNotificationWindow.loadURL(
-        `${DevServerManager.DEV_SERVER_URL}?update-notification=true`
-      );
-    } else {
-      const fileInfo = DevServerManager.getAppFilePath(false);
-      await this.updateNotificationWindow.loadFile(fileInfo.path, {
-        query: { ...fileInfo.query, "update-notification": "true" },
-      });
-    }
-
-    this._pendingUpdateNotificationData = {
-      version: info?.version,
-      releaseDate: info?.releaseDate,
-    };
-
-    this._updateNotificationReadyFallback = setTimeout(() => {
-      this._updateNotificationReadyFallback = null;
-      if (this.updateNotificationWindow && !this.updateNotificationWindow.isDestroyed()) {
-        this.updateNotificationWindow.webContents.send(
-          "update-notification-data",
-          this._pendingUpdateNotificationData
-        );
-        this.updateNotificationWindow.showInactive();
-      }
-    }, 3000);
-
-    this._updateNotificationAutoDismiss = setTimeout(() => {
-      this.dismissUpdateNotification({ persistent: false });
-    }, 5000);
-
-    this.updateNotificationWindow.on("closed", () => {
-      this.updateNotificationWindow = null;
-      if (this._updateNotificationAutoDismiss) {
-        clearTimeout(this._updateNotificationAutoDismiss);
-        this._updateNotificationAutoDismiss = null;
-      }
-    });
-  }
-
-  showUpdateNotificationWindow() {
-    if (this._updateNotificationReadyFallback) {
-      clearTimeout(this._updateNotificationReadyFallback);
-      this._updateNotificationReadyFallback = null;
-    }
-    if (this.updateNotificationWindow && !this.updateNotificationWindow.isDestroyed()) {
-      this.updateNotificationWindow.showInactive();
-    }
-  }
-
-  dismissUpdateNotification({ persistent = true } = {}) {
-    this._pendingUpdateNotificationData = null;
-    if (persistent) this._updateNotificationDismissed = true;
-    if (this._updateNotificationReadyFallback) {
-      clearTimeout(this._updateNotificationReadyFallback);
-      this._updateNotificationReadyFallback = null;
-    }
-    if (this._updateNotificationAutoDismiss) {
-      clearTimeout(this._updateNotificationAutoDismiss);
-      this._updateNotificationAutoDismiss = null;
-    }
-    if (this.updateNotificationWindow && !this.updateNotificationWindow.isDestroyed()) {
-      this.updateNotificationWindow.close();
-    }
-    this.updateNotificationWindow = null;
   }
 
   sendToControlPanel(channel, data) {
