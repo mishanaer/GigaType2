@@ -2564,6 +2564,8 @@
     "downloadFailedTitle": "Não foi possível baixar a atualização",
     "downloadFailedMessage": "Algo deu errado ao baixar a atualização. Tente novamente mais tarde.",
     "installFailedTitle": "Não foi possível instalar a atualização",
-    "installFailedMessage": "Algo deu errado ao instalar a atualização. Tente novamente mais tarde."
+    "installFailedMessage": "Algo deu errado ao instalar a atualização. Tente novamente mais tarde.",
+    "checkFailedTitle": "Não foi possível verificar atualizações",
+    "checkFailedMessage": "Algo deu errado ao verificar atualizações. Tente novamente mais tarde."
   }
 }

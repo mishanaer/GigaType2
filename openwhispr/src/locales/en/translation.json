@@ -2555,6 +2555,8 @@
     "downloadFailedTitle": "Couldn't download update",
     "downloadFailedMessage": "Something went wrong while downloading the update. Please try again later.",
     "installFailedTitle": "Couldn't install update",
-    "installFailedMessage": "Something went wrong while installing the update. Please try again later."
+    "installFailedMessage": "Something went wrong while installing the update. Please try again later.",
+    "checkFailedTitle": "Couldn't check for updates",
+    "checkFailedMessage": "Something went wrong while checking for updates. Please try again later."
   }
 }

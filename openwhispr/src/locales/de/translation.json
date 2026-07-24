@@ -2564,6 +2564,8 @@
     "downloadFailedTitle": "Update konnte nicht heruntergeladen werden",
     "downloadFailedMessage": "Beim Herunterladen des Updates ist ein Fehler aufgetreten. Bitte versuche es später erneut.",
     "installFailedTitle": "Update konnte nicht installiert werden",
-    "installFailedMessage": "Bei der Installation des Updates ist ein Fehler aufgetreten. Bitte versuche es später erneut."
+    "installFailedMessage": "Bei der Installation des Updates ist ein Fehler aufgetreten. Bitte versuche es später erneut.",
+    "checkFailedTitle": "Suche nach Updates fehlgeschlagen",
+    "checkFailedMessage": "Bei der Suche nach Updates ist ein Fehler aufgetreten. Bitte versuche es später erneut."
   }
 }

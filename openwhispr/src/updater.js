@@ -112,11 +112,15 @@ class UpdateManager {
     // setFeedURL here — it would override the baked config. We only tune the
     // channel below; electron-updater reads the OBS URL from app-update.yml.
 
-    // Use arch-specific update channel on macOS to prevent arm64/x64 from
+    // Base channel: "latest" (Windows → latest.yml, Linux → latest-linux.yml).
+    this._primaryChannel = "latest";
+    this._fallbackChannel = null;
+
+    // Use an arch-specific update channel on macOS to prevent arm64/x64 from
     // downloading mismatched artifacts. Both builds publish to the same feed,
-    // so without this they race on latest-mac.yml. Setting the channel to e.g.
-    // 'latest-arm64' makes the updater fetch 'latest-arm64-mac.yml' (minted by
-    // scripts/publish.py) instead of the shared 'latest-mac.yml'.
+    // so without this they race on latest-mac.yml. Channel 'latest-arm64' makes
+    // the updater fetch 'latest-arm64-mac.yml' (minted by scripts/publish.py /
+    // release.yml) instead of the shared 'latest-mac.yml'.
     if (process.platform === "darwin") {
       let nativeArch = process.arch;
 
@@ -139,8 +143,15 @@ class UpdateManager {
         }
       }
 
-      autoUpdater.channel = nativeArch === "arm64" ? "latest-arm64" : "latest-x64";
+      this._primaryChannel = nativeArch === "arm64" ? "latest-arm64" : "latest-x64";
+      // Fall back to the shared latest-mac.yml when the arch-specific manifest
+      // isn't on the feed (older releases published only latest-mac.yml).
+      // electron-updater then picks the artifact matching process.arch, so this
+      // is safe — it never installs a mismatched build.
+      this._fallbackChannel = "latest";
     }
+
+    autoUpdater.channel = this._primaryChannel;
 
     // We drive download + install ourselves (background download, then a native
     // dialog), so disable both of electron-updater's automatic paths. In
@@ -189,9 +200,13 @@ class UpdateManager {
         this.notifyRenderers("update-not-available", info);
       },
       error: (err) => {
+        // Log only. electron-updater fires this for routine conditions (feed
+        // unreachable, a not-yet-published manifest 404, offline), and the
+        // native-dialog flow already surfaces genuine failures via checkForUpdates
+        // rejecting. Forwarding it to the renderer produced a scary toast on
+        // every background check, so we no longer notify renderers here.
         console.error("❌ Auto-updater error:", err);
         this.isDownloading = false;
-        this.notifyRenderers("update-error", err);
       },
       "download-progress": (progressObj) => {
         console.log(
@@ -294,18 +309,33 @@ class UpdateManager {
 
   // ---- Core flow -----------------------------------------------------------
 
-  // Returns a result only when a genuinely newer version is available.
+  _checkOnChannel(channel) {
+    autoUpdater.channel = channel;
+    return autoUpdater.checkForUpdates();
+  }
+
+  // Returns the check result when a strictly newer version is available, or
+  // null when already up to date. THROWS when the feed can't be reached — so
+  // callers can tell "no update" apart from "check failed" (a swallowed error
+  // used to be reported to the user as "you're up to date").
   async _checkOnce() {
+    let result;
     try {
-      const result = await autoUpdater.checkForUpdates();
-      const version = result?.updateInfo?.version;
-      if (!version) return null;
-      if (compareVersions(app.getVersion(), version) >= 0) return null;
-      return result;
-    } catch (e) {
-      console.error("update check failed:", fmtErr(e));
-      return null;
+      result = await this._checkOnChannel(this._primaryChannel);
+    } catch (primaryErr) {
+      if (!this._fallbackChannel || this._fallbackChannel === this._primaryChannel) {
+        throw primaryErr;
+      }
+      console.warn(
+        `update check on '${this._primaryChannel}' failed (${fmtErr(primaryErr)}); ` +
+          `retrying on '${this._fallbackChannel}'`
+      );
+      result = await this._checkOnChannel(this._fallbackChannel);
     }
+    const version = result?.updateInfo?.version;
+    if (!version) return null;
+    if (compareVersions(app.getVersion(), version) >= 0) return null;
+    return result;
   }
 
   // Downloads once; concurrent callers await the same promise.
@@ -350,7 +380,14 @@ class UpdateManager {
   // user deferred this version within the last 24h).
   async runStartupUpdateCheck() {
     if (!this.enabled) return;
-    const result = await this._checkOnce();
+    let result;
+    try {
+      result = await this._checkOnce();
+    } catch (e) {
+      // Background check: stay silent (offline, feed unreachable, etc.).
+      console.error("startup update check failed:", fmtErr(e));
+      return;
+    }
     if (!result) return;
     const version = result.updateInfo.version;
 
@@ -386,7 +423,21 @@ class UpdateManager {
       return;
     }
 
-    const result = await this._checkOnce();
+    let result;
+    try {
+      result = await this._checkOnce();
+    } catch (e) {
+      console.error("manual update check failed:", fmtErr(e));
+      if (alertOnFail) {
+        await dialog.showMessageBox({
+          type: "error",
+          title: this.t("checkFailedTitle"),
+          message: this.t("checkFailedMessage"),
+          detail: fmtErr(e),
+        });
+      }
+      return;
+    }
     if (!result) {
       if (alertOnFail) {
         await dialog.showMessageBox({
@@ -472,18 +523,22 @@ class UpdateManager {
     if (!this.enabled) {
       return { updateAvailable: false, message: "Update checks are disabled" };
     }
-    const result = await this._checkOnce();
-    if (result?.updateInfo?.version) {
-      const info = result.updateInfo;
-      return {
-        updateAvailable: true,
-        version: info.version,
-        releaseDate: info.releaseDate,
-        files: info.files,
-        releaseNotes: info.releaseNotes,
-      };
+    try {
+      const result = await this._checkOnce();
+      if (result?.updateInfo?.version) {
+        const info = result.updateInfo;
+        return {
+          updateAvailable: true,
+          version: info.version,
+          releaseDate: info.releaseDate,
+          files: info.files,
+          releaseNotes: info.releaseNotes,
+        };
+      }
+      return { updateAvailable: false, message: "You are running the latest version" };
+    } catch (e) {
+      return { updateAvailable: false, message: fmtErr(e) };
     }
-    return { updateAvailable: false, message: "You are running the latest version" };
   }
 
   async downloadUpdate() {
