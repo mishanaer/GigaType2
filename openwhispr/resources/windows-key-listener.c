@@ -22,6 +22,9 @@ static BOOL g_captureMode = FALSE;
 static BOOL g_captureCompleted = FALSE;
 static BOOL g_captureHadBaseKey = FALSE;
 static BOOL g_capsLockDown = FALSE;
+static BOOL g_captureBaseDown = FALSE;
+static DWORD g_captureBaseVk = 0;
+static char g_capturePendingHotkey[256] = "";
 static BOOL g_suppressRequiredModifiersUntilReleased = FALSE;
 static unsigned int g_captureModifierMask = 0;
 static DWORD g_captureLastModifierVk = 0;
@@ -214,21 +217,50 @@ static void AppendCapturePart(char* buffer, size_t size, const char* part) {
     strncat(buffer, part, size - strlen(buffer) - 1);
 }
 
+static void BuildCapturedHotkey(char* hotkey, size_t size,
+                                const char* baseKey, BOOL includeCapsLock) {
+    hotkey[0] = '\0';
+    if (g_ctrlDown) AppendCapturePart(hotkey, size, "Control");
+    if (g_leftWinDown || g_rightWinDown)
+        AppendCapturePart(hotkey, size, "Super");
+    if (g_altDown) AppendCapturePart(hotkey, size, "Alt");
+    if (g_shiftDown) AppendCapturePart(hotkey, size, "Shift");
+    if (includeCapsLock) AppendCapturePart(hotkey, size, "CapsLock");
+    AppendCapturePart(hotkey, size, baseKey);
+}
+
 static void EmitCapturedHotkey(const char* baseKey, BOOL includeCapsLock) {
     char hotkey[256] = "";
-    if (g_ctrlDown) AppendCapturePart(hotkey, sizeof(hotkey), "Control");
-    if (g_leftWinDown || g_rightWinDown)
-        AppendCapturePart(hotkey, sizeof(hotkey), "Super");
-    if (g_altDown) AppendCapturePart(hotkey, sizeof(hotkey), "Alt");
-    if (g_shiftDown) AppendCapturePart(hotkey, sizeof(hotkey), "Shift");
-    if (includeCapsLock) AppendCapturePart(hotkey, sizeof(hotkey), "CapsLock");
-    AppendCapturePart(hotkey, sizeof(hotkey), baseKey);
-
+    BuildCapturedHotkey(hotkey, sizeof(hotkey), baseKey, includeCapsLock);
     if (hotkey[0] != '\0') {
         printf("CAPTURE %s\n", hotkey);
         fflush(stdout);
         g_captureCompleted = TRUE;
     }
+}
+
+static void QueueCapturedHotkey(DWORD baseVk, const char* baseKey, BOOL includeCapsLock) {
+    BuildCapturedHotkey(
+        g_capturePendingHotkey, sizeof(g_capturePendingHotkey), baseKey, includeCapsLock
+    );
+    if (g_capturePendingHotkey[0] != '\0') {
+        g_captureBaseVk = baseVk;
+        g_captureBaseDown = TRUE;
+    }
+}
+
+static void TryEmitPendingCapture(void) {
+    if (g_capturePendingHotkey[0] == '\0' || g_captureBaseDown ||
+        g_ctrlDown || g_altDown || g_shiftDown ||
+        g_leftWinDown || g_rightWinDown || g_capsLockDown) {
+        return;
+    }
+
+    printf("CAPTURE %s\n", g_capturePendingHotkey);
+    fflush(stdout);
+    g_capturePendingHotkey[0] = '\0';
+    g_captureBaseVk = 0;
+    g_captureCompleted = TRUE;
 }
 
 static void EmitCapturedModifierOnly(void) {
@@ -272,7 +304,9 @@ static LRESULT HandleCaptureEvent(WPARAM wParam, KBDLLHOOKSTRUCT* kbd) {
             g_captureLastModifierVk = kbd->vkCode;
         } else {
             UpdateModifierState(kbd->vkCode, FALSE);
-            if (!g_ctrlDown && !g_altDown && !g_shiftDown &&
+            if (g_captureHadBaseKey) {
+                TryEmitPendingCapture();
+            } else if (!g_ctrlDown && !g_altDown && !g_shiftDown &&
                 !g_leftWinDown && !g_rightWinDown && !g_captureHadBaseKey) {
                 EmitCapturedModifierOnly();
                 if (!g_captureCompleted) {
@@ -284,10 +318,12 @@ static LRESULT HandleCaptureEvent(WPARAM wParam, KBDLLHOOKSTRUCT* kbd) {
         return 1;
     }
 
-    if (kbd->vkCode == VK_ESCAPE && isKeyDown) {
-        printf("CAPTURE_CANCEL\n");
-        fflush(stdout);
-        g_captureCompleted = TRUE;
+    if (kbd->vkCode == VK_ESCAPE) {
+        if (isKeyUp) {
+            printf("CAPTURE_CANCEL\n");
+            fflush(stdout);
+            g_captureCompleted = TRUE;
+        }
         return 1;
     }
 
@@ -296,15 +332,24 @@ static LRESULT HandleCaptureEvent(WPARAM wParam, KBDLLHOOKSTRUCT* kbd) {
             g_capsLockDown = TRUE;
         } else {
             g_capsLockDown = FALSE;
-            if (!g_captureHadBaseKey) EmitCapturedHotkey("CapsLock", FALSE);
+            if (g_captureHadBaseKey) {
+                TryEmitPendingCapture();
+            } else {
+                EmitCapturedHotkey("CapsLock", FALSE);
+            }
         }
         return 1;
     }
 
     if (isKeyDown) {
         const char* keyName = CaptureKeyName(kbd->vkCode);
-        g_captureHadBaseKey = TRUE;
-        if (keyName) EmitCapturedHotkey(keyName, g_capsLockDown);
+        if (keyName && !g_captureHadBaseKey) {
+            g_captureHadBaseKey = TRUE;
+            QueueCapturedHotkey(kbd->vkCode, keyName, g_capsLockDown);
+        }
+    } else if (isKeyUp && g_captureBaseDown && kbd->vkCode == g_captureBaseVk) {
+        g_captureBaseDown = FALSE;
+        TryEmitPendingCapture();
     }
 
     // Suppress captured keys so Win+L, Win+letter, CapsLock, etc. do not

@@ -47,6 +47,7 @@ class WindowManager {
     this.showDockIcon = true;
     this._dockVisibilityPromise = Promise.resolve();
     this._mainWindowRaiseTimers = new Set();
+    this._dictationPanelShowGeneration = 0;
 
     app.on("before-quit", () => {
       this.isQuitting = true;
@@ -878,7 +879,7 @@ class WindowManager {
     return { success: true, bounds };
   }
 
-  _repositionToCursorDisplay(force = false) {
+  _repositionToCursorDisplay(force = false, placement = "bottom") {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
 
     const cursorPos = screen.getCursorScreenPoint();
@@ -892,16 +893,57 @@ class WindowManager {
 
     if (!force && currentDisplay.id === cursorDisplay.id) return;
 
-    const newPos = WindowPositionUtil.getMainWindowPosition(cursorDisplay, {
-      width: currentBounds.width,
-      height: currentBounds.height,
-    });
+    const newPos = WindowPositionUtil.getMainWindowPosition(
+      cursorDisplay,
+      {
+        width: currentBounds.width,
+        height: currentBounds.height,
+      },
+      { placement }
+    );
     this.mainWindow.setBounds(newPos);
+  }
+
+  _repositionForWindowsStartSurface(showGeneration) {
+    if (
+      process.platform !== "win32" ||
+      typeof this.textEditMonitor?.isWindowsStartSurfaceForeground !== "function"
+    ) {
+      return;
+    }
+
+    this.textEditMonitor
+      .isWindowsStartSurfaceForeground()
+      .then((isStartSurface) => {
+        if (
+          !isStartSurface ||
+          showGeneration !== this._dictationPanelShowGeneration ||
+          !this.mainWindow ||
+          this.mainWindow.isDestroyed() ||
+          !this.mainWindow.isVisible()
+        ) {
+          return;
+        }
+
+        // Start/Search owns the lower center of the display and remains above
+        // ordinary topmost windows. Move the non-focusable capsule to the top
+        // edge instead of competing with the shell's protected z-order.
+        this._repositionToCursorDisplay(true, "top");
+        this.raiseMainWindowWithoutFocus();
+      })
+      .catch((error) => {
+        debugLogger.debug(
+          "Unable to inspect Windows foreground surface",
+          { error: error.message },
+          "window"
+        );
+      });
   }
 
   showDictationPanel(options = {}) {
     const { focus = false } = options;
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      const showGeneration = ++this._dictationPanelShowGeneration;
       this._clearMainWindowRaiseTimers();
       const wasHidden = !this.mainWindow.isVisible() || this.mainWindow.isMinimized();
 
@@ -926,6 +968,7 @@ class WindowManager {
         this.mainWindow.focus();
       }
       this.raiseMainWindowWithoutFocus();
+      this._repositionForWindowsStartSurface(showGeneration);
 
       // Explorer can reassert the Start menu's z-order just after the capsule
       // is shown. Re-raise during that short shell transition, without
@@ -949,6 +992,7 @@ class WindowManager {
   }
 
   hideDictationPanel() {
+    this._dictationPanelShowGeneration += 1;
     this._clearMainWindowRaiseTimers();
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       this.mainWindow.hide();

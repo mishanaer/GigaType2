@@ -104,6 +104,16 @@ test("Windows and Linux validators reject Fn in every shortcut position", () => 
   assert.equal(validateHotkey("Fn+F8", "darwin").valid, true);
 });
 
+test("Windows reserved Win combinations are rejected before registration", () => {
+  const { validateHotkey } = loadHotkeyValidator();
+
+  for (const hotkey of ["Super+L", "Super+Space", "Super+A"]) {
+    const result = validateHotkey(hotkey, "win32");
+    assert.equal(result.valid, false, hotkey);
+    assert.equal(result.errorCode, "RESERVED", hotkey);
+  }
+});
+
 test("Windows and Linux backends reject Fn before touching active registrations", async () => {
   const calls = [];
   const globalShortcut = {
@@ -195,11 +205,23 @@ test("Windows native capture handles Win, Caps Lock and Escape without shell fal
   assert.match(nativeSource, /--capture/);
   assert.match(nativeSource, /CAPTURE_CANCEL/);
   assert.match(nativeSource, /EmitCapturedHotkey\("CapsLock"/);
+  assert.match(nativeSource, /QueueCapturedHotkey/);
+  assert.match(nativeSource, /TryEmitPendingCapture/);
+  assert.match(nativeSource, /g_captureBaseDown/);
   assert.match(nativeSource, /return 1;[\s\S]*Suppress captured keys/);
   assert.match(managerSource, /async startCapture\(/);
   assert.match(managerSource, /this\.emit\("capture", hotkey\)/);
   assert.match(inputSource, /if \(code === "Escape"\)[\s\S]*cancelCapture\(\)/);
   assert.match(inputSource, /onWindowsHotkeyCaptured/);
+});
+
+test("Windows settings explain that hardware Fn is not observable", () => {
+  const settingsSource = fs.readFileSync(
+    path.join(repoRoot, "src", "components", "settings", "WalletSettingsCells.tsx"),
+    "utf8"
+  );
+
+  assert.match(settingsSource, /Fn недоступна/);
 });
 
 test("Caps Lock hotkeys use the native Windows backend and remain valid", () => {

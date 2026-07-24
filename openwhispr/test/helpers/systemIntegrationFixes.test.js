@@ -96,6 +96,14 @@ test("Windows capture waits for the native hook and the capsule recovers above s
     path.join(repoRoot, "src/helpers/windowManager.js"),
     "utf8"
   );
+  const textMonitorSource = fs.readFileSync(
+    path.join(repoRoot, "src/helpers/textEditMonitor.js"),
+    "utf8"
+  );
+  const windowsTextMonitorSource = fs.readFileSync(
+    path.join(repoRoot, "resources/windows-text-monitor.c"),
+    "utf8"
+  );
 
   assert.match(ipcSource, /await this\.windowsKeyManager\.startCapture\(\)/);
   assert.match(hotkeyInputSource, /result\?\.nativeReady === false/);
@@ -104,4 +112,10 @@ test("Windows capture waits for the native hook and the capsule recovers above s
   assert.match(windowManagerSource, /raiseMainWindowWithoutFocus\(\)/);
   assert.match(windowManagerSource, /this\.mainWindow\.moveTop\(\)/);
   assert.match(windowManagerSource, /for \(const delayMs of \[0, 75, 250\]\)/);
+  assert.match(windowManagerSource, /_repositionForWindowsStartSurface/);
+  assert.match(windowManagerSource, /_repositionToCursorDisplay\(true, "top"\)/);
+  assert.match(textMonitorSource, /isWindowsStartSurfaceForeground/);
+  assert.match(windowsTextMonitorSource, /--foreground-start-surface/);
+  assert.match(windowsTextMonitorSource, /StartMenuExperienceHost\.exe/);
+  assert.match(windowsTextMonitorSource, /SearchHost\.exe/);
 });

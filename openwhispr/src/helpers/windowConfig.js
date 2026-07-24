@@ -174,7 +174,7 @@ const TRANSCRIPTION_PREVIEW_CONFIG = {
 };
 
 class WindowPositionUtil {
-  static getMainWindowPosition(display, customSize = null) {
+  static getMainWindowPosition(display, customSize = null, options = {}) {
     const { width, height } = customSize || WINDOW_SIZES.BASE;
     const bounds = display.bounds || display.workArea;
 
@@ -182,7 +182,10 @@ class WindowPositionUtil {
       bounds.x,
       Math.min(Math.round(bounds.x + (bounds.width - width) / 2), bounds.x + bounds.width - width)
     );
-    const y = Math.max(bounds.y, bounds.y + bounds.height - height - MAIN_WINDOW_BOTTOM_OFFSET);
+    const y =
+      options.placement === "top"
+        ? bounds.y + MAIN_WINDOW_BOTTOM_OFFSET
+        : Math.max(bounds.y, bounds.y + bounds.height - height - MAIN_WINDOW_BOTTOM_OFFSET);
 
     return { x, y, width, height };
   }

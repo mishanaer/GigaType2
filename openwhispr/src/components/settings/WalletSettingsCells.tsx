@@ -114,7 +114,9 @@ export default function WalletSettingsCells({
   );
   const activeMicrophoneLabel =
     microphoneOptions.find((device) => device.deviceId === activeDeviceId)?.label ?? "Системный";
-  const isMac = getCachedPlatform() === "darwin";
+  const platform = getCachedPlatform();
+  const isMac = platform === "darwin";
+  const isWindows = platform === "win32";
   const isWindowsOrLinux = !isMac;
 
   const beginHotkeyCapture = useCallback(() => {
@@ -225,7 +227,11 @@ export default function WalletSettingsCells({
                   }
                 >
                   <Cell.Part type="Picker">
-                    {isHotkeyArmed ? "Нажмите клавиши" : getHotkeyLabel(dictationKey)}
+                    {isHotkeyArmed
+                      ? isWindows
+                        ? "Нажмите клавиши · Fn недоступна"
+                        : "Нажмите клавиши"
+                      : getHotkeyLabel(dictationKey)}
                   </Cell.Part>
                 </div>
               }
@@ -313,7 +319,6 @@ export default function WalletSettingsCells({
                 <Cell.Text title="Показывать иконку в Dock" />
               </Cell>
             )}
-
           </SectionList.Item>
         </SectionList>
 
