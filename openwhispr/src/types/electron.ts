@@ -3,13 +3,7 @@ export type InferenceMode = "providers" | "local" | "self-hosted" | "enterprise"
 export type SelfHostedType = "openai-compatible" | "lan";
 
 export type GigaamHealthStatus =
-  | "unavailable"
-  | "stopped"
-  | "starting"
-  | "loading"
-  | "ok"
-  | "error"
-  | "unknown";
+  "unavailable" | "stopped" | "starting" | "loading" | "ok" | "error" | "unknown";
 
 export interface GigaamSidecarStatus {
   available: boolean;
@@ -226,11 +220,7 @@ export interface AudioDiagnosticsResult {
 
 export type SystemAudioMode = "native" | "loopback" | "portal" | "unsupported";
 export type SystemAudioStrategy =
-  | "native"
-  | "loopback"
-  | "browser-portal"
-  | "portal-helper"
-  | "unsupported";
+  "native" | "loopback" | "browser-portal" | "portal-helper" | "unsupported";
 
 export interface SystemAudioAccessResult {
   granted: boolean;
@@ -358,7 +348,10 @@ declare global {
       resizeMainWindow?: (
         sizeKey: "BASE" | "WITH_MENU" | "WITH_TOAST" | "EXPANDED"
       ) => Promise<{ success: boolean; message?: string }>;
-      resizeControlPanelToContent?: (height: number, width?: number) => Promise<{
+      resizeControlPanelToContent?: (
+        height: number,
+        width?: number
+      ) => Promise<{
         success: boolean;
         message?: string;
         bounds?: { x: number; y: number; width: number; height: number };
@@ -366,6 +359,7 @@ declare global {
       onToggleDictation: (callback: () => void) => () => void;
       onStartDictation?: (callback: () => void) => () => void;
       onStopDictation?: (callback: () => void) => () => void;
+      onSystemResumed?: (callback: () => void) => () => void;
 
       // Database operations
       saveTranscription: (
@@ -526,6 +520,13 @@ declare global {
           [key: string]: unknown;
         }
       ) => Promise<{ success: boolean; text?: string; error?: string }>;
+      transcribeLocalGigaam: (request: {
+        audio: Uint8Array;
+        model?: string;
+        language?: string;
+        fileName?: string;
+        contentType?: string;
+      }) => Promise<{ success: boolean; text?: string; error?: string; model?: string }>;
       getPathForFile: (file: File) => string;
 
       // Note event listeners
@@ -675,7 +676,12 @@ declare global {
       setHotkeyListeningMode?: (
         enabled: boolean,
         newHotkey?: string | null
-      ) => Promise<{ success: boolean }>;
+      ) => Promise<{
+        success: boolean;
+        nativeReady?: boolean;
+        skipped?: boolean;
+        error?: string;
+      }>;
       getHotkeyModeInfo?: () => Promise<{
         isUsingGnome: boolean;
         isUsingHyprland: boolean;
@@ -701,6 +707,8 @@ declare global {
       // Globe key listener for hotkey capture (macOS only)
       onGlobeKeyPressed?: (callback: () => void) => () => void;
       onGlobeKeyReleased?: (callback: () => void) => () => void;
+      onWindowsHotkeyCaptured?: (callback: (hotkey: string) => void) => () => void;
+      onWindowsHotkeyCaptureCancelled?: (callback: () => void) => () => void;
 
       // Hotkey registration events
       onHotkeyFallbackUsed?: (
@@ -750,6 +758,8 @@ declare global {
       // Activation mode persistence (file-based for reliable startup)
       getActivationMode?: () => Promise<"tap" | "push">;
       saveActivationMode?: (mode: "tap" | "push") => Promise<void>;
+      getShowDockIcon?: () => Promise<boolean>;
+      setShowDockIcon?: (enabled: boolean) => Promise<{ success: boolean; visible: boolean }>;
 
       // Debug logging
       getLogLevel?: () => Promise<string>;

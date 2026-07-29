@@ -27,11 +27,11 @@ const {
   DEFAULT_EXPECTED_SPEAKER_COUNT,
   MAX_SPEAKER_COUNT,
 } = require("../constants/speakerDetection.json");
+const { DEFAULT_SPEECH_VAD_CONFIG, sanitizeSpeechVadConfig } = require("./speechVadConfig");
 const {
-  DEFAULT_SPEECH_VAD_CONFIG,
-  sanitizeSpeechVadConfig,
-} = require("./speechVadConfig");
-const { resolveGigaamTranscriptionUrl } = require("../utils/gigaamTranscription.cjs");
+  isBuiltInGigaamEndpoint,
+  resolveGigaamTranscriptionUrl,
+} = require("../utils/gigaamTranscription.cjs");
 const DevServerManager = require("./devServerManager");
 const { isAllowedIpcSenderUrl, isSafeExternalUrl } = require("./securityPolicy");
 
@@ -232,8 +232,21 @@ async function transcribeBufferWithGigaam(
     fileName = "audio.wav",
     contentType = "audio/wav",
     language,
-  } = {}
+  } = {},
+  localAsrManager = null
 ) {
+  if (isBuiltInGigaamEndpoint(baseUrl)) {
+    if (!localAsrManager) {
+      throw new Error("Built-in GigaAM engine is unavailable");
+    }
+    const result = await localAsrManager.transcribeAudioBuffer(audioBuffer);
+    return {
+      success: true,
+      text: typeof result?.text === "string" ? result.text : "",
+      source: "gigaam",
+      model,
+    };
+  }
   const transcriptionUrl = resolveGigaamTranscriptionUrl(baseUrl);
   const fields = { model };
   if (language) fields.language = language;
@@ -277,9 +290,11 @@ class IPCHandlers {
     this.audioTapManager = managers.audioTapManager;
     this.linuxPortalAudioManager = managers.linuxPortalAudioManager;
     this.telemetryManager = managers.telemetryManager;
+    this.gigaamLocalAsrManager = managers.gigaamLocalAsrManager;
     this.sessionId = crypto.randomUUID();
     this._hotkeyCaptureMode = false;
     this._hotkeyCaptureRefocusWindow = null;
+    this._hotkeyCaptureWindow = null;
     this._activeRecordingPipeline = null;
     this.audioStorageManager = new AudioStorageManager();
     this._audioCleanupInterval = null;
@@ -293,6 +308,30 @@ class IPCHandlers {
       ...DEFAULT_SPEECH_VAD_CONFIG,
     };
     liveSpeakerIdentifier.setDiarizationManager(this.diarizationManager);
+    if (this.windowsKeyManager) {
+      this.windowsKeyManager.on("capture", (hotkey) => {
+        const captureWindow = this._hotkeyCaptureWindow;
+        if (
+          this._hotkeyCaptureMode &&
+          captureWindow &&
+          !captureWindow.isDestroyed() &&
+          !captureWindow.webContents.isDestroyed()
+        ) {
+          captureWindow.webContents.send("windows-hotkey-captured", hotkey);
+        }
+      });
+      this.windowsKeyManager.on("capture-cancel", () => {
+        const captureWindow = this._hotkeyCaptureWindow;
+        if (
+          this._hotkeyCaptureMode &&
+          captureWindow &&
+          !captureWindow.isDestroyed() &&
+          !captureWindow.webContents.isDestroyed()
+        ) {
+          captureWindow.webContents.send("windows-hotkey-capture-cancelled");
+        }
+      });
+    }
     this._setupAudioCleanup();
     this.setupHandlers();
   }
@@ -561,7 +600,6 @@ class IPCHandlers {
     handle("hide-window", () => {
       if (process.platform === "darwin") {
         this.windowManager.hideDictationPanel();
-        if (app.dock) app.dock.show();
       } else {
         this.windowManager.hideDictationPanel();
       }
@@ -936,26 +974,18 @@ class IPCHandlers {
       return this.databaseManager.updateAgentConversationTitle(id, title);
     });
 
-    handle(
-      "db-add-agent-message",
-      async (event, conversationId, role, content, metadata) => {
-        const result = this.databaseManager.addAgentMessage(
-          conversationId,
-          role,
-          content,
-          metadata
-        );
-        if (this.vectorIndex?.isReady?.()) {
-          const conv = this.databaseManager.getAgentConversation(conversationId);
-          if (conv && conv.messages?.length % 3 === 0) {
-            this.vectorIndex
-              .upsertConversationChunks(conversationId, conv.title, conv.messages)
-              .catch(() => {});
-          }
+    handle("db-add-agent-message", async (event, conversationId, role, content, metadata) => {
+      const result = this.databaseManager.addAgentMessage(conversationId, role, content, metadata);
+      if (this.vectorIndex?.isReady?.()) {
+        const conv = this.databaseManager.getAgentConversation(conversationId);
+        if (conv && conv.messages?.length % 3 === 0) {
+          this.vectorIndex
+            .upsertConversationChunks(conversationId, conv.title, conv.messages)
+            .catch(() => {});
         }
-        return result;
       }
-    );
+      return result;
+    });
 
     handle("db-get-agent-messages", async (event, conversationId) => {
       return this.databaseManager.getAgentMessages(conversationId);
@@ -1013,9 +1043,7 @@ class IPCHandlers {
 
     // Notes sync
     handle("db-get-pending-notes", () => this.databaseManager.getPendingNotes());
-    handle("db-get-pending-note-deletes", () =>
-      this.databaseManager.getPendingNoteDeletes()
-    );
+    handle("db-get-pending-note-deletes", () => this.databaseManager.getPendingNoteDeletes());
     handle("db-get-note-by-client-id", (_, clientNoteId) =>
       this.databaseManager.getNoteByClientId(clientNoteId)
     );
@@ -1025,9 +1053,7 @@ class IPCHandlers {
     handle("db-mark-note-synced", (_, id, cloudId) =>
       this.databaseManager.markNoteSynced(id, cloudId)
     );
-    handle("db-mark-note-sync-error", (_, id) =>
-      this.databaseManager.markNoteSyncError(id)
-    );
+    handle("db-mark-note-sync-error", (_, id) => this.databaseManager.markNoteSyncError(id));
     handle("db-hard-delete-note", (_, id) => {
       const result = this.databaseManager.hardDeleteNote(id);
       if (result?.success) {
@@ -1050,9 +1076,7 @@ class IPCHandlers {
       this.databaseManager.markFolderSynced(id, cloudId)
     );
     handle("db-get-folder-id-map", () => this.databaseManager.getFolderIdMap());
-    handle("db-get-pending-folder-deletes", () =>
-      this.databaseManager.getPendingFolderDeletes()
-    );
+    handle("db-get-pending-folder-deletes", () => this.databaseManager.getPendingFolderDeletes());
     handle("db-hard-delete-folder", (_, id) => {
       const result = this.databaseManager.hardDeleteFolder(id);
       if (result?.success) {
@@ -1071,9 +1095,7 @@ class IPCHandlers {
     });
 
     // Conversations sync
-    handle("db-get-pending-conversations", () =>
-      this.databaseManager.getPendingConversations()
-    );
+    handle("db-get-pending-conversations", () => this.databaseManager.getPendingConversations());
     handle("db-get-pending-conversation-deletes", () =>
       this.databaseManager.getPendingConversationDeletes()
     );
@@ -1095,9 +1117,7 @@ class IPCHandlers {
     });
 
     // Transcriptions sync
-    handle("db-get-pending-transcriptions", () =>
-      this.databaseManager.getPendingTranscriptions()
-    );
+    handle("db-get-pending-transcriptions", () => this.databaseManager.getPendingTranscriptions());
     handle("db-get-transcription-by-client-id", (_, clientId) =>
       this.databaseManager.getTranscriptionByClientId(clientId)
     );
@@ -1240,19 +1260,43 @@ class IPCHandlers {
         const audioBuffer = fs.readFileSync(filePath);
         const ext = path.extname(filePath).toLowerCase().replace(".", "");
         const contentType = AUDIO_MIME_TYPES[ext] || "audio/mpeg";
-        return await transcribeBufferWithGigaam(audioBuffer, {
-          baseUrl:
-            options.baseUrl ||
-            options.remoteTranscriptionUrl ||
-            options.gigaamBaseUrl ||
-            process.env.GIGAAM_API_BASE,
-          model: options.model || GIGAAM_TRANSCRIPTION_MODEL,
-          fileName: path.basename(filePath),
-          contentType,
-          language: options.language,
-        });
+        return await transcribeBufferWithGigaam(
+          audioBuffer,
+          {
+            baseUrl:
+              options.baseUrl ||
+              options.remoteTranscriptionUrl ||
+              options.gigaamBaseUrl ||
+              process.env.GIGAAM_API_BASE,
+            model: options.model || GIGAAM_TRANSCRIPTION_MODEL,
+            fileName: path.basename(filePath),
+            contentType,
+            language: options.language,
+          },
+          this.gigaamLocalAsrManager
+        );
       } catch (error) {
         debugLogger.error("Audio file transcription error", { error: error.message });
+        return { success: false, error: error.message };
+      }
+    });
+
+    handle("transcribe-local-gigaam", async (_event, request = {}) => {
+      try {
+        const audio = request.audio;
+        if (!audio || typeof audio.byteLength !== "number") {
+          return { success: false, error: "Audio payload is required" };
+        }
+        const result = await this.gigaamLocalAsrManager.transcribeAudioBuffer(
+          Buffer.from(audio.buffer, audio.byteOffset || 0, audio.byteLength)
+        );
+        return {
+          success: true,
+          text: typeof result?.text === "string" ? result.text : "",
+          model: request.model || GIGAAM_TRANSCRIPTION_MODEL,
+        };
+      } catch (error) {
+        debugLogger.error("Local GigaAM IPC transcription error", { error: error.message });
         return { success: false, error: error.message };
       }
     });
@@ -1360,10 +1404,7 @@ class IPCHandlers {
 
         const currentDebugLog = debugLogger.getLogPath();
         const latestDebugLog = currentDebugLog || (await findLatestDebugLog(logsDir));
-        const logPaths = [
-          latestDebugLog,
-          path.join(logsDir, "gigaam-sidecar.log"),
-        ].filter(Boolean);
+        const logPaths = [latestDebugLog, path.join(logsDir, "gigaam-sidecar.log")].filter(Boolean);
         const uniqueLogPaths = [...new Set(logPaths)];
         const sections = (await Promise.all(uniqueLogPaths.map(readLogFileTail))).filter(Boolean);
         const transcriptions = this.databaseManager.getTranscriptions(DEBUG_TRANSCRIPTION_LIMIT);
@@ -1526,7 +1567,16 @@ class IPCHandlers {
     });
 
     handle("set-hotkey-listening-mode", async (event, enabled, newHotkey = null) => {
-      if (this._hotkeyCaptureMode === enabled) return { success: true, skipped: true };
+      if (this._hotkeyCaptureMode === enabled) {
+        if (enabled && process.platform === "win32" && this.windowsKeyManager) {
+          const nativeReady =
+            this.windowsKeyManager.currentKey === "__capture__" &&
+            this.windowsKeyManager.isReady === true;
+          return { success: nativeReady, nativeReady, skipped: true };
+        }
+        return { success: true, skipped: true };
+      }
+      let nativeCaptureResult = { success: true };
       this._hotkeyCaptureMode = enabled;
       this.windowManager.setHotkeyListeningMode(enabled);
       ipcMain.emit("hotkey-listening-mode-changed", null, enabled);
@@ -1539,6 +1589,7 @@ class IPCHandlers {
       // capturing window temporarily focusable and focus it; restore on exit.
       if (enabled) {
         const captureWin = BrowserWindow.fromWebContents(event.sender);
+        this._hotkeyCaptureWindow = captureWin;
         if (captureWin && !captureWin.isDestroyed() && !captureWin.isFocusable()) {
           this._hotkeyCaptureRefocusWindow = captureWin;
           captureWin.setFocusable(true);
@@ -1548,6 +1599,9 @@ class IPCHandlers {
         const captureWin = this._hotkeyCaptureRefocusWindow;
         this._hotkeyCaptureRefocusWindow = null;
         if (!captureWin.isDestroyed()) captureWin.setFocusable(false);
+      }
+      if (!enabled) {
+        this._hotkeyCaptureWindow = null;
       }
 
       // When exiting capture mode with a new hotkey, use that to avoid reading stale state
@@ -1559,13 +1613,15 @@ class IPCHandlers {
         isModifierOnlyHotkey,
         isRightSideModifier,
         isMouseButtonHotkey,
+        isWindowsNativeHotkey,
       } = require("./hotkeyManager");
       const usesNativeListener = (hotkey) =>
         !hotkey ||
         isGlobeLikeHotkey(hotkey) ||
         isMouseButtonHotkey(hotkey) ||
         isModifierOnlyHotkey(hotkey) ||
-        isRightSideModifier(hotkey);
+        isRightSideModifier(hotkey) ||
+        isWindowsNativeHotkey(hotkey);
 
       if (enabled) {
         // Entering capture mode — unregister ALL slots so none intercept keypresses.
@@ -1585,10 +1641,17 @@ class IPCHandlers {
           }
         }
 
-        // On Windows, stop the Windows key listener
+        // On Windows, replace the active PTT hook with a one-shot native
+        // capture hook. This sees and suppresses Win/CapsLock combinations
+        // that Windows does not reliably deliver to Chromium.
         if (process.platform === "win32" && this.windowsKeyManager) {
-          debugLogger.log("[IPC] Stopping Windows key listener for hotkey capture mode");
-          this.windowsKeyManager.stop();
+          debugLogger.log("[IPC] Starting native Windows hotkey capture mode");
+          nativeCaptureResult = await this.windowsKeyManager.startCapture();
+          if (!nativeCaptureResult.success) {
+            debugLogger.warn("[IPC] Native Windows hotkey capture failed to become ready", {
+              reason: nativeCaptureResult.reason,
+            });
+          }
         }
 
         // On Linux, stop the Linux key listener
@@ -1661,7 +1724,8 @@ class IPCHandlers {
             !isGlobeLikeHotkey(effectiveHotkey) &&
             (activationMode === "push" ||
               isModifierOnlyHotkey(effectiveHotkey) ||
-              isRightSideModifier(effectiveHotkey));
+              isRightSideModifier(effectiveHotkey) ||
+              isWindowsNativeHotkey(effectiveHotkey));
           if (needsListener) {
             debugLogger.log(`[IPC] Restarting Windows key listener for hotkey: ${effectiveHotkey}`);
             this.windowsKeyManager.start(effectiveHotkey);
@@ -1759,7 +1823,11 @@ class IPCHandlers {
         }
       }
 
-      return { success: true };
+      return {
+        success: nativeCaptureResult.success,
+        nativeReady: nativeCaptureResult.success,
+        error: nativeCaptureResult.success ? undefined : nativeCaptureResult.reason,
+      };
     });
 
     handle("get-hotkey-mode-info", async () => {
@@ -1991,56 +2059,49 @@ class IPCHandlers {
       }
     });
 
-    handle(
-      "process-enterprise-reasoning",
-      async (event, text, modelId, _agentName, config) => {
-        const {
-          isEnterpriseProvider,
-          mapEnterpriseError,
-          pickEnterpriseConfig,
-          validateEnterpriseEndpoint,
-        } = require("./enterpriseProviderErrors");
-        const provider = config?.provider;
-        try {
-          if (!isEnterpriseProvider(provider)) {
-            throw new Error(`Unsupported enterprise provider: ${provider}`);
-          }
-          if (!modelId) {
-            throw new Error("No model specified for enterprise reasoning");
-          }
-
-          validateEnterpriseEndpoint(config?.azureEndpoint);
-
-          const { generateText } = require("ai");
-          const { getEnterpriseAIModel } = require("./enterpriseAiProviders");
-
-          const model = getEnterpriseAIModel(
-            provider,
-            modelId,
-            pickEnterpriseConfig(config)
-          );
-
-          const timeoutMs = config?.timeoutMs || 60000;
-          // Opus 4.7 / GPT-5 / o-series dropped `temperature`; renderer
-          // derives support from the model registry and we honor that here.
-          const useTemperature = config?.supportsTemperature !== false;
-          const { text: generated } = await generateText({
-            model,
-            system: config?.systemPrompt || "",
-            prompt: text,
-            maxOutputTokens: config?.maxTokens || 4096,
-            ...(useTemperature ? { temperature: config?.temperature ?? 0.3 } : {}),
-            abortSignal: AbortSignal.timeout(timeoutMs),
-          });
-
-          return { success: true, text: (generated || "").trim() };
-        } catch (err) {
-          debugLogger.error("Enterprise reasoning error:", err);
-          const mapped = mapEnterpriseError(provider, err, config || {});
-          return { success: false, error: mapped.message, retryable: mapped.retryable };
+    handle("process-enterprise-reasoning", async (event, text, modelId, _agentName, config) => {
+      const {
+        isEnterpriseProvider,
+        mapEnterpriseError,
+        pickEnterpriseConfig,
+        validateEnterpriseEndpoint,
+      } = require("./enterpriseProviderErrors");
+      const provider = config?.provider;
+      try {
+        if (!isEnterpriseProvider(provider)) {
+          throw new Error(`Unsupported enterprise provider: ${provider}`);
         }
+        if (!modelId) {
+          throw new Error("No model specified for enterprise reasoning");
+        }
+
+        validateEnterpriseEndpoint(config?.azureEndpoint);
+
+        const { generateText } = require("ai");
+        const { getEnterpriseAIModel } = require("./enterpriseAiProviders");
+
+        const model = getEnterpriseAIModel(provider, modelId, pickEnterpriseConfig(config));
+
+        const timeoutMs = config?.timeoutMs || 60000;
+        // Opus 4.7 / GPT-5 / o-series dropped `temperature`; renderer
+        // derives support from the model registry and we honor that here.
+        const useTemperature = config?.supportsTemperature !== false;
+        const { text: generated } = await generateText({
+          model,
+          system: config?.systemPrompt || "",
+          prompt: text,
+          maxOutputTokens: config?.maxTokens || 4096,
+          ...(useTemperature ? { temperature: config?.temperature ?? 0.3 } : {}),
+          abortSignal: AbortSignal.timeout(timeoutMs),
+        });
+
+        return { success: true, text: (generated || "").trim() };
+      } catch (err) {
+        debugLogger.error("Enterprise reasoning error:", err);
+        const mapped = mapEnterpriseError(provider, err, config || {});
+        return { success: false, error: mapped.message, retryable: mapped.retryable };
       }
-    );
+    });
 
     handle("get-dictation-key", async () => {
       return this.environmentManager.getDictationKey();
@@ -2060,6 +2121,17 @@ class IPCHandlers {
 
     handle("is-fn-hotkey-available", async () => {
       return this.windowManager?.hotkeyManager?.isFnHotkeyAvailable() ?? false;
+    });
+
+    handle("get-show-dock-icon", async () => {
+      return this.environmentManager.getShowDockIcon();
+    });
+
+    handle("set-show-dock-icon", async (_event, enabled) => {
+      const visible = Boolean(enabled);
+      this.environmentManager.saveShowDockIcon(visible);
+      await this.windowManager.setShowDockIcon(visible);
+      return { success: true, visible };
     });
 
     handle("get-activation-mode", async () => {
@@ -2160,12 +2232,9 @@ class IPCHandlers {
       }
     });
 
-    handle(
-      "process-anthropic-reasoning",
-      async (_event, _text, _modelId, _agentName, _config) => {
-        return { success: false, error: "Cloud reasoning providers are disabled" };
-      }
-    );
+    handle("process-anthropic-reasoning", async (_event, _text, _modelId, _agentName, _config) => {
+      return { success: false, error: "Cloud reasoning providers are disabled" };
+    });
 
     handle("check-local-reasoning-available", async () => {
       try {
@@ -2663,16 +2732,20 @@ class IPCHandlers {
             ? preferredLanguage.split("-")[0]
             : undefined;
 
-        result = await transcribeBufferWithGigaam(buffer, {
-          baseUrl:
-            settings?.remoteTranscriptionUrl ||
-            settings?.gigaamBaseUrl ||
-            process.env.GIGAAM_API_BASE,
-          model: GIGAAM_TRANSCRIPTION_MODEL,
-          fileName: "audio.webm",
-          contentType: "audio/webm",
-          language,
-        });
+        result = await transcribeBufferWithGigaam(
+          buffer,
+          {
+            baseUrl:
+              settings?.remoteTranscriptionUrl ||
+              settings?.gigaamBaseUrl ||
+              process.env.GIGAAM_API_BASE,
+            model: GIGAAM_TRANSCRIPTION_MODEL,
+            fileName: "audio.webm",
+            contentType: "audio/webm",
+            language,
+          },
+          this.gigaamLocalAsrManager
+        );
 
         if (!result?.text) {
           return { success: false, error: "No transcription engine available" };
@@ -3326,13 +3399,17 @@ class IPCHandlers {
       const wav = pcm16ToWav(pcm16k);
 
       try {
-        const result = await transcribeBufferWithGigaam(wav, {
-          baseUrl: meetingGigaamBaseUrl || process.env.GIGAAM_API_BASE,
-          model: meetingGigaamModel,
-          fileName: `${source}.wav`,
-          contentType: "audio/wav",
-          language: meetingLanguage,
-        });
+        const result = await transcribeBufferWithGigaam(
+          wav,
+          {
+            baseUrl: meetingGigaamBaseUrl || process.env.GIGAAM_API_BASE,
+            model: meetingGigaamModel,
+            fileName: `${source}.wav`,
+            contentType: "audio/wav",
+            language: meetingLanguage,
+          },
+          this.gigaamLocalAsrManager
+        );
 
         if (result?.success && result.text?.trim()) {
           const text = result.text.trim();
@@ -3805,11 +3882,10 @@ class IPCHandlers {
 
         const { diarizationPcmPath, diarizationSegments, diarizationStartedAt } =
           await captureMeetingDiarizationState();
-        const transcript =
-          diarizationSegments
-            .map((segment) => segment.text)
-            .join(" ")
-            .trim();
+        const transcript = diarizationSegments
+          .map((segment) => segment.text)
+          .join(" ")
+          .trim();
 
         const sessionSpeakerConfigSnapshot = this.activeMeetingSpeakerConfig;
         const noteIdSnapshot = meetingNoteId;

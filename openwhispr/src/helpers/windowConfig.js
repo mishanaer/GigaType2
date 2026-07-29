@@ -62,6 +62,9 @@ const MAIN_WINDOW_CONFIG = {
     nodeIntegration: false,
     contextIsolation: true,
     sandbox: true,
+    // The overlay is normally unfocused and can stay hidden between
+    // recordings. Keep its animation/context alive across macOS sleep/wake.
+    backgroundThrottling: false,
   },
   frame: false,
   alwaysOnTop: true,
@@ -171,7 +174,7 @@ const TRANSCRIPTION_PREVIEW_CONFIG = {
 };
 
 class WindowPositionUtil {
-  static getMainWindowPosition(display, customSize = null) {
+  static getMainWindowPosition(display, customSize = null, options = {}) {
     const { width, height } = customSize || WINDOW_SIZES.BASE;
     const bounds = display.bounds || display.workArea;
 
@@ -179,7 +182,10 @@ class WindowPositionUtil {
       bounds.x,
       Math.min(Math.round(bounds.x + (bounds.width - width) / 2), bounds.x + bounds.width - width)
     );
-    const y = Math.max(bounds.y, bounds.y + bounds.height - height - MAIN_WINDOW_BOTTOM_OFFSET);
+    const y =
+      options.placement === "top"
+        ? bounds.y + MAIN_WINDOW_BOTTOM_OFFSET
+        : Math.max(bounds.y, bounds.y + bounds.height - height - MAIN_WINDOW_BOTTOM_OFFSET);
 
     return { x, y, width, height };
   }
@@ -229,7 +235,11 @@ class WindowPositionUtil {
         window.setAlwaysOnTop(true, "floating", 1);
       }
     } else if (process.platform === "win32") {
-      window.setAlwaysOnTop(true, "pop-up-menu");
+      // The Start menu and other Windows shell surfaces can cover
+      // "pop-up-menu" windows even though Electron still reports them as
+      // always-on-top. Use the strongest non-focus-stealing level for the
+      // transient dictation capsule.
+      window.setAlwaysOnTop(true, "screen-saver");
     } else if (isGnomeWayland) {
       window.setAlwaysOnTop(true, "floating");
     } else {

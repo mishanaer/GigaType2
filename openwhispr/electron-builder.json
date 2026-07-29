@@ -138,7 +138,6 @@
         "**/*",
         "!Assets.car",
         "!icon.icns",
-        "!icon.ico",
         "!openwhispr.icon/**",
         "!fonts/**",
         "!README.md"
@@ -202,10 +201,6 @@
     "target": ["nsis", "portable"],
     "icon": "src/assets/icon.ico",
     "extraResources": [
-      {
-        "from": "resources/bin/nircmd.exe",
-        "to": "bin/nircmd.exe"
-      },
       {
         "from": "resources/gigaam-model/",
         "to": "gigaam-model/",

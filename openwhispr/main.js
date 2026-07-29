@@ -330,6 +330,7 @@ function initializeCoreManagers() {
     audioTapManager,
     linuxPortalAudioManager,
     telemetryManager,
+    gigaamLocalAsrManager: gigaamSidecarManager,
     getTrayManager: () => trayManager,
   });
 }
@@ -529,7 +530,7 @@ function setupGigaamSidecarIpc() {
 }
 
 // Phase 2: Non-critical setup after windows are visible
-function initializeDeferredManagers() {
+async function initializeDeferredManagers() {
   ensureYdotool().catch((err) => {
     require("./src/helpers/debugLogger").warn(
       "ydotool setup error",
@@ -608,11 +609,19 @@ async function startApp() {
     });
   }
 
-  cliBridge = new CliBridge(ipcHandlers);
-  cliBridge.start().catch((err) => {
-    debugLogger.error("CLI bridge failed to start", { error: err.message });
-    cliBridge = null;
-  });
+  // A TCP listener on Windows makes the OS ask for public/private firewall
+  // access even though the bridge is loopback-only. Keep the optional CLI
+  // bridge off by default there until the CLI uses a named pipe transport.
+  const cliBridgeEnabled = process.platform !== "win32" || process.env.TYPE_CLI_BRIDGE === "1";
+  if (cliBridgeEnabled) {
+    cliBridge = new CliBridge(ipcHandlers);
+    cliBridge.start().catch((err) => {
+      debugLogger.error("CLI bridge failed to start", { error: err.message });
+      cliBridge = null;
+    });
+  } else {
+    debugLogger.info("CLI bridge disabled on Windows (set TYPE_CLI_BRIDGE=1 to opt in)");
+  }
 
   windowManager.setActivationModeCache(environmentManager.getActivationMode());
 
@@ -625,10 +634,6 @@ async function startApp() {
     if (debugLogger) debugLogger.info("Start minimized changed", { enabled });
     environmentManager.saveStartMinimized(enabled);
   });
-
-  if (process.platform === "darwin") {
-    app.setActivationPolicy("regular");
-  }
 
   // In development, wait for Vite dev server to be ready
   if (process.env.NODE_ENV === "development") {
@@ -644,18 +649,42 @@ async function startApp() {
   }
 
   // Phase 2: Initialize remaining managers after windows are visible
-  initializeDeferredManagers();
+  await initializeDeferredManagers();
 
   app.on("browser-window-focus", () => {
     if (googleCalendarManager) googleCalendarManager.syncOnFocus();
   });
 
   const { powerMonitor } = require("electron");
+  let windowsResumeRecoveryTimer = null;
+  const recoverWindowsAfterResume = () => {
+    windowManager?.recoverAfterSystemResume?.();
+
+    if (process.platform !== "win32" || !windowsKeyManager) return;
+    if (windowsResumeRecoveryTimer) clearTimeout(windowsResumeRecoveryTimer);
+    // resume can arrive before the interactive desktop is unlocked. Re-run
+    // from unlock-screen and debounce both events into one hook restart.
+    windowsResumeRecoveryTimer = setTimeout(() => {
+      windowsResumeRecoveryTimer = null;
+      if (!isLiveWindow(windowManager?.mainWindow)) return;
+      const currentHotkey = hotkeyManager?.getCurrentHotkey?.();
+      if (!currentHotkey || hotkeyManager?.isInListeningMode?.()) return;
+      const { isWindowsNativeHotkey } = require("./src/helpers/hotkeyManager");
+      const needsNativeListener =
+        windowManager.getActivationMode() === "push" || isWindowsNativeHotkey(currentHotkey);
+      if (needsNativeListener) {
+        windowsKeyManager.restart(currentHotkey);
+      }
+    }, 750);
+  };
+
   powerMonitor.on("resume", () => {
     if (googleCalendarManager) {
       googleCalendarManager.onWakeFromSleep();
     }
+    recoverWindowsAfterResume();
   });
+  powerMonitor.on("unlock-screen", recoverWindowsAfterResume);
 
   // Auto-download diarization models if binary is available
   if (
@@ -696,18 +725,24 @@ async function startApp() {
     });
   }
 
-  if (process.platform === "win32") {
-    const nircmdStatus = clipboardManager.getNircmdStatus();
-    debugLogger.debug("Windows paste tool status", nircmdStatus);
-  }
-
   trayManager.setWindows(windowManager.mainWindow, windowManager.controlPanelWindow);
   trayManager.setWindowManager(windowManager);
   trayManager.setCreateControlPanelCallback(() => windowManager.createControlPanelWindow());
-  if (process.platform !== "darwin") {
-    await trayManager.createTray();
-  } else {
-    debugLogger.info("Skipping tray icon on macOS", undefined, "tray");
+  windowManager.setEnsureTrayHandler(() => trayManager.ensureTray());
+  const trayReady = await trayManager.createTray();
+  if (process.platform === "darwin") {
+    const showDockIcon = environmentManager.getShowDockIcon();
+    if (!showDockIcon && !trayReady) {
+      debugLogger.error(
+        "Keeping Dock icon visible because the menu bar recovery icon could not be created",
+        undefined,
+        "tray"
+      );
+      environmentManager.saveShowDockIcon(true);
+      await windowManager.setShowDockIcon(true);
+    } else {
+      await windowManager.setShowDockIcon(showDockIcon);
+    }
   }
 
   updateManager.setWindows(windowManager.mainWindow, windowManager.controlPanelWindow);
@@ -750,7 +785,6 @@ async function startApp() {
               debugLogger?.debug("[Globe] Ignored — cooldown active");
               return;
             }
-            windowManager.showDictationPanel();
             if (!globeKeyIsRecording) {
               globeKeyIsRecording = true;
               debugLogger?.debug("[Globe] Starting dictation (push immediate)");
@@ -826,7 +860,6 @@ async function startApp() {
       if (activationMode === "push") {
         const now = Date.now();
         if (now - rightModLastStopTime < POST_STOP_COOLDOWN_MS) return;
-        windowManager.showDictationPanel();
         const pressTime = now;
         rightModDownTime = pressTime;
         rightModIsRecording = false;
@@ -903,7 +936,6 @@ async function startApp() {
       if (activationMode === "push") {
         const now = Date.now();
         if (now - mouseButtonLastStopTime < POST_STOP_COOLDOWN_MS) return;
-        windowManager.showDictationPanel();
         const pressTime = now;
         mouseButtonDownTime = pressTime;
         mouseButtonIsRecording = false;
@@ -995,6 +1027,7 @@ async function startApp() {
     const {
       isGlobeLikeHotkey: isGlobeLike,
       isModifierOnlyHotkey,
+      isWindowsNativeHotkey,
     } = require("./src/helpers/hotkeyManager");
     const isValidHotkey = (hotkey) => hotkey && !isGlobeLike(hotkey);
 
@@ -1004,7 +1037,9 @@ async function startApp() {
     const needsNativeListener = (hotkey, mode) => {
       if (!isValidHotkey(hotkey)) return false;
       if (mode === "push") return true;
-      return isRightSideMod(hotkey) || isModifierOnlyHotkey(hotkey);
+      return (
+        isRightSideMod(hotkey) || isModifierOnlyHotkey(hotkey) || isWindowsNativeHotkey(hotkey)
+      );
     };
 
     windowsKeyManager.on("key-down", (_key) => {
@@ -1284,10 +1319,7 @@ if (gotSingleInstanceLock) {
     } else {
       // Show control panel when dock icon is clicked (most common user action)
       if (windowManager && isLiveWindow(windowManager.controlPanelWindow)) {
-        // Ensure dock icon is visible when control panel opens
-        if (process.platform === "darwin" && app.dock) {
-          app.dock.show();
-        }
+        void windowManager.ensureDockVisibility();
         if (windowManager.controlPanelWindow.isMinimized()) {
           windowManager.controlPanelWindow.restore();
         }

@@ -104,6 +104,35 @@ class TextEditMonitor extends EventEmitter {
     });
   }
 
+  isWindowsStartSurfaceForeground(timeoutMs = 500) {
+    return new Promise((resolve) => {
+      if (process.platform !== "win32") {
+        resolve(false);
+        return;
+      }
+
+      const binaryPath = this._findFile("windows-text-monitor.exe");
+      if (!binaryPath) {
+        resolve(false);
+        return;
+      }
+
+      execFile(
+        binaryPath,
+        ["--foreground-start-surface"],
+        { timeout: timeoutMs, windowsHide: true },
+        (error, stdout) => {
+          const isStartSurface = !error && stdout.trim() === "START_SURFACE:1";
+          debugLogger.debug("[TextEditMonitor] Windows foreground surface", {
+            isStartSurface,
+            error: error?.message,
+          });
+          resolve(isStartSurface);
+        }
+      );
+    });
+  }
+
   async capturePasteTargetSnapshot(targetPid, options = {}) {
     if (process.platform !== "darwin" || !targetPid) {
       return { readable: false, reason: "no-target-pid" };

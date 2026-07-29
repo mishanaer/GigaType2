@@ -9,6 +9,7 @@ const readHideCapsule = () => localStorage.getItem(HIDE_CAPSULE_STORAGE_KEY) ===
 
 export default function App() {
   const [hideCapsule, setHideCapsule] = useState(readHideCapsule);
+  const [resumeGeneration, setResumeGeneration] = useState(0);
   const { isRecording, isProcessing, audioLevel, cancelRecording } = useAudioRecording();
 
   const isRecordingRef = useRef(isRecording);
@@ -23,6 +24,12 @@ export default function App() {
     });
     return () => unsubscribe?.();
   }, [cancelRecording]);
+
+  useEffect(() => {
+    return window.electronAPI?.onSystemResumed?.(() => {
+      setResumeGeneration((generation) => generation + 1);
+    });
+  }, []);
 
   useEffect(() => {
     const handleStorage = (event) => {
@@ -49,10 +56,12 @@ export default function App() {
   const isCapsuleVisible = isRecording || isProcessing;
 
   useEffect(() => {
-    if (!isCapsuleVisible || hideCapsule) {
+    if (isCapsuleVisible && !hideCapsule) {
+      window.electronAPI?.showDictationPanel?.();
+    } else {
       window.electronAPI?.hideDictationPanel?.();
     }
-  }, [hideCapsule, isCapsuleVisible]);
+  }, [hideCapsule, isCapsuleVisible, resumeGeneration]);
 
   return (
     <div className="dictation-window flex h-screen w-screen items-center justify-center bg-transparent">
