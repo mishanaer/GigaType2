@@ -154,6 +154,7 @@
         "macos-mic-listener",
         "macos-text-monitor",
         "macos-media-remote",
+        "macos-gigaam-encoder",
         "linux-fast-paste",
         "linux-system-audio-helper",
         "linux-text-monitor",
@@ -188,6 +189,11 @@
         "from": "resources/gigaam-model/",
         "to": "gigaam-model/",
         "filter": ["**/*"]
+      },
+      {
+        "from": "resources/gigaam-ane/",
+        "to": "gigaam-ane/",
+        "filter": ["**/*", "!.staging/**", "!.compiled/**", "!*.zip"]
       }
     ],
     "extendInfo": {

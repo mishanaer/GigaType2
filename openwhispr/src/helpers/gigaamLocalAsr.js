@@ -20,13 +20,21 @@ const PORT_RANGE_END = 8775;
 const MODEL_NAME = "gigaam-v3-e2e-rnnt";
 const HF_BASE = "https://huggingface.co/istupakov/gigaam-v3-onnx/resolve/main";
 const MODEL_CACHE_REPO_DIR = "models--istupakov--gigaam-v3-onnx";
-const MODEL_FILES = [
-  { name: "v3_e2e_rnnt_encoder.onnx", bytes: 885_084_534 },
+const ENCODER_FILE = { name: "v3_e2e_rnnt_encoder.onnx", bytes: 885_084_534 };
+const DECODER_FILES = [
   { name: "v3_e2e_rnnt_decoder.onnx", bytes: 4_599_910 },
   { name: "v3_e2e_rnnt_joint.onnx", bytes: 2_712_896 },
   { name: "v3_e2e_rnnt_vocab.txt", bytes: 13_354 },
 ];
-const MODEL_TOTAL_BYTES = MODEL_FILES.reduce((sum, f) => sum + f.bytes, 0);
+const MODEL_FILES = [ENCODER_FILE, ...DECODER_FILES];
+
+// Apple Silicon runs the encoder on the Neural Engine through CoreML instead of
+// onnxruntime — same GigaAM v3 weights, converted to an fp16 MLProgram
+// (github.com/IsaacClarke2/gigaam-v3-coreml). The 885 MB ONNX encoder is then
+// neither bundled nor downloaded; only the 7 MB RNN-T decoder/joint/vocab are.
+const ANE_MODEL_DIR_NAME = "gigaam-ane";
+const ANE_MODEL_NAME = "encoder-ane.mlmodelc";
+const ANE_HELPER_BINARY = "macos-gigaam-encoder";
 const MODEL_LOAD_TIMEOUT_MS = 5 * 60 * 1000;
 const TRANSCRIBE_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_REQUEST_BYTES = 512 * 1024 * 1024;
@@ -190,11 +198,70 @@ class GigaamLocalAsrManager extends EventEmitter {
     this.healthDetail = null;
     this.startupPromise = null;
     this.modelDownloadedBytes = 0;
-    this.modelTotalBytes = MODEL_TOTAL_BYTES;
+    this.aneUnavailableReason = null; // set when a packaged arm64 build lacks the CoreML encoder
+    this.aneEncoder = this._resolveAneEncoder();
+    this.encoderRuntime = null; // set from the worker's gigaam.load reply
+    this.modelTotalBytes = this._requiredModelFiles().reduce((sum, f) => sum + f.bytes, 0);
     this.modelProgress = 0;
     this.modelStage = "stopped";
     this._lastProgressEmit = 0;
     this.httpBridgeEnabled = process.env.GIGAAM_HTTP_BRIDGE === "1";
+    // Set from the worker's gigaam.load reply: the ANE window is fixed at
+    // 33.6 s, wider than the conservative ONNX chunk.
+    this.maxChunkSamples = MAX_TRANSCRIPTION_CHUNK_SAMPLES;
+  }
+
+  // CoreML encoder config for the ONNX worker, or null when this build/platform
+  // uses the ONNX encoder. Apple Silicon only: the ANE is what makes it worth
+  // the fixed-window trade-off, and the converted model needs macOS 14+.
+  _resolveAneEncoder() {
+    if (process.platform !== "darwin" || process.arch !== "arm64") return null;
+    if (process.env.GIGAAM_DISABLE_ANE === "1") {
+      debugLogger.info("GigaAM ANE encoder disabled via GIGAAM_DISABLE_ANE");
+      return null;
+    }
+
+    const candidates = [];
+    if (process.resourcesPath) {
+      candidates.push(path.join(process.resourcesPath, ANE_MODEL_DIR_NAME, ANE_MODEL_NAME));
+    }
+    candidates.push(
+      path.join(__dirname, "..", "..", "resources", ANE_MODEL_DIR_NAME, ANE_MODEL_NAME)
+    );
+
+    const modelPath = candidates.find((candidate) =>
+      fs.existsSync(path.join(candidate, "model.mil"))
+    );
+    const helperPath = modelPath ? resolveBinaryPath(ANE_HELPER_BINARY) : null;
+
+    if (!modelPath || !helperPath) {
+      const missing = !modelPath ? `${ANE_MODEL_DIR_NAME}/${ANE_MODEL_NAME}` : ANE_HELPER_BINARY;
+      // A packaged arm64 build has no ONNX encoder to fall back to — quietly
+      // downloading the 885 MB one instead would be a much worse surprise than
+      // a hard failure. Dev keeps the ONNX path so a working checkout without
+      // the CoreML model still transcribes.
+      if (app.isPackaged) {
+        this.aneUnavailableReason = `Apple Silicon build is missing its CoreML encoder (${missing})`;
+        debugLogger.error("GigaAM ANE encoder unavailable in packaged build", { missing });
+      } else {
+        debugLogger.warn("GigaAM ANE encoder not prepared — using the ONNX encoder", {
+          missing,
+          hint: "npm run download:gigaam-ane",
+        });
+      }
+      return null;
+    }
+
+    return {
+      helperPath,
+      modelPath,
+      computeUnits: process.env.GIGAAM_ANE_COMPUTE_UNITS || "cpu_ane",
+    };
+  }
+
+  // The ANE build has no ONNX encoder to bundle or download.
+  _requiredModelFiles() {
+    return this.aneEncoder ? DECODER_FILES : MODEL_FILES;
   }
 
   // The local engine ships with the app on every platform.
@@ -219,7 +286,7 @@ class GigaamLocalAsrManager extends EventEmitter {
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       const dir = path.join(snapshotsDir, entry.name);
-      if (MODEL_FILES.every((f) => fs.existsSync(path.join(dir, f.name)))) {
+      if (this._requiredModelFiles().every((f) => fs.existsSync(path.join(dir, f.name)))) {
         return dir;
       }
     }
@@ -237,7 +304,7 @@ class GigaamLocalAsrManager extends EventEmitter {
   _getBundledModelDir() {
     if (!process.resourcesPath) return null;
     const dir = path.join(process.resourcesPath, "gigaam-model");
-    if (MODEL_FILES.every((f) => fs.existsSync(path.join(dir, f.name)))) {
+    if (this._requiredModelFiles().every((f) => fs.existsSync(path.join(dir, f.name)))) {
       return dir;
     }
     return null;
@@ -248,7 +315,7 @@ class GigaamLocalAsrManager extends EventEmitter {
     const legacy = this._findLegacySnapshotDir();
     if (legacy) return legacy;
     const dir = this.getModelDir();
-    if (MODEL_FILES.every((f) => fs.existsSync(path.join(dir, f.name)))) {
+    if (this._requiredModelFiles().every((f) => fs.existsSync(path.join(dir, f.name)))) {
       return dir;
     }
     const bundled = this._getBundledModelDir();
@@ -315,25 +382,34 @@ class GigaamLocalAsrManager extends EventEmitter {
     }
 
     try {
+      if (this.aneUnavailableReason) throw new Error(this.aneUnavailableReason);
       const baseDir = await this._ensureModelFiles();
 
       this.modelStage = "loading";
       this.modelProgress = 99;
-      this.modelDownloadedBytes = MODEL_TOTAL_BYTES;
+      this.modelDownloadedBytes = this.modelTotalBytes;
       this.healthDetail = "loading model";
       this._emitStatus();
 
-      await onnxWorkerClient.request(
+      const loadResult = await onnxWorkerClient.request(
         "gigaam.load",
         {
-          encoderPath: path.join(baseDir, "v3_e2e_rnnt_encoder.onnx"),
+          encoderPath: this.aneEncoder ? null : path.join(baseDir, ENCODER_FILE.name),
           decoderPath: path.join(baseDir, "v3_e2e_rnnt_decoder.onnx"),
           joinerPath: path.join(baseDir, "v3_e2e_rnnt_joint.onnx"),
           vocabPath: path.join(baseDir, "v3_e2e_rnnt_vocab.txt"),
+          aneEncoder: this.aneEncoder,
         },
         [],
         { timeoutMs: MODEL_LOAD_TIMEOUT_MS }
       );
+
+      // The CoreML encoder always pays for its full fixed window, so chunking
+      // shorter than the window would only add seams and cost extra passes.
+      this.maxChunkSamples = Number.isInteger(loadResult?.maxChunkSamples)
+        ? loadResult.maxChunkSamples
+        : MAX_TRANSCRIPTION_CHUNK_SAMPLES;
+      this.encoderRuntime = loadResult?.encoder || "onnx";
 
       this.ready = true;
       this.healthStatus = "ok";
@@ -345,6 +421,10 @@ class GigaamLocalAsrManager extends EventEmitter {
         transport: this.httpBridgeEnabled ? "loopback-http" : "electron-ipc",
         port: this.port,
         modelDir: baseDir,
+        encoderRuntime: this.encoderRuntime,
+        encoderModel: this.aneEncoder?.modelPath || path.join(baseDir, ENCODER_FILE.name),
+        maxChunkSeconds: this.maxChunkSamples / TARGET_SAMPLE_RATE,
+        aneInfo: loadResult?.aneInfo || null,
       });
     } catch (error) {
       debugLogger.error("GigaAM local ASR startup failed", { error: error.message });
@@ -371,7 +451,7 @@ class GigaamLocalAsrManager extends EventEmitter {
     this._emitStatus();
 
     let completedBytes = 0;
-    for (const file of MODEL_FILES) {
+    for (const file of this._requiredModelFiles()) {
       const dest = path.join(dir, file.name);
       if (fs.existsSync(dest)) {
         completedBytes += file.bytes;
@@ -381,10 +461,10 @@ class GigaamLocalAsrManager extends EventEmitter {
       await downloadFile(`${HF_BASE}/${file.name}`, dest, {
         expectedSize: file.bytes,
         onProgress: (downloaded) => {
-          this.modelDownloadedBytes = Math.min(completedBytes + downloaded, MODEL_TOTAL_BYTES);
+          this.modelDownloadedBytes = Math.min(completedBytes + downloaded, this.modelTotalBytes);
           this.modelProgress = Math.min(
             99,
-            Math.floor((this.modelDownloadedBytes / MODEL_TOTAL_BYTES) * 100)
+            Math.floor((this.modelDownloadedBytes / this.modelTotalBytes) * 100)
           );
           this._emitStatusThrottled();
         },
@@ -392,7 +472,7 @@ class GigaamLocalAsrManager extends EventEmitter {
       completedBytes += file.bytes;
     }
 
-    this.modelDownloadedBytes = MODEL_TOTAL_BYTES;
+    this.modelDownloadedBytes = this.modelTotalBytes;
     return dir;
   }
 
@@ -481,24 +561,29 @@ class GigaamLocalAsrManager extends EventEmitter {
 
   async _transcribePcm(pcm) {
     const startedAt = Date.now();
-    const result = await transcribePcmInChunks(pcm, async (pcmBuffer, chunk) => {
-      debugLogger.info("GigaAM chunk transcription starting", {
-        chunkIndex: chunk.chunkIndex,
-        chunksTotal: chunk.chunksTotal,
-        durationSeconds: chunk.samples / TARGET_SAMPLE_RATE,
-      });
+    const options = { maxChunkSamples: this.maxChunkSamples };
+    const result = await transcribePcmInChunks(
+      pcm,
+      async (pcmBuffer, chunk) => {
+        debugLogger.info("GigaAM chunk transcription starting", {
+          chunkIndex: chunk.chunkIndex,
+          chunksTotal: chunk.chunksTotal,
+          durationSeconds: chunk.samples / TARGET_SAMPLE_RATE,
+        });
 
-      // MessagePortMain transfer lists only accept MessagePorts, so the exact
-      // chunk buffer is structured-cloned into the ONNX utility process.
-      const response = await this._requestGigaamChunk(pcmBuffer);
+        // MessagePortMain transfer lists only accept MessagePorts, so the exact
+        // chunk buffer is structured-cloned into the ONNX utility process.
+        const response = await this._requestGigaamChunk(pcmBuffer);
 
-      debugLogger.info("GigaAM chunk transcription completed", {
-        chunkIndex: chunk.chunkIndex,
-        chunksTotal: chunk.chunksTotal,
-        textLength: typeof response?.text === "string" ? response.text.length : 0,
-      });
-      return response;
-    });
+        debugLogger.info("GigaAM chunk transcription completed", {
+          chunkIndex: chunk.chunkIndex,
+          chunksTotal: chunk.chunksTotal,
+          textLength: typeof response?.text === "string" ? response.text.length : 0,
+        });
+        return response;
+      },
+      options
+    );
 
     debugLogger.info("GigaAM transcription chunks combined", {
       chunksTotal: result.chunksTotal,
@@ -634,6 +719,7 @@ class GigaamLocalAsrManager extends EventEmitter {
       modelDownloadedBytes: this.modelDownloadedBytes,
       modelTotalBytes: this.modelTotalBytes,
       modelCacheComplete: this._isModelCacheComplete(),
+      encoderRuntime: this.encoderRuntime || (this.aneEncoder ? "ane" : "onnx"),
     };
   }
 

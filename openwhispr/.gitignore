@@ -193,6 +193,8 @@ resources/bin/
 
 # Bundled GigaAM model (~851 MB, copied in from the HF cache at build prep time)
 resources/gigaam-model/
+# CoreML/ANE encoder for mac arm64 (~423 MB, npm run download:gigaam-ane)
+resources/gigaam-ane/
 native/meeting-aec-helper/build/
 native/meeting-aec-helper/third_party/
 

@@ -347,6 +347,9 @@ async function textEmbed({ text }) {
 // RNN-T greedy decode (onnx-asr GigaamV2Rnnt semantics):
 //   encoder: IN audio_signal f32[1,64,T], length i64[1]
 //            OUT encoded f32[1,D,T'], encoded_len i32[1]
+//   On Apple Silicon the encoder is instead the CoreML/ANE model behind
+//   gigaamAneEncoder.js (same weights, fixed 33.6 s window); the decoder and
+//   joiner stay on ONNX Runtime either way.
 //   decoder: IN x i64[1,1], h.1 f32[1,1,320], c.1 f32[1,1,320]
 //            OUT dec f32[1,1,320], h, c
 //   joiner : IN enc f32[1,D,1], dec f32[1,320,1] → joint f32[1,1,1,V]
@@ -361,7 +364,9 @@ const GIGAAM_CLAMP_MAX = 1e9;
 const GIGAAM_PRED_HIDDEN = 320;
 const GIGAAM_MAX_TOKENS_PER_STEP = 3;
 
-let gigaamSessions = null; // { encoder, decoder, joiner }
+let gigaamSessions = null; // { encoder, decoder, joiner } — encoder is null on the ANE path
+let gigaamAne = null; // GigaamAneEncoder when the CoreML encoder is in use
+let gigaamAneConfig = null; // kept so a dead helper can be restarted in place
 let gigaamVocab = null;
 let gigaamBlank = 0;
 let _gigaamDft = null;
@@ -457,8 +462,46 @@ function gigaamArgmax(data) {
   return best;
 }
 
-async function gigaamLoad({ encoderPath, decoderPath, joinerPath, vocabPath }) {
-  if (gigaamSessions) return { ok: true };
+// Longest chunk the encoder can take, in samples. The featurizer emits
+// floor((samples - n_fft) / hop) + 1 frames, so invert that for the ANE's fixed
+// window; the ONNX encoder has no hard limit and is capped by the caller.
+function gigaamMaxChunkSamples(windowFrames) {
+  return (windowFrames - 1) * GIGAAM_HOP + GIGAAM_N_FFT;
+}
+
+function createGigaamAneEncoder(config) {
+  const { GigaamAneEncoder } = require("./gigaamAneEncoder");
+  gigaamAneConfig = config;
+  return new GigaamAneEncoder({ ...config, log });
+}
+
+// The helper is a separate process: a CoreML failure or an OS kill must not
+// leave dictation broken until the app restarts, so it is respawned on demand.
+async function ensureGigaamAneEncoder() {
+  if (!gigaamAne || gigaamAne.isRunning()) return;
+  log("warn", "gigaam ane helper is not running — restarting", {
+    reason: gigaamAne.exitError?.message,
+  });
+  const next = createGigaamAneEncoder(gigaamAneConfig);
+  await next.start();
+  gigaamAne = next;
+}
+
+function gigaamRuntimeInfo() {
+  if (gigaamAne) {
+    return {
+      encoder: "ane",
+      maxChunkSamples: gigaamMaxChunkSamples(gigaamAne.windowFrames),
+      aneInfo: gigaamAne.info,
+    };
+  }
+  return { encoder: "onnx", maxChunkSamples: null, aneInfo: null };
+}
+
+// aneEncoder: { helperPath, modelPath, computeUnits } routes the encoder through
+// CoreML on the Neural Engine instead of onnxruntime; encoderPath is then unused.
+async function gigaamLoad({ encoderPath, decoderPath, joinerPath, vocabPath, aneEncoder }) {
+  if (gigaamSessions) return { ok: true, ...gigaamRuntimeInfo() };
   loadOrt();
 
   const vocab = loadGigaamVocab(vocabPath);
@@ -466,19 +509,50 @@ async function gigaamLoad({ encoderPath, decoderPath, joinerPath, vocabPath }) {
   gigaamBlank = blkIdx >= 0 ? blkIdx : vocab.length - 1;
   gigaamVocab = vocab;
 
-  const [encoder, decoder, joiner] = await Promise.all([
-    ort.InferenceSession.create(encoderPath, SESSION_OPTIONS),
+  const sessionPromises = [
     ort.InferenceSession.create(decoderPath, SESSION_OPTIONS),
     ort.InferenceSession.create(joinerPath, SESSION_OPTIONS),
-  ]);
+  ];
+
+  let encoder = null;
+  if (aneEncoder) {
+    const ane = createGigaamAneEncoder(aneEncoder);
+    try {
+      await ane.start();
+    } catch (error) {
+      ane.stop();
+      // Nothing to fall back to: arm64 builds ship the CoreML encoder only.
+      await Promise.allSettled(sessionPromises);
+      gigaamVocab = null;
+      throw new Error(
+        `CoreML/ANE encoder unavailable (needs macOS 14+ on Apple Silicon): ${error.message}`
+      );
+    }
+    gigaamAne = ane;
+  } else {
+    sessionPromises.push(ort.InferenceSession.create(encoderPath, SESSION_OPTIONS));
+  }
+
+  const [decoder, joiner, onnxEncoder] = await Promise.all(sessionPromises);
+  encoder = onnxEncoder || null;
   gigaamSessions = { encoder, decoder, joiner };
-  log("info", "gigaam sessions loaded", { encoderPath, vocabSize: vocab.length, blank: gigaamBlank });
-  return { ok: true };
+  const info = gigaamRuntimeInfo();
+  log("info", "gigaam sessions loaded", {
+    encoderPath: aneEncoder ? aneEncoder.modelPath : encoderPath,
+    encoderRuntime: info.encoder,
+    vocabSize: vocab.length,
+    blank: gigaamBlank,
+  });
+  return { ok: true, ...info };
 }
 
 function gigaamUnload() {
   gigaamSessions = null;
   gigaamVocab = null;
+  if (gigaamAne) {
+    gigaamAne.stop();
+    gigaamAne = null;
+  }
   return { ok: true };
 }
 
@@ -494,23 +568,48 @@ async function gigaamTranscribe({ pcmBuffer }) {
 
   const { encoder, decoder, joiner } = gigaamSessions;
 
-  const encOut = await encoder.run({
-    audio_signal: new ort.Tensor("float32", features, [1, GIGAAM_N_MELS, numFrames]),
-    length: new ort.Tensor("int64", BigInt64Array.from([BigInt(numFrames)]), [1]),
-  });
-  const encoded = encOut.encoded;
-  const encDim = encoded.dims[1];
-  const encTp = encoded.dims[2];
-  const encData = encoded.data;
-  let encLen = Number(encOut.encoded_len.data[0]);
-  if (!Number.isFinite(encLen) || encLen < 0) encLen = encTp;
-  encLen = Math.min(encLen, encTp);
+  let encDim;
+  let encTp;
+  let encData;
+  let encLen;
+  const encoderStartedAt = Date.now();
+  if (gigaamAne) {
+    await ensureGigaamAneEncoder();
+    // The helper zero-pads to the fixed window and returns only the valid
+    // ceil(numFrames / 4) output frames.
+    const encoded = await gigaamAne.encode(features, numFrames);
+    encDim = encoded.dim;
+    encTp = encoded.frames;
+    encData = encoded.data;
+    encLen = encoded.frames;
+  } else {
+    const encOut = await encoder.run({
+      audio_signal: new ort.Tensor("float32", features, [1, GIGAAM_N_MELS, numFrames]),
+      length: new ort.Tensor("int64", BigInt64Array.from([BigInt(numFrames)]), [1]),
+    });
+    const encoded = encOut.encoded;
+    encDim = encoded.dims[1];
+    encTp = encoded.dims[2];
+    encData = encoded.data;
+    encLen = Number(encOut.encoded_len.data[0]);
+    if (!Number.isFinite(encLen) || encLen < 0) encLen = encTp;
+    encLen = Math.min(encLen, encTp);
+  }
+  const encoderMs = Date.now() - encoderStartedAt;
 
   // Greedy transducer decode. The prediction-network state (h, c) is committed
   // only when a real token is emitted; the frame advances on blank or after
   // MAX_TOKENS_PER_STEP emissions.
-  let h = new ort.Tensor("float32", new Float32Array(GIGAAM_PRED_HIDDEN), [1, 1, GIGAAM_PRED_HIDDEN]);
-  let c = new ort.Tensor("float32", new Float32Array(GIGAAM_PRED_HIDDEN), [1, 1, GIGAAM_PRED_HIDDEN]);
+  let h = new ort.Tensor("float32", new Float32Array(GIGAAM_PRED_HIDDEN), [
+    1,
+    1,
+    GIGAAM_PRED_HIDDEN,
+  ]);
+  let c = new ort.Tensor("float32", new Float32Array(GIGAAM_PRED_HIDDEN), [
+    1,
+    1,
+    GIGAAM_PRED_HIDDEN,
+  ]);
   const tokens = [];
   const encFrame = new Float32Array(encDim);
   let tIdx = 0;
@@ -558,7 +657,9 @@ async function gigaamTranscribe({ pcmBuffer }) {
     numFrames,
     encLen,
     tokens: tokens.length,
+    encoderRuntime: gigaamAne ? "ane" : "onnx",
     featureMs,
+    encoderMs,
     totalMs: Date.now() - startedAt,
   });
   return { text };
