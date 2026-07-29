@@ -508,7 +508,9 @@ function stripElectronLocales(context) {
   for (const entry of fs.readdirSync(frameworkRes, { withFileTypes: true })) {
     if (!entry.isDirectory() || !entry.name.endsWith(".lproj")) continue;
     const lang = entry.name.replace(/\.lproj$/, "");
-    const keep = KEEP_LOCALE_PREFIXES.some((p) => lang === p || lang.startsWith(p + "_") || lang.startsWith(p + "-"));
+    const keep = KEEP_LOCALE_PREFIXES.some(
+      (p) => lang === p || lang.startsWith(p + "_") || lang.startsWith(p + "-")
+    );
     if (!keep) {
       fs.rmSync(path.join(frameworkRes, entry.name), { recursive: true, force: true });
       removed++;
@@ -516,7 +518,55 @@ function stripElectronLocales(context) {
   }
 
   if (removed > 0) {
-    console.log(`  afterPack: removed ${removed} Electron locale directories (kept: ${KEEP_LOCALE_PREFIXES.join(", ")})`);
+    console.log(
+      `  afterPack: removed ${removed} Electron locale directories (kept: ${KEEP_LOCALE_PREFIXES.join(", ")})`
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GigaAM encoder pruning (macOS, per arch)
+// ---------------------------------------------------------------------------
+
+// mac.extraResources is shared by both macOS architectures, so both encoders get
+// copied in and the one this arch cannot use is removed here: arm64 runs the
+// CoreML encoder on the Neural Engine (the 885 MB ONNX encoder is dead weight),
+// x64 has no ANE and keeps the ONNX path.
+function pruneGigaamEncoders(context) {
+  if (context.electronPlatformName !== "darwin") return;
+
+  const resourcesDir = resolveResourcesDir(context);
+  const archName = Arch[context.arch];
+  const onnxEncoder = path.join(resourcesDir, "gigaam-model", "v3_e2e_rnnt_encoder.onnx");
+  const aneModelDir = path.join(resourcesDir, "gigaam-ane");
+  const aneHelper = path.join(resourcesDir, "bin", "macos-gigaam-encoder");
+
+  const remove = (target, label) => {
+    if (!fs.existsSync(target)) return;
+    const bytes = fs.statSync(target).isDirectory()
+      ? collectFiles(target).reduce((sum, file) => sum + fs.statSync(file).size, 0)
+      : fs.statSync(target).size;
+    fs.rmSync(target, { recursive: true, force: true });
+    console.log(
+      `  afterPack: removed ${label} for ${archName} (${(bytes / 1024 / 1024).toFixed(0)} MB)`
+    );
+  };
+
+  if (archName === "arm64") {
+    if (!fs.existsSync(path.join(aneModelDir, "encoder-ane.mlmodelc", "model.mil"))) {
+      throw new Error(
+        "arm64 build is missing resources/gigaam-ane/encoder-ane.mlmodelc — run npm run download:gigaam-ane"
+      );
+    }
+    if (!fs.existsSync(aneHelper)) {
+      throw new Error(
+        "arm64 build is missing resources/bin/macos-gigaam-encoder — run TARGET_ARCH=arm64 npm run compile:gigaam-encoder"
+      );
+    }
+    remove(onnxEncoder, "ONNX encoder (superseded by the CoreML/ANE encoder)");
+  } else {
+    remove(aneModelDir, "CoreML/ANE encoder (Apple Silicon only)");
+    remove(aneHelper, "CoreML/ANE encoder helper (Apple Silicon only)");
   }
 }
 
@@ -525,6 +575,7 @@ function stripElectronLocales(context) {
 // ---------------------------------------------------------------------------
 
 exports.default = async function (context) {
+  pruneGigaamEncoders(context);
   stripOnnxruntimeBinaries(context);
   stripResourceBinaries(context);
   thinFatBinaries(context);

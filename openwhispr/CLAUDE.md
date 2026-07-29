@@ -46,6 +46,7 @@ Type is an Electron-based desktop dictation application that uses GigaAM for spe
 - **windows-key-listener.c**: C source for Windows low-level keyboard hook (Push-to-Talk)
 - **windows-mic-listener.c**: C source for WASAPI mic session monitor (event-driven mic detection)
 - **macos-mic-listener.swift**: Swift source for CoreAudio mic property listener (event-driven mic detection)
+- **macos-gigaam-encoder.swift**: Swift source for the CoreML/ANE GigaAM encoder helper (macOS arm64 ASR; see GigaAM Integration)
 - **globe-listener.swift**: Swift source for macOS Globe/Fn key detection
 - **bin/**: Directory for compiled native binaries (paste/key/mic listeners and sidecars)
 
@@ -145,7 +146,12 @@ Type is an Electron-based desktop dictation application that uses GigaAM for spe
 
 - **Local ASR engine (no Python)**: `main.js` starts `GigaamLocalAsrManager` (`src/helpers/gigaamLocalAsr.js`). App-owned transcription travels over Electron IPC (no inbound TCP/firewall rule); inference runs in the shared ONNX utility process (`src/workers/onnxWorker.js`, handlers `gigaam.load` / `gigaam.transcribe`) via onnxruntime-node. Developers can opt into the legacy loopback HTTP API with `GIGAAM_HTTP_BRIDGE=1`.
 - **ASR model**: `gigaam-v3-e2e-rnnt` (fp32, `istupakov/gigaam-v3-onnx`). Reuses the legacy HF snapshot cache under `userData/model-cache/huggingface/...`; fresh installs download 4 files (~892 MB) to `userData/model-cache/gigaam/gigaam-v3-e2e-rnnt/`
-- **Featurizer**: exact port of onnx-asr's GigaamPreprocessor v3 (n_fft=win=320, hop=160, 64 mels); precomputed window/mel-fbank embedded in `src/workers/gigaamFbankAssets.js`
+- **Encoder on the Neural Engine (macOS arm64 only)**: Apple Silicon builds run the encoder as a CoreML fp16 MLProgram on the ANE instead of onnxruntime — same weights, converted by [gigaam-v3-coreml](https://github.com/IsaacClarke2/gigaam-v3-coreml). CoreML is only reachable from a native process, so `src/workers/gigaamAneEncoder.js` drives the `macos-gigaam-encoder` helper (`resources/macos-gigaam-encoder.swift`) over a binary stdio protocol: log-mel in, encoder output back. Decoder/joint/vocab stay on onnxruntime, so arm64 bundles only 7 MB of ONNX and none of the 885 MB encoder.
+  - The ANE cannot do dynamic shapes: the input window is **fixed at 3360 mel frames (33.6 s)** and short requests are zero-padded, so `gigaam.load` reports `maxChunkSamples` (537,760) and the manager chunks to that instead of the ONNX path's 25 s. `encoded_len` from the graph is one too high on padded input — the helper recomputes `ceil(frames / 4)`.
+  - Measured on an M4 (30 s of speech): encoder 115 ms vs 1200 ms on ONNX CPU, ~6× less CPU time, peak RSS 191 MB vs 1236 MB. Transcripts differ from fp32 only in fp16-level ways (filler words, commas). Below ~5 s ONNX is slightly faster — the ANE always pays for the full window.
+  - **No ONNX-encoder fallback on arm64.** If CoreML cannot load (macOS < 14, missing model/helper) `gigaam.load` fails and the engine reports the error. `GIGAAM_DISABLE_ANE=1` forces the ONNX path (requires the encoder in the model cache); `GIGAAM_ANE_COMPUTE_UNITS=cpu|all` overrides the compute units. A helper crash is recovered by respawning it on the next request.
+  - Model prep: `npm run download:gigaam-ane` (fp16; `--variant int8` or `GIGAAM_ANE_VARIANT=int8` halves the 423 MB at the same measured accuracy) downloads and compiles `resources/gigaam-ane/encoder-ane.mlmodelc` with `xcrun coremlcompiler` — **needs full Xcode**. `prebuild:mac:arm64` runs it. `mac.extraResources` copies both encoders and afterPack keeps only the one that arch can use.
+- **Featurizer**: exact port of onnx-asr's GigaamPreprocessor v3 (n_fft=win=320, hop=160, 64 mels); precomputed window/mel-fbank embedded in `src/workers/gigaamFbankAssets.js`. On the ANE path this JS featurizer is now the slower half of a transcription (~170 ms vs ~115 ms of encoder for 30 s)
 - **onnxruntime version lock**: onnxruntime-node is pinned to the exact version sherpa-onnx links (`libonnxruntime.1.23.2.dylib`); afterPack replaces the bin copy with a symlink into app.asar.unpacked. Do not bump one without the other
 - **Audio decode**: WAV parsed natively in `gigaamLocalAsr.js`; other formats fall back to the slim custom ffmpeg in `resources/bin` (audio-only build, ~2 MB)
 - **Endpoint config**: renderer uses `gigaamBaseUrl` / `remoteTranscriptionUrl` (unchanged)
@@ -187,6 +193,8 @@ Always-on offline semantic search that finds notes by meaning, not just keywords
 - **download-qdrant.js**: Downloads Qdrant vector DB binary for local semantic search
 - **download-minilm.js**: Downloads all-MiniLM-L6-v2 ONNX model + tokenizer for local embeddings
 - **build-globe-listener.js**: Compiles macOS Globe key listener from Swift source
+- **build-macos-gigaam-encoder.js**: Compiles the CoreML/ANE encoder helper from Swift source (deployment target macOS 14)
+- **download-gigaam-ane.js**: Downloads the CoreML GigaAM encoder and compiles it to `resources/gigaam-ane/encoder-ane.mlmodelc` (requires full Xcode)
 - **build-macos-mic-listener.js**: Compiles macOS mic listener from Swift source
 - **build-windows-key-listener.js**: Compiles Windows key listener (for local development)
 - **run-electron.js**: Development script to launch Electron with proper environment
@@ -562,6 +570,7 @@ const { t } = useTranslation();
 ### Testing Checklist
 
 - [ ] Test GigaAM transcription with the local in-process engine
+- [ ] macOS arm64: confirm the ANE encoder is active (`encoderRuntime: "ane"` in the onnx-worker log, a `macos-gigaam-encoder` child process) and that audio longer than 33.6 s is chunked and merged
 - [ ] Verify hotkey works globally
 - [ ] Check clipboard pasting on all platforms
 - [ ] Test with different audio input devices

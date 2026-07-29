@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build an UNSIGNED, un-notarized macOS arm64 Type.app + DMG with the GigaAM
-# model wired in (offline, no first-run download).
+# model wired in (offline, no first-run download): the CoreML encoder that runs
+# on the Neural Engine plus the ONNX RNN-T decoder/joint.
 #
 # This is the signing-free counterpart of build-mac-arm64-signed.sh — same
 # arm64 wired-model artifact, but with code signing and Apple notarization
@@ -50,12 +51,16 @@ unset CSC_LINK CSC_KEY_PASSWORD CSC_NAME \
 export CSC_IDENTITY_AUTO_DISCOVERY=false
 
 # ---------- preflight: wired GigaAM model -------------------------------------
-# The whole point of this build is that the fp32 model ships inside the app.
-# electron-builder's mac.extraResources copies resources/gigaam-model/ into
-# Contents/Resources/gigaam-model/, and gigaamLocalAsr.js resolves it there so
-# a fresh install transcribes offline with no ~885 MB first-run download.
+# The whole point of this build is that the model ships inside the app.
+# electron-builder's mac.extraResources copies resources/gigaam-model/ and
+# resources/gigaam-ane/ into Contents/Resources/, and gigaamLocalAsr.js resolves
+# them there so a fresh install transcribes offline with no first-run download.
+#
+# arm64 runs the encoder on the Neural Engine (CoreML .mlmodelc), so only the
+# 7 MB RNN-T decoder/joint/vocab are needed from the ONNX set — afterPack drops
+# the 885 MB ONNX encoder from this build even when it is present locally.
 MODEL_DIR="$REPO_ROOT/resources/gigaam-model"
-MODEL_FILES=(v3_e2e_rnnt_encoder.onnx v3_e2e_rnnt_decoder.onnx v3_e2e_rnnt_joint.onnx v3_e2e_rnnt_vocab.txt)
+MODEL_FILES=(v3_e2e_rnnt_decoder.onnx v3_e2e_rnnt_joint.onnx v3_e2e_rnnt_vocab.txt)
 missing_model=0
 for f in "${MODEL_FILES[@]}"; do
   [[ -f "$MODEL_DIR/$f" ]] || missing_model=1
@@ -76,6 +81,25 @@ if [[ $missing_model -eq 1 ]]; then
   done
 fi
 
+# ---------- preflight: CoreML/ANE encoder -------------------------------------
+# arm64 has no ONNX-encoder fallback: if the CoreML model or its helper is
+# missing the app cannot transcribe locally at all, so fail here rather than
+# shipping a broken build (afterPack repeats this check).
+ANE_MODEL="$REPO_ROOT/resources/gigaam-ane/encoder-ane.mlmodelc"
+if [[ ! -f "$ANE_MODEL/model.mil" ]]; then
+  if [[ $skip_model_download -eq 1 ]]; then
+    echo "error: CoreML/ANE encoder missing at $ANE_MODEL" >&2
+    echo "       run 'npm run download:gigaam-ane' (or drop --skip-model-download)." >&2
+    exit 1
+  fi
+  echo "==> CoreML/ANE encoder missing — fetching it (npm run download:gigaam-ane)"
+  ( cd "$REPO_ROOT" && npm run download:gigaam-ane )
+  if [[ ! -f "$ANE_MODEL/model.mil" ]]; then
+    echo "error: download did not produce $ANE_MODEL" >&2
+    exit 1
+  fi
+fi
+
 # ---------- preflight: arm64 native binaries ----------------------------------
 # The classic arch pitfall: single-arch x86_64 helpers left over from a prior
 # x64 build get packaged into the arm64 app and throw "… binary is x86_64 but
@@ -89,7 +113,8 @@ if [[ $recompile_natives -eq 1 ]]; then
 fi
 
 for b in ffmpeg macos-audio-tap macos-globe-listener macos-fast-paste \
-         macos-mic-listener macos-text-monitor macos-media-remote; do
+         macos-mic-listener macos-text-monitor macos-media-remote \
+         macos-gigaam-encoder; do
   f="$REPO_ROOT/resources/bin/$b"
   [[ -f "$f" ]] || { echo "error: missing native binary: $f (run --recompile-natives)" >&2; exit 1; }
   archs="$(lipo -archs "$f" 2>/dev/null || true)"
