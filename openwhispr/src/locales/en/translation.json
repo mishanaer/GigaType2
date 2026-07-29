@@ -69,6 +69,12 @@
     }
   },
   "startup": {
+    "installReboot": {
+      "title": "Restart Windows to finish installing Type",
+      "message": "Type cannot start until Windows has been restarted.",
+      "detail": "Restart Windows, then open Type again.",
+      "confirm": "OK"
+    },
     "error": {
       "title": "Type Startup Error",
       "message": "Failed to start the application:\n\n{{error}}\n\nPlease report this issue."

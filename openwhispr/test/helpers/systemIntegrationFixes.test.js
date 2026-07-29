@@ -68,6 +68,25 @@ test("packaged Windows close-to-tray always has a recoverable tray icon", () => 
   assert.match(windowManagerSource, /Keeping control panel visible because tray is unavailable/);
 });
 
+test("Windows installer requires a reboot and blocks same-boot app startup", () => {
+  const builderConfig = JSON.parse(
+    fs.readFileSync(path.join(repoRoot, "electron-builder.json"), "utf8")
+  );
+  const nsisSource = fs.readFileSync(
+    path.join(repoRoot, "resources/nsis/cleanup-models.nsh"),
+    "utf8"
+  );
+  const mainSource = fs.readFileSync(path.join(repoRoot, "main.js"), "utf8");
+
+  assert.equal(builderConfig.nsis.runAfterFinish, false);
+  assert.match(nsisSource, /!macro customInstall/);
+  assert.match(nsisSource, /\\.type-install-reboot-required/);
+  assert.match(nsisSource, /SetRebootFlag true/);
+  assert.match(nsisSource, /SetErrorLevel 3010/);
+  assert.match(mainSource, /getWindowsInstallRebootState/);
+  assert.match(mainSource, /startup\.installReboot\.message/);
+});
+
 test("capsule has a visible fallback and bounded renderer retries", () => {
   const componentSource = fs.readFileSync(
     path.join(repoRoot, "src/components/GolosCapsule.tsx"),
