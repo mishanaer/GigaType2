@@ -283,6 +283,7 @@
     "allowToChangeInstallationDirectory": true,
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
+    "runAfterFinish": false,
     "include": "resources/nsis/cleanup-models.nsh"
   },
   "dmg": {

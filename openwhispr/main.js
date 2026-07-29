@@ -219,6 +219,7 @@ const GigaamLocalAsrManager = require("./src/helpers/gigaamLocalAsr");
 const TelemetryService = require("./src/helpers/telemetryService");
 const { i18nMain, changeLanguage } = require("./src/helpers/i18nMain");
 const { ensureYdotool } = require("./src/helpers/ensureYdotool");
+const { getWindowsInstallRebootState } = require("./src/utils/windowsInstallReboot.cjs");
 const sidecarRegistry = require("./src/helpers/sidecarRegistry");
 const { reapStaleSidecars } = require("./src/helpers/sidecarReaper");
 
@@ -1267,6 +1268,25 @@ if (gotSingleInstanceLock) {
       return new Promise((resolve) => setTimeout(resolve, delay));
     })
     .then(() => {
+      const installRebootState = getWindowsInstallRebootState({
+        platform: process.platform,
+        isPackaged: app.isPackaged,
+        execPath: process.execPath,
+      });
+      if (installRebootState.required) {
+        dialog.showMessageBoxSync({
+          type: "info",
+          title: i18nMain.t("startup.installReboot.title"),
+          message: i18nMain.t("startup.installReboot.message"),
+          detail: i18nMain.t("startup.installReboot.detail"),
+          buttons: [i18nMain.t("startup.installReboot.confirm")],
+          defaultId: 0,
+          noLink: true,
+        });
+        app.quit();
+        return;
+      }
+
       if (process.platform === "win32") {
         session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
           desktopCapturer.getSources({ types: ["screen"] }).then((sources) => {
