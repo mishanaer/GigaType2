@@ -162,45 +162,24 @@ class TrayManager {
     const platform = process.platform;
     const isDevelopment = process.env.NODE_ENV === "development";
 
-    if (platform === "darwin") {
-      try {
-        // Do not resize: resize() rasterises to a single scale-factor-1 bitmap, which
-        // the menu bar then upscales on Retina displays. Left alone, AppKit renders the
-        // symbol at the status bar's own scale. The bundled iconTemplate@3x.png below
-        // stays the fallback.
-        const systemIcon = nativeImage.createFromNamedImage("t.square.fill");
-        if (!systemIcon.isEmpty()) {
-          systemIcon.setTemplateImage(true);
-          debugLogger.debug("Using SF Symbol tray icon", { symbol: "t.square.fill" }, "tray");
-          return systemIcon;
-        }
-      } catch (error) {
-        debugLogger.warn(
-          "Unable to load SF Symbol tray icon",
-          { symbol: "t.square.fill", error: error.message },
-          "tray"
-        );
-      }
-    }
-
     const candidatePaths = [];
 
     if (platform === "darwin") {
       if (isDevelopment) {
-        candidatePaths.push(path.join(__dirname, "..", "assets", "iconTemplate@3x.png"));
+        candidatePaths.push(path.join(__dirname, "..", "assets", "t-menubarTemplate.png"));
       } else {
         candidatePaths.push(
-          path.join(process.resourcesPath, "src", "assets", "iconTemplate@3x.png"),
-          path.join(process.resourcesPath, "assets", "iconTemplate@3x.png"),
+          path.join(process.resourcesPath, "src", "assets", "t-menubarTemplate.png"),
+          path.join(process.resourcesPath, "assets", "t-menubarTemplate.png"),
           path.join(
             process.resourcesPath,
             "app.asar.unpacked",
             "src",
             "assets",
-            "iconTemplate@3x.png"
+            "t-menubarTemplate.png"
           ),
-          path.join(__dirname, "..", "..", "src", "assets", "iconTemplate@3x.png"),
-          path.join(app.getAppPath(), "src", "assets", "iconTemplate@3x.png")
+          path.join(__dirname, "..", "..", "src", "assets", "t-menubarTemplate.png"),
+          path.join(app.getAppPath(), "src", "assets", "t-menubarTemplate.png")
         );
       }
     } else {
