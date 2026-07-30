@@ -72,7 +72,8 @@ test("collapsed CellStack uses a downward chevron instead of a settings count", 
   assert.match(settingsSource, /CellStack\.Morph rotateEndOnExpand/);
   assert.match(settingsSource, /text-\[var\(--tg-theme-subtitle-text-color\)\] opacity-70/);
   assert.match(cellStackMorphSource, /rotate: expanded \? 180 : 0/);
-  assert.match(cellStackMorphSource, /transition=\{spring\}/);
+  assert.match(cellStackMorphSource, /CHEVRON_DURATION_SCALE = 1\.5/);
+  assert.match(cellStackMorphSource, /transition=\{rotateTransition\}/);
   assert.doesNotMatch(settingsSource, /["`]3 настройки["`]/);
   assert.doesNotMatch(settingsSource, /["`]2 настройки["`]/);
 });
