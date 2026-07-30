@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDownIcon } from "lucide-react";
 import Cell from "../../vendor/wallet_animations/components/Cells";
+import CellStack from "../../vendor/wallet_animations/components/CellStack";
 import MotionProvider from "../../vendor/wallet_animations/components/MotionProvider";
 import SectionList from "../../vendor/wallet_animations/components/SectionList";
-import Switch from "../../vendor/wallet_animations/components/Switch";
 import { formatHotkeyLabel, isGlobeLikeHotkey } from "../../utils/hotkeys";
 import { isBuiltInMicrophone } from "../../utils/audioDeviceUtils";
 import { getCachedPlatform } from "../../utils/platform";
@@ -30,6 +31,8 @@ interface WalletSettingsCellsProps {
   onHideCapsuleChange: (value: boolean) => void;
   showDockIcon?: boolean;
   onShowDockIconChange?: (value: boolean) => void;
+  audioCuesEnabled: boolean;
+  onAudioCuesEnabledChange: (value: boolean) => void;
   devicesOverride?: AudioDevice[];
 }
 
@@ -58,6 +61,8 @@ export default function WalletSettingsCells({
   onHideCapsuleChange,
   showDockIcon = true,
   onShowDockIconChange,
+  audioCuesEnabled,
+  onAudioCuesEnabledChange,
   devicesOverride,
 }: WalletSettingsCellsProps) {
   const [captureKey, setCaptureKey] = useState(0);
@@ -293,33 +298,55 @@ export default function WalletSettingsCells({
             >
               <Cell.Text title="Микрофон" />
             </Cell>
+          </SectionList.Item>
 
-            <Cell
-              end={
-                <Switch
-                  value={!hideCapsule}
-                  onChange={(showCapsule) => onHideCapsuleChange(!showCapsule)}
-                  ariaLabel="Показывать капсулу"
-                />
-              }
-            >
-              <Cell.Text title="Показывать капсулу" />
-            </Cell>
-
-            {isMac && onShowDockIconChange && (
+          <CellStack ariaLabel="Внешний вид и звуки">
+            <CellStack.Morph rotateEndOnExpand>
               <Cell
                 end={
-                  <Switch
-                    value={showDockIcon}
-                    onChange={onShowDockIconChange}
-                    ariaLabel="Показывать иконку в Dock"
+                  <Cell.Text
+                    title={
+                      <ChevronDownIcon
+                        className="block size-5 text-[var(--tg-theme-subtitle-text-color)] opacity-70"
+                        aria-hidden
+                      />
+                    }
                   />
                 }
               >
-                <Cell.Text title="Показывать иконку в Dock" />
+                <Cell.Text title="Внешний вид и звуки" />
               </Cell>
+              <Cell>
+                <Cell.Text title="Внешний вид и звуки" />
+              </Cell>
+            </CellStack.Morph>
+
+            <Cell.Switch
+              value={!hideCapsule}
+              onChange={(showCapsule) => onHideCapsuleChange(!showCapsule)}
+              ariaLabel="Показывать капсулу"
+            >
+              <Cell.Text title="Показывать капсулу" />
+            </Cell.Switch>
+
+            {isMac && onShowDockIconChange && (
+              <Cell.Switch
+                value={showDockIcon}
+                onChange={onShowDockIconChange}
+                ariaLabel="Показывать иконку в Dock"
+              >
+                <Cell.Text title="Показывать иконку в Dock" />
+              </Cell.Switch>
             )}
-          </SectionList.Item>
+
+            <Cell.Switch
+              value={audioCuesEnabled}
+              onChange={onAudioCuesEnabledChange}
+              ariaLabel="Звуки диктовки"
+            >
+              <Cell.Text title="Звуки диктовки" />
+            </Cell.Switch>
+          </CellStack>
         </SectionList>
 
         <div className="wallet-settings-hidden-hotkey" aria-hidden="true">

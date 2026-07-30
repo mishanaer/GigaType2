@@ -11,7 +11,7 @@ export default function SettingsWorkspace() {
         <div className="mt-[24px]">
           <SettingsPage />
         </div>
-        <AppshotsBuildLabel className="mt-[20px]" size="small" />
+        <AppshotsBuildLabel className="mt-[40px]" size="small" />
       </div>
     </main>
   );

@@ -28,10 +28,6 @@
     }
   },
   "tray": {
-    "toggleDictation": {
-      "show": "Mostrar painel de ditado",
-      "hide": "Ocultar painel de ditado"
-    },
     "openControlPanel": "Abrir painel de controle",
     "quit": "Sair do Type",
     "tooltip": "Type - Ditado por voz"

@@ -28,10 +28,6 @@
     }
   },
   "tray": {
-    "toggleDictation": {
-      "show": "ディクテーションパネルを表示",
-      "hide": "ディクテーションパネルを非表示"
-    },
     "openControlPanel": "コントロールパネルを開く",
     "quit": "Type を終了",
     "tooltip": "Type - 音声ディクテーション"

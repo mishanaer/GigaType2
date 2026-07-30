@@ -94,6 +94,12 @@ class WindowManager {
     return this.setShowDockIcon(this.showDockIcon);
   }
 
+  _alwaysOnTopOptions() {
+    // Letting Electron transform the process type would hide the Dock icon behind
+    // the user's back, so only allow it when the Dock icon is already hidden.
+    return { skipTransformProcessType: this.showDockIcon };
+  }
+
   async createMainWindow() {
     const cursorPos = screen.getCursorScreenPoint();
     const display = screen.getDisplayNearestPoint(cursorPos);
@@ -813,7 +819,10 @@ class WindowManager {
 
     this.transcriptionPreviewWindow.webContents.send("preview-text", text);
     this.transcriptionPreviewWindow.showInactive();
-    WindowPositionUtil.setupAlwaysOnTop(this.transcriptionPreviewWindow);
+    WindowPositionUtil.setupAlwaysOnTop(
+      this.transcriptionPreviewWindow,
+      this._alwaysOnTopOptions()
+    );
   }
 
   appendTranscriptionPreview(text) {
@@ -832,7 +841,10 @@ class WindowManager {
     if (!this.transcriptionPreviewWindow || this.transcriptionPreviewWindow.isDestroyed()) return;
     this.transcriptionPreviewWindow.webContents.send("preview-result", { text });
     this.transcriptionPreviewWindow.showInactive();
-    WindowPositionUtil.setupAlwaysOnTop(this.transcriptionPreviewWindow);
+    WindowPositionUtil.setupAlwaysOnTop(
+      this.transcriptionPreviewWindow,
+      this._alwaysOnTopOptions()
+    );
   }
 
   hideTranscriptionPreview() {
@@ -1120,7 +1132,7 @@ class WindowManager {
 
   enforceMainWindowOnTop() {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-      WindowPositionUtil.setupAlwaysOnTop(this.mainWindow);
+      WindowPositionUtil.setupAlwaysOnTop(this.mainWindow, this._alwaysOnTopOptions());
     }
   }
 
@@ -1172,7 +1184,7 @@ class WindowManager {
       this.notificationWindow.setIgnoreMouseEvents(true, { forward: true });
     }
 
-    WindowPositionUtil.setupAlwaysOnTop(this.notificationWindow);
+    WindowPositionUtil.setupAlwaysOnTop(this.notificationWindow, this._alwaysOnTopOptions());
 
     this._pendingNotificationData = promptData;
 

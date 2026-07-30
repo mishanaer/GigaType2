@@ -18,12 +18,8 @@ class TrayManager {
     this.mainWindow = mainWindow;
     this.controlPanelWindow = controlPanelWindow;
 
-    if (this.mainWindow) {
-      this.mainWindow.on("show", () => this.updateTrayMenu?.());
-      this.mainWindow.on("hide", () => this.updateTrayMenu?.());
-      this.mainWindow.on("minimize", () => this.updateTrayMenu?.());
-      this.mainWindow.on("restore", () => this.updateTrayMenu?.());
-    }
+    // The menu no longer reflects dictation-panel state, so it does not need to be
+    // rebuilt when the panel shows or hides.
 
     if (this.controlPanelWindow) {
       this.attachControlPanelListeners(this.controlPanelWindow);
@@ -166,6 +162,27 @@ class TrayManager {
     const platform = process.platform;
     const isDevelopment = process.env.NODE_ENV === "development";
 
+    if (platform === "darwin") {
+      try {
+        // Do not resize: resize() rasterises to a single scale-factor-1 bitmap, which
+        // the menu bar then upscales on Retina displays. Left alone, AppKit renders the
+        // symbol at the status bar's own scale. The bundled iconTemplate@3x.png below
+        // stays the fallback.
+        const systemIcon = nativeImage.createFromNamedImage("t.square.fill");
+        if (!systemIcon.isEmpty()) {
+          systemIcon.setTemplateImage(true);
+          debugLogger.debug("Using SF Symbol tray icon", { symbol: "t.square.fill" }, "tray");
+          return systemIcon;
+        }
+      } catch (error) {
+        debugLogger.warn(
+          "Unable to load SF Symbol tray icon",
+          { symbol: "t.square.fill", error: error.message },
+          "tray"
+        );
+      }
+    }
+
     const candidatePaths = [];
 
     if (platform === "darwin") {
@@ -266,26 +283,7 @@ class TrayManager {
   }
 
   buildContextMenuTemplate() {
-    const dictationVisible = this.windowManager?.isDictationPanelVisible?.() ?? false;
-
     return [
-      {
-        // The dictation overlay has no idle state — it only renders while
-        // recording and auto-hides otherwise (see src/App.jsx), so this item
-        // starts/stops a dictation rather than toggling an empty window.
-        label: dictationVisible
-          ? i18nMain.t("tray.toggleDictation.hide")
-          : i18nMain.t("tray.toggleDictation.show"),
-        click: () => {
-          if (!this.windowManager) return;
-          if (this.windowManager.isDictationPanelVisible()) {
-            this.windowManager.sendStopDictation();
-          } else {
-            this.windowManager.sendStartDictation();
-          }
-          this.updateTrayMenu();
-        },
-      },
       {
         label: i18nMain.t("tray.openControlPanel"),
         click: async () => {

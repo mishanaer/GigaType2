@@ -28,12 +28,8 @@
     }
   },
   "tray": {
-    "toggleDictation": {
-      "show": "Показать панель диктовки",
-      "hide": "Скрыть панель диктовки"
-    },
-    "openControlPanel": "Открыть панель управления",
-    "quit": "Закрыть Type",
+    "openControlPanel": "Открыть Type",
+    "quit": "Выйти",
     "tooltip": "Type — голосовая диктовка"
   },
   "menu": {

@@ -29,6 +29,10 @@ test("stripHesitationEs removes standalone hesitation variants", async () => {
   assert.equal(stripHesitationEs("Э-э-э... Продолжаем."), "Продолжаем.");
   assert.equal(stripHesitationEs("э ээ эээ э-э э-э-э э... э…"), "");
   assert.equal(stripHesitationEs("Э — Э — Э, продолжаем."), "продолжаем.");
+  assert.equal(stripHesitationEs("А-а, продолжаем."), "продолжаем.");
+  assert.equal(stripHesitationEs("А-а-а, продолжаем."), "продолжаем.");
+  assert.equal(stripHesitationEs("А-а... Продолжаем."), "Продолжаем.");
+  assert.equal(stripHesitationEs("А-а-а... Продолжаем."), "Продолжаем.");
 });
 
 test("stripHesitationEs preserves words containing the letter э", async () => {
@@ -38,6 +42,24 @@ test("stripHesitationEs preserves words containing the letter э", async () => {
     stripHesitationEs("Эмма изучает поэзию и эмпатию."),
     "Эмма изучает поэзию и эмпатию."
   );
+});
+
+test("stripHesitationEs preserves meaningful words and standalone а", async () => {
+  const { stripHesitationEs } = await transcriptionFormatting;
+
+  assert.equal(stripHesitationEs("А"), "А");
+  assert.equal(stripHesitationEs("а"), "а");
+  assert.equal(stripHesitationEs("А потом продолжим."), "А потом продолжим.");
+  assert.equal(stripHesitationEs("Я, а, думаю иначе."), "Я, а, думаю иначе.");
+  assert.equal(stripHesitationEs("А-аудио уже готово."), "А-аудио уже готово.");
+});
+
+test("stripHesitationEs leaves hyphenated words intact instead of clipping them", async () => {
+  const { stripHesitationEs } = await transcriptionFormatting;
+
+  // A partial match here used to leave a stray leading hyphen ("-абсолютно точно").
+  assert.equal(stripHesitationEs("А-а-абсолютно точно"), "А-а-абсолютно точно");
+  assert.equal(stripHesitationEs("Э-э-этого мало"), "Э-э-этого мало");
 });
 
 test("normalizeTranscriptionText removes hesitations before the terminal period", async () => {

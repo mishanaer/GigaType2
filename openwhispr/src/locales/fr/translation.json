@@ -28,10 +28,6 @@
     }
   },
   "tray": {
-    "toggleDictation": {
-      "show": "Afficher le panneau de dictée",
-      "hide": "Masquer le panneau de dictée"
-    },
     "openControlPanel": "Ouvrir le panneau de contrôle",
     "quit": "Quitter Type",
     "tooltip": "Type - Dictée vocale"

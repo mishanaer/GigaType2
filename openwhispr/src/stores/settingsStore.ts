@@ -30,7 +30,7 @@ const FIXED_UI_LANGUAGE = "ru";
 const FIXED_TRANSCRIPTION_LANGUAGE = "ru";
 const FIXED_THEME = "auto";
 const DEFAULT_ACTIVATION_MODE = "push" as const;
-const FIXED_AUDIO_CUES_ENABLED = true;
+const DEFAULT_AUDIO_CUES_ENABLED = true;
 const FIXED_PAUSE_MEDIA_ON_DICTATION = false;
 const FIXED_NOTIFICATIONS_ENABLED = false;
 const FIXED_START_MINIMIZED = false;
@@ -276,7 +276,6 @@ enforceFixedUiSettings();
 
 function enforceFixedBehaviorSettings() {
   if (!isBrowser) return;
-  localStorage.setItem("audioCuesEnabled", String(FIXED_AUDIO_CUES_ENABLED));
   localStorage.setItem("pauseMediaOnDictation", String(FIXED_PAUSE_MEDIA_ON_DICTATION));
   localStorage.setItem("startMinimized", String(FIXED_START_MINIMIZED));
   localStorage.setItem("notificationsEnabled", String(FIXED_NOTIFICATIONS_ENABLED));
@@ -877,7 +876,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   telemetryEnabled: false,
   audioRetentionDays: 0,
   dataRetentionEnabled: false,
-  audioCuesEnabled: FIXED_AUDIO_CUES_ENABLED,
+  audioCuesEnabled: readBoolean("audioCuesEnabled", DEFAULT_AUDIO_CUES_ENABLED),
   pauseMediaOnDictation: FIXED_PAUSE_MEDIA_ON_DICTATION,
   startMinimized: FIXED_START_MINIMIZED,
   notificationsEnabled: FIXED_NOTIFICATIONS_ENABLED,
@@ -1186,10 +1185,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
       "settings"
     );
   },
-  setAudioCuesEnabled: () => {
-    if (isBrowser) localStorage.setItem("audioCuesEnabled", String(FIXED_AUDIO_CUES_ENABLED));
-    set({ audioCuesEnabled: FIXED_AUDIO_CUES_ENABLED });
-  },
+  setAudioCuesEnabled: createBooleanSetter("audioCuesEnabled"),
   setPauseMediaOnDictation: () => {
     if (isBrowser) {
       localStorage.setItem("pauseMediaOnDictation", String(FIXED_PAUSE_MEDIA_ON_DICTATION));
@@ -1608,7 +1604,6 @@ export async function initializeSettings(): Promise<void> {
       enforceFixedBehaviorSettings();
       useSettingsStore.setState({
         activationMode,
-        audioCuesEnabled: FIXED_AUDIO_CUES_ENABLED,
         pauseMediaOnDictation: FIXED_PAUSE_MEDIA_ON_DICTATION,
         notificationsEnabled: FIXED_NOTIFICATIONS_ENABLED,
         notifyMeetingDetection: FIXED_NOTIFICATIONS_ENABLED,

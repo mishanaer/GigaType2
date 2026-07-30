@@ -1,0 +1,92 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-self: stretch;
+  cursor: pointer;
+  outline: none;
+
+  &[data-expanded="false"] {
+    position: relative;
+
+    > .card {
+      --cell-separator-height: 0;
+    }
+
+    > .card:not(:first-child) {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+  }
+
+  &[data-expanded="true"] {
+    gap: 0;
+    overflow: hidden;
+    background-color: var(--tg-theme-section-bg-color);
+    // Only the header collapses the stack again; the rows below own their own clicks.
+    cursor: default;
+
+    > .card:first-child {
+      cursor: pointer;
+    }
+
+    > .card:last-child {
+      --cell-separator-height: 0;
+    }
+
+    :global(body.apple) & {
+      border-radius: 26px;
+    }
+
+    :global(body.material) & {
+      border-radius: 16px;
+    }
+  }
+
+  > .card:first-child:focus-visible {
+    box-shadow: 0 0 0 2px var(--tg-theme-accent-text-color);
+  }
+}
+
+.card {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--tg-theme-section-bg-color);
+
+  :global(body.apple) [data-expanded="false"] & {
+    border-radius: 26px;
+  }
+
+  :global(body.material) [data-expanded="false"] & {
+    border-radius: 16px;
+  }
+}
+
+.content {
+  position: relative;
+}
+
+.morphLine {
+  display: block;
+}
+
+.rotatingEnd {
+  display: block;
+  line-height: 0;
+}
+
+.logoStack {
+  position: relative;
+}
+
+.logoFront {
+  position: relative;
+  z-index: 2;
+}
+
+.logoBehind {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}

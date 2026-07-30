@@ -28,10 +28,6 @@
     }
   },
   "tray": {
-    "toggleDictation": {
-      "show": "顯示語音輸入面板",
-      "hide": "隱藏語音輸入面板"
-    },
     "openControlPanel": "開啟控制面板",
     "quit": "結束 Type",
     "tooltip": "Type - 語音輸入"
