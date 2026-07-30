@@ -227,7 +227,6 @@ class WindowPositionUtil {
       window.setAlwaysOnTop(true, "floating", 1);
       window.setVisibleOnAllWorkspaces(true, {
         visibleOnFullScreen: true,
-        skipTransformProcessType: true, // Keep Dock/Command-Tab behaviour
       });
       window.setFullScreenable(false);
 
