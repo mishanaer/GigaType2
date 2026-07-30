@@ -220,13 +220,21 @@ class WindowPositionUtil {
     return { x, y, width, height };
   }
 
-  static setupAlwaysOnTop(window) {
+  static setupAlwaysOnTop(window, options = {}) {
     if (process.platform === "darwin") {
       // macOS: Use panel level for proper floating behavior
       // This ensures the window stays on top across spaces and fullscreen apps
       window.setAlwaysOnTop(true, "floating", 1);
+      // Electron transforms the process type to UIElementApplication here so the
+      // panel can float above fullscreen apps. That transform also hides the Dock
+      // icon, drops us from Command-Tab, and blinks both on every call — and this
+      // runs several times per dictation. Only let it happen when the Dock icon is
+      // already hidden; the "visible on all Spaces" collection behaviour below is
+      // applied either way. Callers that don't know the Dock state get the safe
+      // default (see WindowManager._alwaysOnTopOptions).
       window.setVisibleOnAllWorkspaces(true, {
         visibleOnFullScreen: true,
+        skipTransformProcessType: options.skipTransformProcessType ?? true,
       });
       window.setFullScreenable(false);
 

@@ -28,10 +28,6 @@
     }
   },
   "tray": {
-    "toggleDictation": {
-      "show": "显示听写面板",
-      "hide": "隐藏听写面板"
-    },
     "openControlPanel": "打开控制面板",
     "quit": "退出 Type",
     "tooltip": "Type - 语音听写"

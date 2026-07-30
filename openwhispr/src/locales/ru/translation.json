@@ -28,11 +28,7 @@
     }
   },
   "tray": {
-    "toggleDictation": {
-      "show": "Показать панель диктовки",
-      "hide": "Скрыть панель диктовки"
-    },
-    "openControlPanel": "Открыть Тайп",
+    "openControlPanel": "Открыть Type",
     "quit": "Выйти",
     "tooltip": "Type — голосовая диктовка"
   },

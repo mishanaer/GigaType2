@@ -54,6 +54,14 @@ test("stripHesitationEs preserves meaningful words and standalone а", async () 
   assert.equal(stripHesitationEs("А-аудио уже готово."), "А-аудио уже готово.");
 });
 
+test("stripHesitationEs leaves hyphenated words intact instead of clipping them", async () => {
+  const { stripHesitationEs } = await transcriptionFormatting;
+
+  // A partial match here used to leave a stray leading hyphen ("-абсолютно точно").
+  assert.equal(stripHesitationEs("А-а-абсолютно точно"), "А-а-абсолютно точно");
+  assert.equal(stripHesitationEs("Э-э-этого мало"), "Э-э-этого мало");
+});
+
 test("normalizeTranscriptionText removes hesitations before the terminal period", async () => {
   const { normalizeTranscriptionText } = await transcriptionFormatting;
 

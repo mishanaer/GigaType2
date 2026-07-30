@@ -3,81 +3,46 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const cellStackSource = fs.readFileSync(
-  path.join(
-    __dirname,
-    "..",
-    "..",
-    "src",
-    "vendor",
-    "wallet_animations",
-    "components",
-    "CellStack",
-    "index.jsx"
-  ),
-  "utf8"
-);
-const cellStackStyles = fs.readFileSync(
-  path.join(
-    __dirname,
-    "..",
-    "..",
-    "src",
-    "vendor",
-    "wallet_animations",
-    "components",
-    "CellStack",
-    "CellStack.module.scss"
-  ),
-  "utf8"
-);
-const cellStackMorphSource = fs.readFileSync(
-  path.join(
-    __dirname,
-    "..",
-    "..",
-    "src",
-    "vendor",
-    "wallet_animations",
-    "components",
-    "CellStack",
-    "Morph.jsx"
-  ),
-  "utf8"
-);
-const settingsSource = fs.readFileSync(
-  path.join(__dirname, "..", "..", "src", "components", "settings", "WalletSettingsCells.tsx"),
-  "utf8"
-);
+const repoRoot = path.join(__dirname, "..", "..");
 
-test("collapsed CellStack renders only the front card and one visible layer", () => {
-  assert.match(cellStackSource, /const FADE_STEP = 0\.5/);
-  assert.match(cellStackSource, /opacity:\s*depth >= 2 \? 0 : 1 - depth \* FADE_STEP/);
-});
+const readSource = (...segments) => fs.readFileSync(path.join(repoRoot, ...segments), "utf8");
 
-test("CellStack reuses the typography and grouped-card styling of the settings list", () => {
-  assert.match(cellStackSource, /radius:\s*expanded \? 0/);
-  assert.match(cellStackStyles, /\[data-expanded="true"\][\s\S]*gap:\s*0/);
-  assert.match(cellStackStyles, /> \.card:last-child[\s\S]*--cell-separator-height:\s*0/);
+const cellStackDir = ["src", "vendor", "wallet_animations", "components", "CellStack"];
+const cellStackSource = readSource(...cellStackDir, "index.jsx");
+const cellStackStyles = readSource(...cellStackDir, "CellStack.module.scss");
+const cellStackMorphSource = readSource(...cellStackDir, "Morph.jsx");
+const settingsSource = readSource("src", "components", "settings", "WalletSettingsCells.tsx");
+
+// Source-level guards only — there is no DOM test harness for the renderer, so these assert
+// the contracts the collapsed stack relies on, not exact markup, styling or tuning constants.
+test("collapsed CellStack layers are hidden from assistive tech and pointer input", () => {
+  assert.match(cellStackSource, /aria-hidden=\{behind && !expanded\}/);
+  assert.match(cellStackSource, /inert=\{behind && !expanded/);
   assert.match(
     cellStackStyles,
-    /\[data-expanded="false"\][\s\S]*> \.card:not\(:first-child\)[\s\S]*position:\s*absolute/
+    /\[data-expanded="false"\][\s\S]*> \.card:not\(:first-child\)[\s\S]*pointer-events:\s*none/
   );
-  assert.doesNotMatch(settingsSource, /title="Внешний вид и звуки"\s+bold/);
+  // Layers deeper than the first peeking card are fully faded out.
+  assert.match(cellStackSource, /opacity:\s*depth >= 2 \? 0/);
 });
 
-test("collapsed CellStack uses a downward chevron instead of a settings count", () => {
+test("the CellStack header is operable by keyboard", () => {
+  assert.match(cellStackSource, /role=\{isTrigger/);
+  assert.match(cellStackSource, /aria-expanded=\{isTrigger/);
+  assert.match(cellStackSource, /tabIndex=\{isTrigger/);
+  assert.match(cellStackSource, /event\.key !== "Enter" && event\.key !== " "/);
+  assert.match(cellStackStyles, /:focus-visible/);
+});
+
+test("expanding the stack merges the cards into a single grouped card", () => {
+  assert.match(cellStackStyles, /\[data-expanded="true"\][\s\S]*gap:\s*0/);
+  assert.match(cellStackStyles, /> \.card:last-child[\s\S]*--cell-separator-height:\s*0/);
+  assert.match(cellStackSource, /radius:\s*expanded \? 0/);
+});
+
+test("the collapsed header shows a chevron that rotates once expanded", () => {
   assert.match(settingsSource, /ChevronDownIcon/);
   assert.doesNotMatch(settingsSource, /ChevronUpIcon/);
   assert.match(settingsSource, /CellStack\.Morph rotateEndOnExpand/);
-  assert.match(settingsSource, /text-\[var\(--tg-theme-subtitle-text-color\)\] opacity-70/);
   assert.match(cellStackMorphSource, /rotate: expanded \? 180 : 0/);
-  assert.match(cellStackMorphSource, /CHEVRON_DURATION_SCALE = 1\.5/);
-  assert.match(cellStackMorphSource, /transition=\{rotateTransition\}/);
-  assert.doesNotMatch(settingsSource, /["`]3 настройки["`]/);
-  assert.doesNotMatch(settingsSource, /["`]2 настройки["`]/);
-});
-
-test("interface stack does not show secondary descriptions", () => {
-  assert.doesNotMatch(settingsSource, /description=/);
 });

@@ -28,10 +28,6 @@
     }
   },
   "tray": {
-    "toggleDictation": {
-      "show": "Mostra pannello dettatura",
-      "hide": "Nascondi pannello dettatura"
-    },
     "openControlPanel": "Apri pannello di controllo",
     "quit": "Esci da Type",
     "tooltip": "Type - Dettatura vocale"

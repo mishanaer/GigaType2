@@ -24,6 +24,12 @@
     gap: 0;
     overflow: hidden;
     background-color: var(--tg-theme-section-bg-color);
+    // Only the header collapses the stack again; the rows below own their own clicks.
+    cursor: default;
+
+    > .card:first-child {
+      cursor: pointer;
+    }
 
     > .card:last-child {
       --cell-separator-height: 0;
@@ -55,13 +61,6 @@
   :global(body.material) [data-expanded="false"] & {
     border-radius: 16px;
   }
-}
-
-.fill {
-  position: absolute;
-  inset: 0;
-  background-color: var(--tg-theme-secondary-bg-color);
-  pointer-events: none;
 }
 
 .content {

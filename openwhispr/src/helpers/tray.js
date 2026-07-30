@@ -18,12 +18,8 @@ class TrayManager {
     this.mainWindow = mainWindow;
     this.controlPanelWindow = controlPanelWindow;
 
-    if (this.mainWindow) {
-      this.mainWindow.on("show", () => this.updateTrayMenu?.());
-      this.mainWindow.on("hide", () => this.updateTrayMenu?.());
-      this.mainWindow.on("minimize", () => this.updateTrayMenu?.());
-      this.mainWindow.on("restore", () => this.updateTrayMenu?.());
-    }
+    // The menu no longer reflects dictation-panel state, so it does not need to be
+    // rebuilt when the panel shows or hides.
 
     if (this.controlPanelWindow) {
       this.attachControlPanelListeners(this.controlPanelWindow);
@@ -168,9 +164,11 @@ class TrayManager {
 
     if (platform === "darwin") {
       try {
-        const systemIcon = nativeImage
-          .createFromNamedImage("t.square.fill")
-          .resize({ width: 18, height: 18 });
+        // Do not resize: resize() rasterises to a single scale-factor-1 bitmap, which
+        // the menu bar then upscales on Retina displays. Left alone, AppKit renders the
+        // symbol at the status bar's own scale. The bundled iconTemplate@3x.png below
+        // stays the fallback.
+        const systemIcon = nativeImage.createFromNamedImage("t.square.fill");
         if (!systemIcon.isEmpty()) {
           systemIcon.setTemplateImage(true);
           debugLogger.debug("Using SF Symbol tray icon", { symbol: "t.square.fill" }, "tray");

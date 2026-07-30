@@ -33,7 +33,10 @@ const readFace = (cell) => {
 
 function Morph({ children, rotateEndOnExpand = false }) {
   const { expanded, spring } = useCellStack();
-  const [collapsedFace, expandedFace] = Children.toArray(children).map(readFace);
+  const faces = Children.toArray(children).map(readFace);
+  // A single child is a valid degenerate case: both faces are then the same cell.
+  const collapsedFace = faces[0] ?? {};
+  const expandedFace = faces[1] ?? collapsedFace;
 
   const state = expanded ? "expanded" : "collapsed";
   const face = expanded ? expandedFace : collapsedFace;

@@ -14,11 +14,10 @@ import * as styles from "./CellStack.module.scss";
 const APPLE_RADIUS = 26;
 const MATERIAL_RADIUS = 16;
 const SMOOTHING = 0.6;
-const FILL_TRANSITION = { ease: "linear", duration: 0.15 };
+const CONTENT_TRANSITION = { ease: "linear", duration: 0.15 };
 const PEEK = 13;
 const SCALE_STEP = 0.09;
 const FADE_STEP = 0.5;
-const FILL_OPACITY = { 1: 0.28, 2: 0.68 };
 
 const getStackVariant = ({ depth, expanded }) => {
   if (expanded || depth < 1) return { y: 0, scale: 1, opacity: 1 };
@@ -68,20 +67,15 @@ const StackCard = ({
       onKeyDown={isTrigger ? onTriggerKeyDown : undefined}
     >
       {behind ? (
-        <>
-          <m.div
-            className={styles.fill}
-            animate={{ opacity: expanded ? 0 : (FILL_OPACITY[depth] ?? 0) }}
-            transition={FILL_TRANSITION}
-          />
-          <m.div
-            className={styles.content}
-            animate={{ opacity: expanded ? 1 : 0 }}
-            transition={FILL_TRANSITION}
-          >
-            {children}
-          </m.div>
-        </>
+        // Cards peeking out from under the front one show their card background only;
+        // their content fades in once the stack is expanded.
+        <m.div
+          className={styles.content}
+          animate={{ opacity: expanded ? 1 : 0 }}
+          transition={CONTENT_TRANSITION}
+        >
+          {children}
+        </m.div>
       ) : (
         children
       )}

@@ -28,10 +28,6 @@
     }
   },
   "tray": {
-    "toggleDictation": {
-      "show": "Diktierfeld anzeigen",
-      "hide": "Diktierfeld ausblenden"
-    },
     "openControlPanel": "Kontrollzentrum öffnen",
     "quit": "Type beenden",
     "tooltip": "Type – Sprachdiktat"
