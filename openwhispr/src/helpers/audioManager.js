@@ -6,7 +6,7 @@ import {
   resolveGigaamTranscriptionUrl,
 } from "../utils/gigaamTranscription";
 import { getBaseLanguageCode } from "../utils/languageSupport";
-import { stripSingleTerminalPeriod } from "../utils/transcriptionFormatting";
+import { normalizeTranscriptionText } from "../utils/transcriptionFormatting";
 import {
   createLocalSpeechGateState,
   getLocalSpeechGateDecision,
@@ -684,7 +684,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   async processTranscription(text, source) {
-    const normalizedText = stripSingleTerminalPeriod(text);
+    const normalizedText = normalizeTranscriptionText(text);
 
     if (!normalizedText) {
       logger.debug(

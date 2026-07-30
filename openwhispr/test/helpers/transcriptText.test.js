@@ -20,6 +20,33 @@ test("stripSingleTerminalPeriod preserves other terminal punctuation", async () 
   assert.equal(stripSingleTerminalPeriod(""), "");
 });
 
+test("stripHesitationEs removes standalone hesitation variants", async () => {
+  const { stripHesitationEs } = await transcriptionFormatting;
+
+  assert.equal(stripHesitationEs("Я э думаю."), "Я думаю.");
+  assert.equal(stripHesitationEs("Я, э-э-э, думаю."), "Я, думаю.");
+  assert.equal(stripHesitationEs("Э-э-э. Продолжаем."), "Продолжаем.");
+  assert.equal(stripHesitationEs("Э-э-э... Продолжаем."), "Продолжаем.");
+  assert.equal(stripHesitationEs("э ээ эээ э-э э-э-э э... э…"), "");
+  assert.equal(stripHesitationEs("Э — Э — Э, продолжаем."), "продолжаем.");
+});
+
+test("stripHesitationEs preserves words containing the letter э", async () => {
+  const { stripHesitationEs } = await transcriptionFormatting;
+
+  assert.equal(
+    stripHesitationEs("Эмма изучает поэзию и эмпатию."),
+    "Эмма изучает поэзию и эмпатию."
+  );
+});
+
+test("normalizeTranscriptionText removes hesitations before the terminal period", async () => {
+  const { normalizeTranscriptionText } = await transcriptionFormatting;
+
+  assert.equal(normalizeTranscriptionText("Я, э..., думаю."), "Я, думаю");
+  assert.equal(normalizeTranscriptionText("э-э-э."), "");
+});
+
 test("transcriptsOverlap matches near-duplicate meeting transcripts", () => {
   assert.equal(
     transcriptsOverlap(
