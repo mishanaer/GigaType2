@@ -182,6 +182,8 @@ function WindowFrame({
 
 function SettingsPreview() {
   const [hideCapsule, setHideCapsule] = useState(false);
+  const [showDockIcon, setShowDockIcon] = useState(true);
+  const [audioCuesEnabled, setAudioCuesEnabled] = useState(true);
   const [activationMode, setActivationMode] = useState<"tap" | "push">("push");
 
   return (
@@ -200,6 +202,10 @@ function SettingsPreview() {
           onDeviceSelect={noop}
           hideCapsule={hideCapsule}
           onHideCapsuleChange={setHideCapsule}
+          showDockIcon={showDockIcon}
+          onShowDockIconChange={setShowDockIcon}
+          audioCuesEnabled={audioCuesEnabled}
+          onAudioCuesEnabledChange={setAudioCuesEnabled}
           devicesOverride={[
             {
               deviceId: "default",
@@ -214,7 +220,7 @@ function SettingsPreview() {
           ]}
         />
       </div>
-      <AppshotsBuildLabel className="mt-[20px]" size="small" />
+      <AppshotsBuildLabel className="mt-[40px]" size="small" />
     </div>
   );
 }

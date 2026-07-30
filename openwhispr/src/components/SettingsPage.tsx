@@ -25,6 +25,8 @@ export default function SettingsPage() {
     setHideCapsule,
     showDockIcon,
     setShowDockIcon,
+    audioCuesEnabled,
+    setAudioCuesEnabled,
   } = useSettings();
 
   const { registerHotkey, isRegistering: isHotkeyRegistering } = useHotkeyRegistration({
@@ -79,6 +81,8 @@ export default function SettingsPage() {
         onHideCapsuleChange={setHideCapsule}
         showDockIcon={showDockIcon}
         onShowDockIconChange={setShowDockIcon}
+        audioCuesEnabled={audioCuesEnabled}
+        onAudioCuesEnabledChange={setAudioCuesEnabled}
       />
     </>
   );

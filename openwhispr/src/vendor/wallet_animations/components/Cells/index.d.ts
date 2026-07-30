@@ -10,9 +10,9 @@ type CellProps<T extends React.ElementType = "div"> = {
 
 interface CellTextProps {
   type?: string;
-  title?: string;
-  description?: string;
-  caption?: string;
+  title?: React.ReactNode;
+  description?: React.ReactNode;
+  caption?: React.ReactNode;
   bold?: boolean;
 }
 
@@ -33,11 +33,24 @@ interface CellPartProps {
   children?: React.ReactNode;
 }
 
-type CellComponent = (<T extends React.ElementType = "div">(props: CellProps<T>) => React.ReactElement) & {
+type SwitchCellProps = {
+  start?: React.ReactNode;
+  children?: React.ReactNode;
+  value?: boolean;
+  defaultValue?: boolean;
+  onChange?: (value: boolean) => void;
+  disabled?: boolean;
+  ariaLabel?: string;
+} & Omit<React.ComponentPropsWithoutRef<"div">, "children" | "onChange">;
+
+type CellComponent = (<T extends React.ElementType = "div">(
+  props: CellProps<T>
+) => React.ReactElement) & {
   Start: React.FC<CellStartProps>;
   Text: React.FC<CellTextProps>;
   End: React.FC<CellEndProps>;
   Part: React.FC<CellPartProps>;
+  Switch: React.FC<SwitchCellProps>;
 };
 
 export const Cell: CellComponent;

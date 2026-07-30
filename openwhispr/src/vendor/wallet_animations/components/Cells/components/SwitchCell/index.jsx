@@ -1,71 +1,75 @@
-import { useState } from "react"
-import PropTypes from "prop-types"
-import Cell from "../../index"
-import Switch from "../../../Switch"
+import { useState } from "react";
+import PropTypes from "prop-types";
+import Cell from "../../index";
+import Switch from "../../../Switch";
 
 const SwitchCell = ({
-    start,
-    children,
-    value,
-    defaultValue = false,
-    onChange,
-    disabled = false,
-    ...props
+  start,
+  children,
+  value,
+  defaultValue = false,
+  onChange,
+  disabled = false,
+  ariaLabel,
+  ...props
 }) => {
-    const isControlled = value !== undefined
-    const [uncontrolled, setUncontrolled] = useState(defaultValue)
-    const checked = isControlled ? value : uncontrolled
+  const isControlled = value !== undefined;
+  const [uncontrolled, setUncontrolled] = useState(defaultValue);
+  const checked = isControlled ? value : uncontrolled;
 
-    const emitChange = (next) => {
-        if (onChange) onChange(next)
+  const emitChange = (next) => {
+    if (onChange) onChange(next);
+  };
+
+  const handleChange = (next) => {
+    if (!isControlled) setUncontrolled(next);
+    emitChange(next);
+  };
+
+  const handleClick = (event) => {
+    event.stopPropagation();
+    if (disabled) return;
+    if (isControlled) {
+      handleChange(!checked);
+      return;
     }
 
-    const handleChange = (next) => {
-        if (!isControlled) setUncontrolled(next)
-        emitChange(next)
-    }
+    setUncontrolled((prev) => {
+      const next = !prev;
+      emitChange(next);
+      return next;
+    });
+  };
 
-    const handleClick = () => {
-        if (disabled) return
-        if (isControlled) {
-            handleChange(!checked)
-            return
-        }
-
-        setUncontrolled((prev) => {
-            const next = !prev
-            emitChange(next)
-            return next
-        })
-    }
-
-    return (
-        <Cell
-            start={start}
-            end={
-                <Cell.Part type="Switch">
-                    <Switch
-                        value={checked}
-                        onChange={handleChange}
-                        disabled={disabled}
-                    />
-                </Cell.Part>
-            }
-            onClick={handleClick}
-            {...props}
-        >
-            {children}
-        </Cell>
-    )
-}
+  return (
+    <Cell
+      start={start}
+      end={
+        <Cell.Part type="Switch">
+          <Switch
+            value={checked}
+            onChange={handleChange}
+            disabled={disabled}
+            ariaLabel={ariaLabel}
+          />
+        </Cell.Part>
+      }
+      onClick={handleClick}
+      {...props}
+    >
+      {children}
+    </Cell>
+  );
+};
 
 SwitchCell.propTypes = {
-    start: PropTypes.node,
-    children: PropTypes.node,
-    value: PropTypes.bool,
-    defaultValue: PropTypes.bool,
-    onChange: PropTypes.func,
-    disabled: PropTypes.bool,
-}
+  start: PropTypes.node,
+  children: PropTypes.node,
+  value: PropTypes.bool,
+  defaultValue: PropTypes.bool,
+  onChange: PropTypes.func,
+  disabled: PropTypes.bool,
+  ariaLabel: PropTypes.string,
+};
 
-export default SwitchCell
+export default SwitchCell;
