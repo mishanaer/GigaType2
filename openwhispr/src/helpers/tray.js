@@ -166,6 +166,25 @@ class TrayManager {
     const platform = process.platform;
     const isDevelopment = process.env.NODE_ENV === "development";
 
+    if (platform === "darwin") {
+      try {
+        const systemIcon = nativeImage
+          .createFromNamedImage("t.square.fill")
+          .resize({ width: 18, height: 18 });
+        if (!systemIcon.isEmpty()) {
+          systemIcon.setTemplateImage(true);
+          debugLogger.debug("Using SF Symbol tray icon", { symbol: "t.square.fill" }, "tray");
+          return systemIcon;
+        }
+      } catch (error) {
+        debugLogger.warn(
+          "Unable to load SF Symbol tray icon",
+          { symbol: "t.square.fill", error: error.message },
+          "tray"
+        );
+      }
+    }
+
     const candidatePaths = [];
 
     if (platform === "darwin") {
@@ -266,26 +285,7 @@ class TrayManager {
   }
 
   buildContextMenuTemplate() {
-    const dictationVisible = this.windowManager?.isDictationPanelVisible?.() ?? false;
-
     return [
-      {
-        // The dictation overlay has no idle state — it only renders while
-        // recording and auto-hides otherwise (see src/App.jsx), so this item
-        // starts/stops a dictation rather than toggling an empty window.
-        label: dictationVisible
-          ? i18nMain.t("tray.toggleDictation.hide")
-          : i18nMain.t("tray.toggleDictation.show"),
-        click: () => {
-          if (!this.windowManager) return;
-          if (this.windowManager.isDictationPanelVisible()) {
-            this.windowManager.sendStopDictation();
-          } else {
-            this.windowManager.sendStartDictation();
-          }
-          this.updateTrayMenu();
-        },
-      },
       {
         label: i18nMain.t("tray.openControlPanel"),
         click: async () => {

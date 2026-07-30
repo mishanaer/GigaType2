@@ -9,6 +9,7 @@ import { useCellStack } from "./context";
 import * as styles from "./CellStack.module.scss";
 
 const TRANSITION = TRANSITIONS.MATERIAL_STANDARD;
+const CHEVRON_DURATION_SCALE = 1.5;
 
 const LOGO_FRONT = {
   collapsed: { scale: 0.6, x: -6, y: -6 },
@@ -39,6 +40,11 @@ function Morph({ children, rotateEndOnExpand = false }) {
   const hasStart = Boolean(collapsedFace.start || expandedFace.start);
   const description = face.description;
   const endValue = rotateEndOnExpand ? collapsedFace.value : face.value;
+  const rotateTransition = {
+    ...spring,
+    stiffness: spring.stiffness / CHEVRON_DURATION_SCALE ** 2,
+    damping: spring.damping / CHEVRON_DURATION_SCALE,
+  };
 
   return (
     <Cell
@@ -72,7 +78,7 @@ function Morph({ children, rotateEndOnExpand = false }) {
                 <m.span
                   className={styles.rotatingEnd}
                   animate={{ rotate: expanded ? 180 : 0 }}
-                  transition={spring}
+                  transition={rotateTransition}
                 >
                   {endValue}
                 </m.span>

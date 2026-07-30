@@ -1,5 +1,7 @@
 const HESITATION_E_PATTERN =
   /(?<![\p{L}\p{N}])э+(?:(?:[ \t]*[-–—][ \t]*э+)|(?:[ \t]*(?:\.[ \t]*\.[ \t]*\.|…)[ \t]*э*))*(?![\p{L}\p{N}])/giu;
+const HESITATION_A_PATTERN =
+  /(?<![\p{L}\p{N}])а+(?:[ \t]*[-–—][ \t]*а+)+(?:[ \t]*(?:\.[ \t]*\.[ \t]*\.|…))?(?![\p{L}\p{N}])/giu;
 
 export function stripSingleTerminalPeriod(text) {
   const normalizedText = typeof text === "string" ? text.trim() : "";
@@ -13,7 +15,9 @@ export function stripSingleTerminalPeriod(text) {
 
 export function stripHesitationEs(text) {
   const normalizedText = typeof text === "string" ? text.trim() : "";
-  const withoutHesitations = normalizedText.replace(HESITATION_E_PATTERN, "");
+  const withoutHesitations = normalizedText
+    .replace(HESITATION_E_PATTERN, "")
+    .replace(HESITATION_A_PATTERN, "");
 
   if (withoutHesitations === normalizedText) {
     return normalizedText;
