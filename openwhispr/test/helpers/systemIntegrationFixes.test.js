@@ -50,6 +50,24 @@ test("Windows inbound bridges are opt-in and macOS keeps a menu bar recovery pat
   assert.match(settingsSource, /Показывать иконку в Dock/);
 });
 
+test("hiding the macOS Dock icon keeps open windows active", () => {
+  const windowManagerSource = fs.readFileSync(
+    path.join(repoRoot, "src/helpers/windowManager.js"),
+    "utf8"
+  );
+  const setShowDockIconSource = windowManagerSource.match(
+    /setShowDockIcon\(enabled\) \{[\s\S]*?\n  \}/
+  )?.[0];
+
+  assert.ok(setShowDockIconSource);
+  assert.match(setShowDockIconSource, /app\.dock\.hide\(\)/);
+  assert.doesNotMatch(setShowDockIconSource, /setActivationPolicy\("accessory"\)/);
+  assert.match(
+    windowManagerSource,
+    /_alwaysOnTopOptions\(\) \{[\s\S]*?skipTransformProcessType: true/
+  );
+});
+
 test("packaged Windows close-to-tray always has a recoverable tray icon", () => {
   const mainSource = fs.readFileSync(path.join(repoRoot, "main.js"), "utf8");
   const builderConfig = fs.readFileSync(path.join(repoRoot, "electron-builder.json"), "utf8");

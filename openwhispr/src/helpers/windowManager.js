@@ -82,7 +82,6 @@ class WindowManager {
           await app.dock.show();
         } else {
           app.dock.hide();
-          app.setActivationPolicy("accessory");
         }
         debugLogger.info("macOS Dock visibility changed", { visible: this.showDockIcon }, "window");
         return this.showDockIcon;
@@ -95,9 +94,9 @@ class WindowManager {
   }
 
   _alwaysOnTopOptions() {
-    // Letting Electron transform the process type would hide the Dock icon behind
-    // the user's back, so only allow it when the Dock icon is already hidden.
-    return { skipTransformProcessType: this.showDockIcon };
+    // Keep the current app activation policy stable. The Dock icon is controlled
+    // explicitly with app.dock, and hiding it must not deactivate open windows.
+    return { skipTransformProcessType: true };
   }
 
   async createMainWindow() {
