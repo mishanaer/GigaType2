@@ -268,7 +268,7 @@ def _overview_period_starts(now: float) -> dict[str, float]:
     return {
         "dau": day_start.timestamp(),
         "wau": (day_start - timedelta(days=day_start.weekday())).timestamp(),
-        "mau": day_start.replace(day=1).timestamp(),
+        "mau": (day_start - timedelta(days=29)).timestamp(),
     }
 
 
