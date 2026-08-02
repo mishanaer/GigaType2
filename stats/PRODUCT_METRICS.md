@@ -55,11 +55,12 @@ the same first-open cohort, never raw event counts.
   historical import.
 - `Europe/Moscow` is the reporting timezone for daily activity and cohorts.
   DAU is the distinct active installation count from 00:00 MSK on the current
-  date, WAU is the current ISO week from Monday 00:00 MSK, and MAU is the
-  current calendar month from its first date 00:00 MSK. These are partial
-  current periods, never trailing 24-hour/7-day/30-day windows. Product
-  seven- and 30-date views still include today plus the previous 6 or 29
-  Moscow calendar dates.
+  date and WAU is the current ISO week from Monday 00:00 MSK; both are partial
+  current periods, never trailing 24-hour/7-day windows. MAU is the rolling
+  last 30 Moscow dates including today (fleet decision of 2026-08-01: a
+  calendar month-to-date cliffed to daily values every 1st and read as broken
+  data). Product seven- and 30-date views likewise include today plus the
+  previous 6 or 29 Moscow calendar dates.
 - `event_id` is the cross-source deduplication key. The same telemetry event may
   arrive from a PostHog backfill and direct Traction ingest.
 - `Sessions / DAU` always uses the current Moscow date for both numerator and

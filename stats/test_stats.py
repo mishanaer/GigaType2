@@ -81,7 +81,7 @@ class ProductMetricsTest(unittest.TestCase):
             "sessions_per_dau": None,
         })
 
-    def test_overview_uses_moscow_day_iso_week_and_calendar_month(self):
+    def test_overview_uses_moscow_day_iso_week_and_rolling_30_dates(self):
         calendar_now = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc).timestamp()
         rows = [
             {
@@ -121,31 +121,51 @@ class ProductMetricsTest(unittest.TestCase):
                 "properties": {},
             },
             {
-                # Sunday of the previous ISO week, still in the current month.
+                # Sunday of the previous ISO week, still inside the window.
                 "ts": datetime(2026, 7, 5, 8, 0, tzinfo=timezone.utc).timestamp(),
-                "device_id": "current-month",
+                "device_id": "previous-week",
                 "name": "app_opened",
-                "event_id": "current-month",
+                "event_id": "previous-week",
                 "properties": {},
             },
             {
-                # 23:59 MSK on the last date of the previous month.
+                # 23:59 MSK on the last date of the previous calendar month.
+                # MAU is rolling since 2026-08-01, so this one counts.
                 "ts": datetime(2026, 6, 30, 20, 59, tzinfo=timezone.utc).timestamp(),
                 "device_id": "previous-month",
                 "name": "app_opened",
                 "event_id": "previous-month",
                 "properties": {},
             },
+            {
+                # 00:00 MSK on 2026-06-09 — the 30th and oldest date of the
+                # rolling window, whose start bound is inclusive.
+                "ts": datetime(2026, 6, 8, 21, 0, tzinfo=timezone.utc).timestamp(),
+                "device_id": "window-oldest-date",
+                "name": "app_opened",
+                "event_id": "window-oldest-date",
+                "properties": {},
+            },
+            {
+                # 23:59 MSK on 2026-06-08 — one minute before the window.
+                "ts": datetime(2026, 6, 8, 20, 59, tzinfo=timezone.utc).timestamp(),
+                "device_id": "before-window",
+                "name": "app_opened",
+                "event_id": "before-window",
+                "properties": {},
+            },
         ]
-        self.assertEqual(insert_events(server._db, rows), 6)
+        self.assertEqual(insert_events(server._db, rows), 8)
 
         product = server._product_payload(1, calendar_now)
 
         self.assertEqual(product["active_devices"], 1)
         self.assertEqual(product["overview"]["dau"], 1)
         self.assertEqual(product["overview"]["wau"], 2)
-        self.assertEqual(product["overview"]["mau"], 3)
-        self.assertEqual(product["overview"]["ever_used"], 4)
+        # Rolling last 30 Moscow dates (2026-06-09..2026-07-08): everyone
+        # except the device whose only event predates the window.
+        self.assertEqual(product["overview"]["mau"], 5)
+        self.assertEqual(product["overview"]["ever_used"], 6)
         self.assertEqual(product["overview"]["sessions_per_dau"], 2.0)
 
         with patch("server.time.time", return_value=calendar_now):
