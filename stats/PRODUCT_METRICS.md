@@ -66,6 +66,14 @@ the same first-open cohort, never raw event counts.
   arrive from a PostHog backfill and direct Traction ingest.
 - `Sessions / DAU` always uses the current Moscow date for both numerator and
   denominator, independently of the selected 1/7/30-date product view.
+- `Tools / DAU` is a fleet-wide canonical field, and its per-project meaning is
+  owned by the hub registry, not by this module: `tools_definition` of project
+  `gigatype` in `projects.json` fixes it as successful eligible dictations per
+  DAU, i.e. deliberately the same number as `Sessions / DAU`, with both cards
+  rendered. The equality is the decision, not a placeholder — do not drop the
+  field to remove a duplicate-looking card. The hub also charts `Engagement
+  dynamics` from `tools_per_dau` alone, so dropping it blanks that chart and
+  cuts the stored series, which starts on 2026-07-30 for Type.
 
 ## Availability
 
