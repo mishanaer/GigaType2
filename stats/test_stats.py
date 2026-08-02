@@ -186,6 +186,9 @@ class ProductMetricsTest(unittest.TestCase):
                 "sessions_per_dau", "tools_per_dau",
             },
         )
+        # Равенство намеренное, а не совпадение: для Тайпа одна завершённая
+        # диктовка — и сессия, и продуктовое действие (tools_definition
+        # проекта gigatype в реестре хаба projects.json).
         self.assertEqual(
             overview["tools_per_dau"],
             overview["sessions_per_dau"],
