@@ -565,6 +565,10 @@ def _compute_product_payload(days: float, now: float) -> dict:
             "wau": len(active_by_period["wau"]),
             "mau": len(active_by_period["mau"]),
             "sessions_per_dau": sessions_per_dau,
+            # For GigaType one successful eligible dictation is both a session and
+            # the product-defined tool use.  Traction intentionally renders both
+            # canonical cards even though their values are equal.
+            "tools_per_dau": sessions_per_dau,
         },
         "active_devices": len(active_devices),
         "active_dictators": len(active_dictators),

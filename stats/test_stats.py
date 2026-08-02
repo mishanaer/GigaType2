@@ -79,6 +79,7 @@ class ProductMetricsTest(unittest.TestCase):
             "wau": 1,
             "mau": 3,
             "sessions_per_dau": None,
+            "tools_per_dau": None,
         })
 
     def test_overview_uses_moscow_day_iso_week_and_rolling_30_dates(self):
@@ -180,9 +181,15 @@ class ProductMetricsTest(unittest.TestCase):
 
         self.assertEqual(
             set(overview),
-            {"ever_used", "dau", "wau", "mau", "sessions_per_dau"},
+            {
+                "ever_used", "dau", "wau", "mau",
+                "sessions_per_dau", "tools_per_dau",
+            },
         )
-        self.assertNotIn("tools_per_dau", overview)
+        self.assertEqual(
+            overview["tools_per_dau"],
+            overview["sessions_per_dau"],
+        )
 
     def test_realtime_product_cache_serializes_fills_and_reuses_payload(self):
         calls = []
