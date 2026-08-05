@@ -4,9 +4,10 @@ name: Build Windows app (unsigned)
 # Builds the full GigaType desktop app for Windows x64 on a cloud runner
 # (windows-latest already has Node and VS Build Tools). Local ASR now runs
 # in-process (gigaamLocalAsr.js via onnxruntime-node), so no Python sidecar is
-# built or bundled. The fp32 GigaAM v3 model is downloaded and bundled into the
-# app ("wired model") so a fresh install transcribes offline without the
-# ~885 MB first-run download. Produces an unsigned NSIS installer + portable .exe.
+# built or bundled. The bilingual fp32 GigaAM v3 model is downloaded from the
+# pinned Yandex Disk package and bundled into the app ("wired model") so a
+# fresh install transcribes offline. Produces an unsigned NSIS installer +
+# portable .exe.
 #
 # Delivery: the installer is attached to a "windows-dev-build-wired" prerelease
 # (Release assets are a separate storage bucket, so they keep working when the
@@ -56,22 +57,24 @@ jobs:
       - name: Install platform-specific native binaries
         run: npm install @rollup/rollup-win32-x64-msvc lightningcss-win32-x64-msvc @tailwindcss/oxide-win32-x64-msvc --no-save
 
-      # ~885 MB, so cache it across runs. The download step skips files already
-      # present at the right size, so a cache hit makes it a near-instant no-op.
+      # ~892 MB extracted, so cache it across runs. Pin the cache to the verified
+      # source archive hash instead of the downloader script hash: refactors of
+      # the script must not cause another 987 MB public-link download.
       - name: Cache GigaAM model
         uses: actions/cache@v4
         with:
           path: openwhispr/resources/gigaam-model
-          key: gigaam-model-${{ hashFiles('openwhispr/scripts/download-gigaam-model.js') }}
+          key: gigaam-en-ru-086fe4f30126954f8db29318fa24d0cc1ce6320493379e37534cc938ba2909df
 
-      # Populate resources/gigaam-model/ so electron-builder's win.extraResources
-      # can bundle it into the app (Contents/Resources/gigaam-model on disk;
-      # resolved at runtime by gigaamLocalAsr.js _getBundledModelDir()).
-      - name: Download GigaAM model (wired)
+      # Resolve the public Yandex Disk link through its API, verify the pinned
+      # archive SHA-256, extract only the fp32 files, and populate the directory
+      # consumed by win.extraResources. prebuild:win repeats this as a cheap
+      # verification so local Windows builds cannot accidentally omit the model.
+      - name: Download bilingual GigaAM model (wired)
         run: npm run download:gigaam-model
 
       # prebuild:win (auto pre-hook) downloads llama-server / qdrant / sherpa /
-      # vad / diarization / Windows helper binaries, then
+      # vad / diarization / Windows helper binaries, verifies GigaAM, then
       # electron-builder packages the unsigned NSIS installer + portable exe.
       # --publish never: electron-builder auto-publishes when it detects CI,
       # which then fails trying to resolve a repository/token. We only want the

@@ -14,6 +14,10 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { Arch } = require("app-builder-lib");
+const {
+  MODEL_FILES: GIGAAM_MODEL_FILES,
+  assertModelDir: assertGigaamModelDir,
+} = require("./lib/gigaam-model-package");
 
 // ---------------------------------------------------------------------------
 // macOS resource binary signing
@@ -584,12 +588,27 @@ function pruneGigaamEncoders(context) {
   }
 }
 
+// Windows releases promise an offline first run. Fail while electron-builder
+// still has a readable app directory if the pinned wired model was omitted,
+// truncated, or came from an unverified source package.
+function validateBundledGigaamModel(context) {
+  if (context.electronPlatformName !== "win32") return;
+
+  const modelDir = path.join(resolveResourcesDir(context), "gigaam-model");
+  assertGigaamModelDir(modelDir, { requireManifest: true });
+  const totalBytes = GIGAAM_MODEL_FILES.reduce((sum, file) => sum + file.bytes, 0);
+  console.log(
+    `  afterPack: verified bilingual GigaAM model (${(totalBytes / 1024 / 1024).toFixed(0)} MB)`
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main hook
 // ---------------------------------------------------------------------------
 
 exports.default = async function (context) {
   pruneGigaamEncoders(context);
+  validateBundledGigaamModel(context);
   stripOnnxruntimeBinaries(context);
   stripResourceBinaries(context);
   thinFatBinaries(context);
@@ -600,4 +619,4 @@ exports.default = async function (context) {
   registerMacResourceBinariesForSigning(context);
 };
 
-exports._testing = { shouldKeepGigaamOnnxEncoder };
+exports._testing = { shouldKeepGigaamOnnxEncoder, validateBundledGigaamModel };

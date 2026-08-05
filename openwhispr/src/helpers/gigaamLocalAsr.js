@@ -194,6 +194,13 @@ function findBundledOnnxEncoder(resourcesPath) {
   return fs.existsSync(encoderPath) ? encoderPath : null;
 }
 
+function shouldPreferBundledModel(
+  platform = process.platform,
+  isPackaged = Boolean(app?.isPackaged)
+) {
+  return platform === "win32" && isPackaged;
+}
+
 class GigaamLocalAsrManager extends EventEmitter {
   constructor() {
     super();
@@ -249,7 +256,7 @@ class GigaamLocalAsrManager extends EventEmitter {
       // resource is fatal there. Explicit ONNX builds keep the bundled encoder
       // and can safely use it as the packaged fallback (for example, when
       // shipping model weights that do not have a matching CoreML conversion).
-      if (app.isPackaged && !hasBundledOnnxFallback) {
+      if (app?.isPackaged && !hasBundledOnnxFallback) {
         this.aneUnavailableReason = `Apple Silicon build is missing its CoreML encoder (${missing})`;
         debugLogger.error("GigaAM ANE encoder unavailable in packaged build", { missing });
       } else {
@@ -322,13 +329,17 @@ class GigaamLocalAsrManager extends EventEmitter {
 
   // Directory containing all model files, or null when not downloaded yet.
   _resolveModelBaseDir() {
+    const bundled = this._getBundledModelDir();
+    // The Windows installer carries the pinned bilingual model specifically so
+    // it is the default on both clean installs and upgrades with a legacy cache.
+    if (bundled && shouldPreferBundledModel()) return bundled;
+
     const legacy = this._findLegacySnapshotDir();
     if (legacy) return legacy;
     const dir = this.getModelDir();
     if (this._requiredModelFiles().every((f) => fs.existsSync(path.join(dir, f.name)))) {
       return dir;
     }
-    const bundled = this._getBundledModelDir();
     if (bundled) return bundled;
     return null;
   }
@@ -866,5 +877,6 @@ module.exports._testing = {
   findBundledOnnxEncoder,
   getPcmChunkRanges,
   mergeTranscriptChunk,
+  shouldPreferBundledModel,
   transcribePcmInChunks,
 };

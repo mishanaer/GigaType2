@@ -28,3 +28,12 @@ test("packaged ASR detects the bundled ONNX encoder fallback", (t) => {
   fs.writeFileSync(encoderPath, "test model placeholder");
   assert.equal(GigaamLocalAsrManager._testing.findBundledOnnxEncoder(resourcesDir), encoderPath);
 });
+
+test("packaged Windows prefers its pinned bundled model", () => {
+  const { shouldPreferBundledModel } = GigaamLocalAsrManager._testing;
+
+  assert.equal(shouldPreferBundledModel("win32", true), true);
+  assert.equal(shouldPreferBundledModel("win32", false), false);
+  assert.equal(shouldPreferBundledModel("darwin", true), false);
+  assert.equal(shouldPreferBundledModel("linux", true), false);
+});
