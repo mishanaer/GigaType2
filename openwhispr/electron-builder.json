@@ -1,7 +1,6 @@
 {
   "appId": "ai.gigatype.app",
   "afterPack": "scripts/afterPack.js",
-  "afterSign": "scripts/afterSign.js",
   "afterAllArtifactBuild": "scripts/afterAllArtifactBuild.js",
   "productName": "Type",
   "protocols": {
@@ -182,6 +181,7 @@
     "icon": "src/assets/icon.icns",
     "gatekeeperAssess": false,
     "hardenedRuntime": true,
+    "notarize": true,
     "entitlements": "resources/mac/entitlements.mac.plist",
     "entitlementsInherit": "resources/mac/entitlements.mac.plist",
     "extraResources": [
@@ -287,6 +287,7 @@
     "include": "resources/nsis/cleanup-models.nsh"
   },
   "dmg": {
+    "sign": true,
     "title": "Type",
     "format": "UDBZ",
     "icon": "src/assets/icon.icns",

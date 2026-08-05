@@ -611,7 +611,7 @@ const { t } = useTranslation();
    - Use `npm run pack` for unsigned builds (CSC_IDENTITY_AUTO_DISCOVERY=false)
    - Signing requires Apple Developer account
    - ASAR unpacking needed for FFmpeg
-   - afterSign.js automatically skips signing when CSC_IDENTITY_AUTO_DISCOVERY=false
+   - electron-builder automatically skips signing and notarization when CSC_IDENTITY_AUTO_DISCOVERY=false
    - **Lockfile**: Always use Node 24 when running `npm install` (matches CI). If your local Node version differs, use `nvm exec 24 npm install`. Running `npm install` with a different major version will produce an incompatible `package-lock.json` that breaks `npm ci` in CI.
 
 5. **Windows Push-to-Talk Binary**:

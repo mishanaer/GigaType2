@@ -188,6 +188,12 @@ function applyLoopbackCors(req, res) {
   return true;
 }
 
+function findBundledOnnxEncoder(resourcesPath) {
+  if (!resourcesPath) return null;
+  const encoderPath = path.join(resourcesPath, "gigaam-model", ENCODER_FILE.name);
+  return fs.existsSync(encoderPath) ? encoderPath : null;
+}
+
 class GigaamLocalAsrManager extends EventEmitter {
   constructor() {
     super();
@@ -236,17 +242,21 @@ class GigaamLocalAsrManager extends EventEmitter {
 
     if (!modelPath || !helperPath) {
       const missing = !modelPath ? `${ANE_MODEL_DIR_NAME}/${ANE_MODEL_NAME}` : ANE_HELPER_BINARY;
-      // A packaged arm64 build has no ONNX encoder to fall back to — quietly
-      // downloading the 885 MB one instead would be a much worse surprise than
-      // a hard failure. Dev keeps the ONNX path so a working checkout without
-      // the CoreML model still transcribes.
-      if (app.isPackaged) {
+      const bundledOnnxEncoder = findBundledOnnxEncoder(process.resourcesPath);
+      const hasBundledOnnxFallback = Boolean(bundledOnnxEncoder);
+
+      // Normal arm64 releases contain the CoreML encoder only, so a missing ANE
+      // resource is fatal there. Explicit ONNX builds keep the bundled encoder
+      // and can safely use it as the packaged fallback (for example, when
+      // shipping model weights that do not have a matching CoreML conversion).
+      if (app.isPackaged && !hasBundledOnnxFallback) {
         this.aneUnavailableReason = `Apple Silicon build is missing its CoreML encoder (${missing})`;
         debugLogger.error("GigaAM ANE encoder unavailable in packaged build", { missing });
       } else {
-        debugLogger.warn("GigaAM ANE encoder not prepared — using the ONNX encoder", {
+        debugLogger.warn("GigaAM ANE encoder unavailable — using the ONNX encoder", {
           missing,
-          hint: "npm run download:gigaam-ane",
+          encoderPath: hasBundledOnnxFallback ? bundledOnnxEncoder : undefined,
+          hint: hasBundledOnnxFallback ? undefined : "npm run download:gigaam-ane",
         });
       }
       return null;
@@ -853,6 +863,7 @@ module.exports._testing = {
   MAX_TRANSCRIPTION_CHUNK_SECONDS,
   MAX_TRANSCRIPTION_CHUNK_SAMPLES,
   findDuplicateSeamWordCount,
+  findBundledOnnxEncoder,
   getPcmChunkRanges,
   mergeTranscriptChunk,
   transcribePcmInChunks,

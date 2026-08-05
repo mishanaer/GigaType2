@@ -17,9 +17,9 @@
 #
 # --- How "unsigned" is expressed --------------------------------------------
 #   CSC_IDENTITY_AUTO_DISCOVERY=false tells electron-builder to skip code
-#   signing, and scripts/afterSign.js short-circuits (skips notarization) on
-#   that same flag. Every CSC_*/APPLE_* var is unset first so a stray value in
-#   the environment can't quietly re-enable signing.
+#   signing and therefore its built-in notarization. Every CSC_*/APPLE_* var is
+#   unset first so a stray value in the environment can't quietly re-enable
+#   signing.
 #
 # --- What this does NOT do vs. the signed script -----------------------------
 #   No codesign, no notarytool submit, no stapler staple, no spctl assessment
@@ -43,8 +43,8 @@ done
 
 # ---------- force unsigned ----------------------------------------------------
 # Drop anything that could steer electron-builder toward a real identity, then
-# explicitly disable auto-discovery. afterSign.js reads this same flag and skips
-# notarization when it is "false".
+# explicitly disable auto-discovery. electron-builder skips notarization when
+# the app is not signed.
 unset CSC_LINK CSC_KEY_PASSWORD CSC_NAME \
       APPLE_ID APPLE_PASSWORD APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID \
       APPLE_SIGNING_IDENTITY APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER
