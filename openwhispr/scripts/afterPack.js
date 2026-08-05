@@ -529,9 +529,13 @@ function stripElectronLocales(context) {
 // ---------------------------------------------------------------------------
 
 // mac.extraResources is shared by both macOS architectures, so both encoders get
-// copied in and the one this arch cannot use is removed here: arm64 runs the
-// CoreML encoder on the Neural Engine (the 885 MB ONNX encoder is dead weight),
-// x64 has no ANE and keeps the ONNX path.
+// copied in and the one this arch cannot use is removed here. arm64 normally
+// runs the CoreML encoder on the Neural Engine; GIGAAM_MAC_ENCODER=onnx keeps a
+// custom ONNX encoder instead when no matching CoreML conversion exists.
+function shouldKeepGigaamOnnxEncoder(archName, env = process.env) {
+  return archName !== "arm64" || env.GIGAAM_MAC_ENCODER === "onnx";
+}
+
 function pruneGigaamEncoders(context) {
   if (context.electronPlatformName !== "darwin") return;
 
@@ -552,7 +556,9 @@ function pruneGigaamEncoders(context) {
     );
   };
 
-  if (archName === "arm64") {
+  const useOnnxEncoder = shouldKeepGigaamOnnxEncoder(archName);
+
+  if (!useOnnxEncoder) {
     if (!fs.existsSync(path.join(aneModelDir, "encoder-ane.mlmodelc", "model.mil"))) {
       throw new Error(
         "arm64 build is missing resources/gigaam-ane/encoder-ane.mlmodelc — run npm run download:gigaam-ane"
@@ -565,8 +571,16 @@ function pruneGigaamEncoders(context) {
     }
     remove(onnxEncoder, "ONNX encoder (superseded by the CoreML/ANE encoder)");
   } else {
+    if (!fs.existsSync(onnxEncoder)) {
+      throw new Error(
+        `${archName} build is missing resources/gigaam-model/v3_e2e_rnnt_encoder.onnx`
+      );
+    }
     remove(aneModelDir, "CoreML/ANE encoder (Apple Silicon only)");
     remove(aneHelper, "CoreML/ANE encoder helper (Apple Silicon only)");
+    if (archName === "arm64") {
+      console.log("  afterPack: keeping the bundled ONNX encoder for arm64");
+    }
   }
 }
 
@@ -585,3 +599,5 @@ exports.default = async function (context) {
   wrapLinuxBinary(context);
   registerMacResourceBinariesForSigning(context);
 };
+
+exports._testing = { shouldKeepGigaamOnnxEncoder };

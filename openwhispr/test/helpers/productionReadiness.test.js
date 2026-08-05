@@ -45,6 +45,15 @@ test("bundled app metadata uses Type as the visible product name", () => {
   assert.equal(englishLocale.auth.welcomeTitle, "Welcome to Type");
 });
 
+test("macOS release artifacts use one signed notarization pipeline", () => {
+  const builderConfig = JSON.parse(read("electron-builder.json"));
+
+  assert.equal(builderConfig.mac.hardenedRuntime, true);
+  assert.equal(builderConfig.mac.notarize, true);
+  assert.equal(builderConfig.dmg.sign, true);
+  assert.equal(builderConfig.afterSign, undefined);
+});
+
 test("local-only transcription provider surface does not advertise OpenAI", () => {
   const providersStore = read("src/stores/streamingProvidersStore.ts");
   const modelRegistry = read("src/models/ModelRegistry.ts");

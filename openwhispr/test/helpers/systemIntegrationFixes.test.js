@@ -56,7 +56,7 @@ test("hiding the macOS Dock icon keeps open windows active", () => {
     "utf8"
   );
   const setShowDockIconSource = windowManagerSource.match(
-    /setShowDockIcon\(enabled\) \{[\s\S]*?\n  \}/
+    /setShowDockIcon\(enabled\) \{[\s\S]*?\n {2}\}/
   )?.[0];
 
   assert.ok(setShowDockIconSource);
