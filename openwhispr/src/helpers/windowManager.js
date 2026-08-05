@@ -96,7 +96,28 @@ class WindowManager {
   _alwaysOnTopOptions() {
     // Keep the current app activation policy stable. The Dock icon is controlled
     // explicitly with app.dock, and hiding it must not deactivate open windows.
+    // The required macOS process-type transition is performed separately while
+    // the capsule is hidden, so repeated raises do not blink the Dock.
     return { skipTransformProcessType: true };
+  }
+
+  _prepareMainWindowForMacWorkspaces() {
+    if (process.platform !== "darwin" || !this.mainWindow || this.mainWindow.isDestroyed()) {
+      return false;
+    }
+
+    // Electron needs one process-type transition to make visibleOnFullScreen
+    // effective for a regular macOS app. Do it only while the capsule is hidden:
+    // subsequent always-on-top refreshes can safely skip the transition and keep
+    // the Dock/control panel stable.
+    if (this.mainWindow.isVisible()) {
+      return false;
+    }
+
+    WindowPositionUtil.setupAlwaysOnTop(this.mainWindow, {
+      skipTransformProcessType: false,
+    });
+    return true;
   }
 
   async createMainWindow() {
@@ -109,6 +130,7 @@ class WindowManager {
       ...position,
     });
 
+    this._prepareMainWindowForMacWorkspaces();
     this.setMainWindowInteractivity(false);
     this.registerMainWindowEvents();
 
@@ -1063,6 +1085,7 @@ class WindowManager {
     // across Windows sleep. Reset it while hidden; the renderer remains the
     // single owner of visibility and will show it only after recording starts.
     this.mainWindow.hide();
+    this._prepareMainWindowForMacWorkspaces();
     this.mainWindow.setFocusable(false);
     this.setMainWindowInteractivity(false);
     this.enforceMainWindowOnTop();
