@@ -66,6 +66,18 @@ test("hiding the macOS Dock icon keeps open windows active", () => {
     windowManagerSource,
     /_alwaysOnTopOptions\(\) \{[\s\S]*?skipTransformProcessType: true/
   );
+  assert.match(
+    windowManagerSource,
+    /_prepareMainWindowForMacWorkspaces\(\)[\s\S]*?skipTransformProcessType: false/
+  );
+  assert.match(
+    windowManagerSource,
+    /this\._prepareMainWindowForMacWorkspaces\(\);[\s\S]*?this\.setMainWindowInteractivity\(false\)/
+  );
+  assert.match(
+    windowManagerSource,
+    /recoverAfterSystemResume\(\)[\s\S]*?this\.mainWindow\.hide\(\);[\s\S]*?this\._prepareMainWindowForMacWorkspaces\(\)/
+  );
 });
 
 test("packaged Windows close-to-tray always has a recoverable tray icon", () => {
