@@ -314,6 +314,47 @@ def _query_events(since: float | None = None, until: float | None = None) -> lis
     return events
 
 
+def _iter_events(since: float | None = None, until: float | None = None,
+                 batch: int = 5000):
+    """Stream events in rowid order without materializing the window.
+
+    Keyset pagination keeps each locked read short (ingest is not starved) and
+    bounds memory to one batch; callers must not rely on ts ordering.
+    """
+    last_rowid = 0
+    while True:
+        clauses, params = ["rowid > ?"], [last_rowid]
+        if since is not None:
+            clauses.append("ts >= ?")
+            params.append(since)
+        if until is not None:
+            clauses.append("ts <= ?")
+            params.append(until)
+        params.append(batch)
+        with _db_lock:
+            rows = list(_db.execute(
+                "SELECT rowid, ts, device_id, name, properties, event_id "
+                "FROM events WHERE " + " AND ".join(clauses)
+                + " ORDER BY rowid LIMIT ?",
+                params,
+            ))
+        if not rows:
+            return
+        for rowid, ts, device, name, raw_properties, event_id in rows:
+            last_rowid = rowid
+            try:
+                properties = json.loads(raw_properties or "{}")
+            except json.JSONDecodeError:
+                properties = {}
+            yield {
+                "ts": float(ts),
+                "device_id": device or "",
+                "name": name,
+                "properties": properties if isinstance(properties, dict) else {},
+                "event_id": event_id or "",
+            }
+
+
 def _read_events(since: float | None = None, until: float | None = None) -> list[dict]:
     """Read events, sharing one parsed all-history snapshot across 1/7/30.
 
@@ -724,12 +765,14 @@ def timeseries(days: float = 7.0) -> JSONResponse:
     """Дневные корзины для графиков дашборда (московские даты)."""
     now = time.time()
     window_days, since = _window(days, now)
-    events = _read_events(since=since)
-    records = _dedupe_legacy_dictations(
-        [record for event in events if (record := _dictation_record(event)) is not None]
-    )
+    # Stream the window instead of materializing every event dict: a 90-day
+    # read of the full history used to stack a second full copy on top of the
+    # product snapshot and OOM the unit (2026-08-07).
+    slim_keys = ("ts", "device_id", "legacy", "denominator_ready", "eligible",
+                 "success", "words", "latency_ms")
+    records: list[dict] = []
     buckets: dict[str, dict] = {}
-    for event in events:
+    for event in _iter_events(since=since):
         day = _day(event["ts"])
         b = buckets.setdefault(
             day,
@@ -749,6 +792,10 @@ def timeseries(days: float = 7.0) -> JSONResponse:
             b["devices"].add(event["device_id"])
         if event["name"] in ERROR_EVENTS:
             b["errors"] += 1
+        record = _dictation_record(event)
+        if record is not None:
+            records.append({key: record[key] for key in slim_keys})
+    records = _dedupe_legacy_dictations(records)
     for record in records:
         b = buckets[_day(record["ts"])]
         if record["denominator_ready"] and record["eligible"]:
