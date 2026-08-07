@@ -60,6 +60,7 @@ PRODUCT_CACHE_TTL_SECONDS = 90.0
 _product_cache: dict[float, tuple[float, dict]] = {}
 _product_cache_lock = threading.Lock()
 EVENT_SNAPSHOT_TTL_SECONDS = 90.0
+SESSION_GAP_SECONDS = 5 * 60
 _event_snapshot: tuple[float, float, list[dict]] | None = None
 _event_snapshot_lock = threading.Lock()
 RATE_WINDOW_SECONDS = 60.0
@@ -523,7 +524,22 @@ def _compute_product_payload(days: float, now: float) -> dict:
     successful_dictations_today = sum(
         record["ts"] >= overview_starts["dau"] for record in successes
     )
-    sessions_per_dau = successful_dictations_today / dau if dau else None
+    # Fleet decision (Tsevdn, 07.08.2026): a session ends after 5 minutes of
+    # user inactivity — the same timeout across every product. Tools stay
+    # defined as successful dictations, so the two cards now diverge.
+    day_events = sorted(
+        (event["device_id"], event["ts"])
+        for event in all_events
+        if event["device_id"] and event["ts"] >= overview_starts["dau"]
+    )
+    sessions_today = 0
+    previous_device, previous_ts = None, 0.0
+    for device, ts in day_events:
+        if device != previous_device or ts - previous_ts > SESSION_GAP_SECONDS:
+            sessions_today += 1
+        previous_device, previous_ts = device, ts
+    sessions_per_dau = sessions_today / dau if dau else None
+    tools_per_dau = successful_dictations_today / dau if dau else None
     quality_eligible = [
         record for record in window_records if record["denominator_ready"] and record["eligible"]
     ]
@@ -606,10 +622,7 @@ def _compute_product_payload(days: float, now: float) -> dict:
             "wau": len(active_by_period["wau"]),
             "mau": len(active_by_period["mau"]),
             "sessions_per_dau": sessions_per_dau,
-            # For GigaType one successful eligible dictation is both a session and
-            # the product-defined tool use.  Traction intentionally renders both
-            # canonical cards even though their values are equal.
-            "tools_per_dau": sessions_per_dau,
+            "tools_per_dau": tools_per_dau,
         },
         "active_devices": len(active_devices),
         "active_dictators": len(active_dictators),
