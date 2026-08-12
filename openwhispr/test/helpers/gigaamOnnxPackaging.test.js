@@ -15,6 +15,19 @@ test("arm64 packaging keeps a custom ONNX encoder only when requested", () => {
   assert.equal(shouldKeepGigaamOnnxEncoder("x64", {}), true);
 });
 
+test("normal macOS packaging does not require protected release resources", (t) => {
+  const appOutDir = fs.mkdtempSync(path.join(os.tmpdir(), "gigatype-standard-mac-"));
+  t.after(() => fs.rmSync(appOutDir, { recursive: true, force: true }));
+
+  const context = {
+    electronPlatformName: "darwin",
+    appOutDir,
+    packager: { appInfo: { productFilename: "Type" } },
+  };
+
+  assert.doesNotThrow(() => afterPack._testing.validateProtectedBundledGigaam(context));
+});
+
 test("packaged ASR detects the bundled ONNX encoder fallback", (t) => {
   const resourcesDir = fs.mkdtempSync(path.join(os.tmpdir(), "gigatype-onnx-"));
   t.after(() => fs.rmSync(resourcesDir, { recursive: true, force: true }));

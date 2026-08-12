@@ -9,6 +9,7 @@ Type is an Electron-based desktop dictation application that uses GigaAM for spe
 ## Architecture Overview
 
 ### Core Technologies
+
 - **Frontend**: React 19, TypeScript, Tailwind CSS v4, Vite
 - **Desktop Framework**: Electron 41 with context isolation
 - **Database**: better-sqlite3 for local transcription history
@@ -145,6 +146,7 @@ Type is an Electron-based desktop dictation application that uses GigaAM for spe
 ### GigaAM Integration
 
 - **Local ASR engine (no Python)**: `main.js` starts `GigaamLocalAsrManager` (`src/helpers/gigaamLocalAsr.js`). App-owned transcription travels over Electron IPC (no inbound TCP/firewall rule); inference runs in the shared ONNX utility process (`src/workers/onnxWorker.js`, handlers `gigaam.load` / `gigaam.transcribe`) via onnxruntime-node. Developers can opt into the legacy loopback HTTP API with `GIGAAM_HTTP_BRIDGE=1`.
+- **Protected macOS release path**: `build:mac:protected:{arm64,x64}` packages the signed encrypted RU+EN `.memento-model` plus the Rust `type-protected-gigaam` helper. The helper ports Memento's container verification, Secure Enclave identity, DPoP gateway access, per-device wrapped CEK cache, and memory-only ONNX loading. Presence of `protected-gigaam/required.json` is fail-closed and `afterPack` removes all plaintext/CoreML model resources. See `docs/PROTECTED_BUNDLED_GIGAAM.md`.
 - **ASR model**: `gigaam-v3-e2e-rnnt` (fp32, `istupakov/gigaam-v3-onnx`). Reuses the legacy HF snapshot cache under `userData/model-cache/huggingface/...`; fresh installs download 4 files (~892 MB) to `userData/model-cache/gigaam/gigaam-v3-e2e-rnnt/`
 - **Encoder on the Neural Engine (macOS arm64 only)**: Apple Silicon builds run the encoder as a CoreML fp16 MLProgram on the ANE instead of onnxruntime — same weights, converted by [gigaam-v3-coreml](https://github.com/IsaacClarke2/gigaam-v3-coreml). CoreML is only reachable from a native process, so `src/workers/gigaamAneEncoder.js` drives the `macos-gigaam-encoder` helper (`resources/macos-gigaam-encoder.swift`) over a binary stdio protocol: log-mel in, encoder output back. Decoder/joint/vocab stay on onnxruntime, so arm64 bundles only 7 MB of ONNX and none of the 885 MB encoder.
   - The ANE cannot do dynamic shapes: the input window is **fixed at 3360 mel frames (33.6 s)** and short requests are zero-padded, so `gigaam.load` reports `maxChunkSamples` (537,760) and the manager chunks to that instead of the ONNX path's 25 s. `encoded_len` from the graph is one too high on padded input — the helper recomputes `ceil(frames / 4)`.
@@ -163,12 +165,14 @@ Type is an Electron-based desktop dictation application that uses GigaAM for spe
 Always-on offline semantic search that finds notes by meaning, not just keywords. Used by the AI agent's `search_notes` tool. Qdrant starts automatically on app launch; embedding model auto-downloads on first run if missing.
 
 **Architecture**:
+
 - **Qdrant sidecar**: Rust binary spawned as child process (`qdrantManager.js`), port 6333–6350
 - **Embedding model**: `all-MiniLM-L6-v2` via ONNX Runtime (`localEmbeddings.js`), 384-dim vectors
 - **Vector index**: Qdrant collection management (`vectorIndex.js`), cosine distance
 - **Hybrid search**: FTS5 + Qdrant in parallel → Reciprocal Rank Fusion (K=60) with 0.3 cosine score threshold
 
 **Pipeline**:
+
 1. App launches → Qdrant binary starts → collection created. Embedding model auto-downloads if missing (~22MB)
 2. Note create/update/delete → SQLite write → background vector upsert/delete via `_asyncVectorUpsert()`/`_asyncVectorDelete()`
 3. Agent searches → `db-semantic-search-notes` IPC → parallel FTS5 + vector search → RRF merge → ranked results
@@ -176,6 +180,7 @@ Always-on offline semantic search that finds notes by meaning, not just keywords
 **Search fallback chain** (in `searchNotesTool.ts`): cloud search → local semantic → FTS5 keyword
 
 **Storage**:
+
 - Qdrant data: `~/.cache/openwhispr/qdrant-data/`
 - Qdrant binary: `resources/bin/qdrant-{platform}-{arch}` (bundled — downloaded during `prebuild` / `predev`)
 - Embedding model: `~/.cache/openwhispr/embedding-models/all-MiniLM-L6-v2/` (auto-downloaded on first launch)
@@ -194,6 +199,7 @@ Always-on offline semantic search that finds notes by meaning, not just keywords
 - **download-minilm.js**: Downloads all-MiniLM-L6-v2 ONNX model + tokenizer for local embeddings
 - **build-globe-listener.js**: Compiles macOS Globe key listener from Swift source
 - **build-macos-gigaam-encoder.js**: Compiles the CoreML/ANE encoder helper from Swift source (deployment target macOS 14)
+- **build-protected-gigaam.js / prepare-protected-gigaam.js**: Builds the native protected-model loader and verifies/stages the signed encrypted release for protected macOS packaging
 - **download-gigaam-ane.js**: Downloads the CoreML GigaAM encoder and compiles it to `resources/gigaam-ane/encoder-ane.mlmodelc` (requires full Xcode)
 - **build-macos-mic-listener.js**: Compiles macOS mic listener from Swift source
 - **build-windows-key-listener.js**: Compiles Windows key listener (for local development)
@@ -210,6 +216,7 @@ Always-on offline semantic search that finds notes by meaning, not just keywords
 ### 1. FFmpeg Integration
 
 FFmpeg is bundled with the app and doesn't require system installation:
+
 ```javascript
 // FFmpeg is unpacked from ASAR to app.asar.unpacked/node_modules/ffmpeg-static/
 ```
@@ -241,6 +248,7 @@ CREATE TABLE transcriptions (
 ### 4. Settings Storage
 
 Settings stored in localStorage with these keys:
+
 - `gigaamBaseUrl`: GigaAM API base URL
 - `remoteTranscriptionUrl`: Optional explicit GigaAM transcription endpoint/base URL
 - `preferredLanguage`: Selected transcription language code
@@ -257,6 +265,7 @@ Non-secret runtime config is persisted to `.env` via `saveRuntimeConfigToEnvFile
 ### 5. Language Support
 
 58 languages supported (see src/utils/languages.ts):
+
 - Each language has a two-letter code and label
 - "auto" for automatic detection
 - Passed to GigaAM as the transcription `language` field
@@ -290,6 +299,7 @@ Non-secret runtime config is persisted to `.env` via `saveRuntimeConfigToEnvFile
 ### 7. Model Registry Architecture
 
 All AI model definitions are centralized in `src/models/modelRegistryData.json` as the single source of truth:
+
 ```json
 {
   "cloudProviders": [...],   // OpenAI, Anthropic, Gemini API models
@@ -298,6 +308,7 @@ All AI model definitions are centralized in `src/models/modelRegistryData.json` 
 ```
 
 **Key files:**
+
 - `src/models/modelRegistryData.json` - Single source of truth for all models
 - `src/models/ModelRegistry.ts` - TypeScript wrapper with helper methods
 - `src/config/aiProvidersConfig.ts` - Derives AI_MODES from registry
@@ -305,6 +316,7 @@ All AI model definitions are centralized in `src/models/modelRegistryData.json` 
 - `src/helpers/modelManagerBridge.js` - Handles local model downloads
 
 **Local model features:**
+
 - Each model has `hfRepo` for direct HuggingFace download URLs
 - `promptTemplate` defines the chat format (ChatML, Llama, Mistral)
 - Download URLs constructed as: `{baseUrl}/{hfRepo}/resolve/main/{fileName}`
@@ -312,6 +324,7 @@ All AI model definitions are centralized in `src/models/modelRegistryData.json` 
 ### 8. API Integrations and Updates
 
 **OpenAI Responses API (September 2025)**:
+
 - Migrated from Chat Completions to new Responses API
 - Endpoint: `https://api.openai.com/v1/responses`
 - Simplified request format with `input` array instead of `messages`
@@ -320,11 +333,13 @@ All AI model definitions are centralized in `src/models/modelRegistryData.json` 
 - No temperature parameter for newer models (GPT-5, o-series)
 
 **Anthropic Integration**:
+
 - Routes through IPC handler to avoid CORS issues in renderer process
 - Uses main process for API calls with proper error handling
 - Model IDs use alias format (e.g., `claude-sonnet-4-6` not date-suffixed versions)
 
 **Gemini Integration**:
+
 - Direct API calls from renderer process
 - Increased token limits for Gemini 3.1 Pro (2000 minimum)
 - Proper handling of thinking process in responses
@@ -335,6 +350,7 @@ All AI model definitions are centralized in `src/models/modelRegistryData.json` 
 The app can open OS-level settings for microphone permissions, sound input selection, and accessibility:
 
 **IPC Handlers** (in `ipcHandlers.js`):
+
 - `open-microphone-settings`: Opens microphone privacy settings
 - `open-sound-input-settings`: Opens sound/audio input device settings
 - `open-accessibility-settings`: Opens accessibility privacy settings (macOS only)
@@ -347,6 +363,7 @@ The app can open OS-level settings for microphone permissions, sound input selec
 | Linux | Manual (no URL scheme) | Manual (e.g., pavucontrol) | N/A |
 
 **UI Component** (`MicPermissionWarning.tsx`):
+
 - Shows platform-appropriate buttons and messages
 - Linux only shows "Open Sound Settings" (no separate privacy settings)
 - macOS/Windows show both sound and privacy buttons
@@ -354,6 +371,7 @@ The app can open OS-level settings for microphone permissions, sound input selec
 ### 10. Debug Mode
 
 Enable with `--log-level=debug` or `OPENWHISPR_LOG_LEVEL=debug` (can be set in `.env`):
+
 - Logs saved to platform-specific app data directory
 - Comprehensive logging of audio pipeline
 - FFmpeg path resolution details
@@ -365,22 +383,26 @@ Enable with `--log-level=debug` or `OPENWHISPR_LOG_LEVEL=debug` (can be set in `
 Native Windows support for true push-to-talk functionality using low-level keyboard hooks:
 
 **Architecture**:
+
 - `resources/windows-key-listener.c`: Native C program using Windows `SetWindowsHookEx` for keyboard hooks
 - `src/helpers/windowsKeyManager.js`: Node.js wrapper that spawns and manages the native binary
 - Binary outputs `KEY_DOWN` and `KEY_UP` to stdout when target key is pressed/released
 
 **Compound Hotkey Support**:
+
 - Parses hotkey strings like `CommandOrControl+Shift+F11`
 - Maps modifiers: `CommandOrControl`/`Ctrl` → VK_CONTROL, `Alt`/`Option` → VK_MENU, `Shift` → VK_SHIFT
 - Verifies all required modifiers are held before emitting key events
 
 **Binary Distribution**:
+
 - Prebuilt binary downloaded from GitHub releases (`windows-key-listener-v*` tags)
 - Download script: `scripts/download-windows-key-listener.js`
 - CI workflow: `.github/workflows/build-windows-key-listener.yml`
 - Fallback to tap mode if binary unavailable
 
 **IPC Events**:
+
 - `windows-key-listener:key-down`: Fired when hotkey pressed (start recording)
 - `windows-key-listener:key-up`: Fired when hotkey released (stop recording)
 
@@ -389,6 +411,7 @@ Native Windows support for true push-to-talk functionality using low-level keybo
 On GNOME Wayland, Electron's `globalShortcut` API doesn't work due to Wayland's security model. Type uses native GNOME shortcuts:
 
 **Architecture**:
+
 1. `main.js` enables `GlobalShortcutsPortal` feature flag for Wayland
 2. `hotkeyManager.js` detects GNOME + Wayland and initializes `GnomeShortcutManager`
 3. `gnomeShortcut.js` creates D-Bus service at `com.openwhispr.App`
@@ -396,16 +419,19 @@ On GNOME Wayland, Electron's `globalShortcut` API doesn't work due to Wayland's 
 5. GNOME triggers `dbus-send` command which calls the D-Bus `Toggle()` method
 
 **Key Constants**:
+
 - D-Bus service: `com.openwhispr.App`
 - D-Bus path: `/com/openwhispr/App`
 - gsettings path: `/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/openwhispr/`
 
 **IPC Integration**:
+
 - `get-hotkey-mode-info`: Returns `{ isUsingGnome, isUsingHyprland, isUsingNativeShortcut }` to renderer
 - UI hides activation mode selector when `isUsingNativeShortcut` is true
 - Forces tap-to-talk mode (push-to-talk not supported)
 
 **Hotkey Format Conversion**:
+
 - Electron format: `Alt+R`, `CommandOrControl+Shift+Space`
 - GNOME format: `<Alt>r`, `<Control><Shift>space`
 - Backtick (`) → `grave` in GNOME keysym format
@@ -415,6 +441,7 @@ On GNOME Wayland, Electron's `globalShortcut` API doesn't work due to Wayland's 
 On Hyprland (wlroots Wayland compositor), Electron's `globalShortcut` API and the `GlobalShortcutsPortal` feature don't work reliably. Type uses native Hyprland keybindings:
 
 **Architecture**:
+
 1. `main.js` enables `GlobalShortcutsPortal` feature flag for Wayland (fallback)
 2. `hotkeyManager.js` detects Hyprland + Wayland and initializes `HyprlandShortcutManager`
 3. `hyprlandShortcut.js` creates D-Bus service at `com.openwhispr.App` (same as GNOME)
@@ -422,20 +449,24 @@ On Hyprland (wlroots Wayland compositor), Electron's `globalShortcut` API and th
 5. Hyprland triggers `dbus-send` command which calls the D-Bus `Toggle()` method
 
 **Detection**:
+
 - Primary: `HYPRLAND_INSTANCE_SIGNATURE` environment variable (set by Hyprland)
 - Fallback: `XDG_CURRENT_DESKTOP` contains "hyprland"
 
 **Hotkey Format Conversion**:
+
 - Electron format: `Alt+R`, `CommandOrControl+Shift+Space`
 - Hyprland format: `ALT, R`, `CTRL SHIFT, space`
 - Modifier-only combos (e.g., `Control+Super`) → `CTRL, Super_L`
 
 **Bind/Unbind Commands**:
+
 - Register: `hyprctl keyword bind "ALT, R, exec, dbus-send --session ..."`
 - Unregister: `hyprctl keyword unbind "ALT, R"`
 - Bindings are ephemeral (don't survive Hyprland restart) but re-registered on app startup
 
 **Limitations**:
+
 - Push-to-talk not supported (Hyprland `bind` fires a single exec, not key-down/key-up)
 - Requires `hyprctl` on PATH (ships with Hyprland)
 
@@ -444,21 +475,25 @@ On Hyprland (wlroots Wayland compositor), Electron's `globalShortcut` API and th
 Detects meetings via three independent sources, orchestrated by `MeetingDetectionEngine`:
 
 **Architecture**:
+
 - `MeetingDetectionEngine` listens to events from `MeetingProcessDetector` and `AudioActivityDetector`
 - `GoogleCalendarManager` provides calendar context (imminent events, active meetings)
 - All three sources feed into a unified notification pipeline
 
 **Process Detection** (known meeting apps — Zoom, Teams, Webex, FaceTime):
+
 - macOS: `systemPreferences.subscribeWorkspaceNotification` — zero CPU, instant detection
 - Windows/Linux: `processListCache` shared polling (30s interval, `ps-list` npm)
 
 **Microphone Detection** (unscheduled/browser meetings like Google Meet):
+
 - macOS: `macos-mic-listener` binary — CoreAudio `kAudioDevicePropertyDeviceIsRunningSomewhere` property listeners with hot-plug support
 - Windows: `windows-mic-listener.exe` — WASAPI `IAudioSessionManager2` session monitoring, `--exclude-pid` for self-mic exclusion
 - Linux: `pactl subscribe` — PulseAudio source-output events
 - All platforms: Graceful fallback to polling if native binary/command unavailable
 
 **UX Rules**:
+
 - During recording (tap-to-talk or push-to-talk): ALL notifications suppressed
 - After recording: 2.5s cooldown before showing queued notifications
 - Multiple signals coalesced: process > audio priority, one notification shown
@@ -466,11 +501,13 @@ Detects meetings via three independent sources, orchestrated by `MeetingDetectio
 - Active calendar meeting recording: all detections suppressed
 
 **Binary Distribution**:
+
 - macOS: Compiled from Swift source via `scripts/build-macos-mic-listener.js` during `compile:native`
 - Windows: Prebuilt binary downloaded via `scripts/download-windows-mic-listener.js` during `prebuild:win`
 - CI workflow: `.github/workflows/build-windows-mic-listener.yml` auto-builds on push to main
 
 **Calendar Sync Resilience**:
+
 - 10s socket timeout on all Google Calendar API requests
 - Exponential backoff on consecutive failures: 2min → 4min → 8min → cap 30min
 - Reset to normal 2min interval on any successful sync
@@ -485,6 +522,7 @@ or git tag in the update mechanism** — the installed app only reads YAML
 manifests + binaries from that bucket.
 
 **Runtime flow** (packaged builds only; on by default):
+
 1. `checkForUpdatesOnStartup()` runs the check ~3s after launch, then every 4h.
 2. electron-updater fetches the channel manifest and compares its version to
    `app.getVersion()`. macOS uses **arch-specific channels** so arm64/x64 don't
@@ -513,6 +551,7 @@ Env overrides: `GIGATYPE_DISABLE_AUTO_UPDATES` (opt out in the field),
 
 **Releasing a new version** (`.github/workflows/release.yml`, triggered by a git
 tag `v*.*.*` or manual `workflow_dispatch`):
+
 1. **Bump `version` in `package.json`** and commit. The build uses this version —
    the tag does NOT set it. Tagging `v1.9.0` while `package.json` still says
    `1.8.0` republishes `1.8.0` and nobody updates.
@@ -543,6 +582,7 @@ All user-facing strings **must** use the i18n system. Never hardcode UI text in 
 **Supported languages**: en, es, fr, de, pt, it, ru, zh-CN, zh-TW
 
 **How to use**:
+
 ```tsx
 import { useTranslation } from "react-i18next";
 
@@ -552,6 +592,7 @@ const { t } = useTranslation();
 ```
 
 **Rules**:
+
 1. Every new UI string must have a translation key in `en/translation.json` and all other language files
 2. Use `useTranslation()` hook in components and hooks
 3. Keep `{{variable}}` interpolation syntax for dynamic values
@@ -638,6 +679,7 @@ const { t } = useTranslation();
 ### Platform-Specific Notes
 
 **macOS**:
+
 - Requires accessibility permissions for clipboard (auto-paste)
 - Requires microphone permission (prompted by system)
 - Uses AppleScript for reliable pasting
@@ -646,6 +688,7 @@ const { t } = useTranslation();
 - System settings accessible via `x-apple.systempreferences:` URL scheme
 
 **Windows**:
+
 - No special accessibility permissions needed
 - Microphone privacy settings at `ms-settings:privacy-microphone`
 - Sound settings at `ms-settings:sound`
@@ -657,6 +700,7 @@ const { t } = useTranslation();
   - Falls back to tap mode if unavailable
 
 **Linux**:
+
 - Multiple package manager support
 - Standard XDG directories
 - AppImage for distribution

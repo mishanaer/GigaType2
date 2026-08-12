@@ -8,6 +8,10 @@ const debugLogger = require("./debugLogger");
 const { findAvailablePort, resolveBinaryPath } = require("../utils/serverUtils");
 const onnxWorkerClient = require("./onnxWorkerClient");
 const { downloadFile } = require("./downloadUtils");
+const {
+  ProtectedGigaamSidecar,
+  resolveProtectedGigaamConfig,
+} = require("./protectedGigaamSidecar");
 
 // Local GigaAM engine. App-owned requests use Electron IPC so the packaged
 // application does not open an inbound TCP listener (and therefore does not
@@ -212,9 +216,22 @@ class GigaamLocalAsrManager extends EventEmitter {
     this.startupPromise = null;
     this.modelDownloadedBytes = 0;
     this.aneUnavailableReason = null; // set when a packaged arm64 build lacks the CoreML encoder
-    this.aneEncoder = this._resolveAneEncoder();
+    this.protectedConfig = resolveProtectedGigaamConfig();
+    this.protectedSidecar = null;
+    this.aneEncoder =
+      this.protectedConfig.required || this.protectedConfig.available
+        ? null
+        : this._resolveAneEncoder();
     this.encoderRuntime = null; // set from the worker's gigaam.load reply
-    this.modelTotalBytes = this._requiredModelFiles().reduce((sum, f) => sum + f.bytes, 0);
+    this.modelTotalBytes = this.protectedConfig.modelPath
+      ? (() => {
+          try {
+            return fs.statSync(this.protectedConfig.modelPath).size;
+          } catch {
+            return 0;
+          }
+        })()
+      : this._requiredModelFiles().reduce((sum, f) => sum + f.bytes, 0);
     this.modelProgress = 0;
     this.modelStage = "stopped";
     this._lastProgressEmit = 0;
@@ -278,6 +295,7 @@ class GigaamLocalAsrManager extends EventEmitter {
 
   // The ANE build has no ONNX encoder to bundle or download.
   _requiredModelFiles() {
+    if (this.protectedConfig?.required || this.protectedConfig?.available) return [];
     return this.aneEncoder ? DECODER_FILES : MODEL_FILES;
   }
 
@@ -345,6 +363,9 @@ class GigaamLocalAsrManager extends EventEmitter {
   }
 
   _isModelCacheComplete() {
+    if (this.protectedConfig.required || this.protectedConfig.available) {
+      return this.protectedConfig.available;
+    }
     return this._resolveModelBaseDir() !== null;
   }
 
@@ -404,6 +425,10 @@ class GigaamLocalAsrManager extends EventEmitter {
 
     try {
       if (this.aneUnavailableReason) throw new Error(this.aneUnavailableReason);
+      if (this.protectedConfig.required || this.protectedConfig.available) {
+        await this._startProtectedModel();
+        return;
+      }
       const baseDir = await this._ensureModelFiles();
 
       this.modelStage = "loading";
@@ -495,6 +520,39 @@ class GigaamLocalAsrManager extends EventEmitter {
 
     this.modelDownloadedBytes = this.modelTotalBytes;
     return dir;
+  }
+
+  async _startProtectedModel() {
+    if (!this.protectedConfig.available) {
+      throw new Error(
+        "This Type build requires its signed protected GigaAM container and native loader"
+      );
+    }
+    this.modelStage = "loading";
+    this.modelProgress = 99;
+    this.modelDownloadedBytes = this.modelTotalBytes;
+    this.healthDetail = "unlocking protected model";
+    this._emitStatus();
+
+    const sidecar = new ProtectedGigaamSidecar({
+      helperPath: this.protectedConfig.helperPath,
+      modelPath: this.protectedConfig.modelPath,
+      log: (level, message, extra) => debugLogger[level]?.(message, extra),
+    });
+    this.protectedSidecar = sidecar;
+    const info = await sidecar.start();
+    this.ready = true;
+    this.healthStatus = "ok";
+    this.healthDetail = null;
+    this.modelStage = "ready";
+    this.modelProgress = 100;
+    this.encoderRuntime = "protected-onnx";
+    this._emitStatus();
+    debugLogger.info("Protected GigaAM local ASR ready", {
+      releaseId: info.releaseId,
+      modelId: info.modelId,
+      transport: "native-stdio",
+    });
   }
 
   _startServer() {
@@ -629,6 +687,9 @@ class GigaamLocalAsrManager extends EventEmitter {
   }
 
   _requestGigaamChunk(pcmBuffer) {
+    if (this.protectedSidecar) {
+      return this.protectedSidecar.transcribe(pcmBuffer);
+    }
     return onnxWorkerClient.request("gigaam.transcribe", { pcmBuffer }, [], {
       timeoutMs: TRANSCRIBE_TIMEOUT_MS,
     });
@@ -707,10 +768,15 @@ class GigaamLocalAsrManager extends EventEmitter {
       this.server = null;
       await new Promise((resolve) => server.close(resolve));
     }
-    try {
-      await onnxWorkerClient.request("gigaam.unload", {});
-    } catch {
-      // Worker may be down already; unload is best-effort.
+    if (this.protectedSidecar) {
+      this.protectedSidecar.stop();
+      this.protectedSidecar = null;
+    } else {
+      try {
+        await onnxWorkerClient.request("gigaam.unload", {});
+      } catch {
+        // Worker may be down already; unload is best-effort.
+      }
     }
     this.ready = false;
     this.port = null;

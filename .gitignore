@@ -16,3 +16,6 @@ gigaam-sidecar/logs/
 
 openwhispr/node_modules/
 openwhispr/resources/bin/
+openwhispr/native/protected-gigaam/target/
+openwhispr/resources/protected-gigaam/*
+!openwhispr/resources/protected-gigaam/README.md

@@ -544,6 +544,16 @@ function pruneGigaamEncoders(context) {
   if (context.electronPlatformName !== "darwin") return;
 
   const resourcesDir = resolveResourcesDir(context);
+  if (fs.existsSync(path.join(resourcesDir, "protected-gigaam", "required.json"))) {
+    for (const target of [
+      path.join(resourcesDir, "gigaam-model"),
+      path.join(resourcesDir, "gigaam-ane"),
+      path.join(resourcesDir, "bin", "macos-gigaam-encoder"),
+    ]) {
+      fs.rmSync(target, { recursive: true, force: true });
+    }
+    return;
+  }
   const archName = Arch[context.arch];
   const onnxEncoder = path.join(resourcesDir, "gigaam-model", "v3_e2e_rnnt_encoder.onnx");
   const aneModelDir = path.join(resourcesDir, "gigaam-ane");
@@ -588,6 +598,43 @@ function pruneGigaamEncoders(context) {
   }
 }
 
+function validateProtectedBundledGigaam(context) {
+  if (context.electronPlatformName !== "darwin") return;
+  const resourcesDir = resolveResourcesDir(context);
+  const dir = path.join(resourcesDir, "protected-gigaam");
+  const markerPath = path.join(dir, "required.json");
+  // Standard and pull-request builds continue to use the existing model
+  // packaging. The marker is created only by prepare:protected-gigaam and
+  // turns all protected-release checks into fail-closed requirements.
+  if (!fs.existsSync(markerPath)) return;
+  const modelPath = path.join(dir, "gigaam-en-ru.memento-model");
+  const helperPath = path.join(resourcesDir, "bin", "type-protected-gigaam");
+  for (const required of [markerPath, modelPath, helperPath]) {
+    if (!fs.existsSync(required)) {
+      throw new Error(`protected macOS GigaAM release is missing ${required}`);
+    }
+  }
+  const expected = JSON.parse(fs.readFileSync(markerPath, "utf8"));
+  const inspected = JSON.parse(
+    execFileSync(helperPath, ["--inspect", "--model", modelPath], {
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024,
+    })
+  );
+  for (const field of ["modelId", "releaseId", "keyId", "containerBytes", "containerSha256"]) {
+    if (inspected[field] !== expected[field]) {
+      throw new Error(`protected GigaAM ${field} changed after build preparation`);
+    }
+  }
+  console.log(
+    `  afterPack: verified protected GigaAM ${inspected.releaseId} (${(
+      inspected.containerBytes /
+      1024 /
+      1024
+    ).toFixed(0)} MB)`
+  );
+}
+
 // Windows releases promise an offline first run. Fail while electron-builder
 // still has a readable app directory if the pinned wired model was omitted,
 // truncated, or came from an unverified source package.
@@ -607,6 +654,7 @@ function validateBundledGigaamModel(context) {
 // ---------------------------------------------------------------------------
 
 exports.default = async function (context) {
+  validateProtectedBundledGigaam(context);
   pruneGigaamEncoders(context);
   validateBundledGigaamModel(context);
   stripOnnxruntimeBinaries(context);
@@ -619,4 +667,8 @@ exports.default = async function (context) {
   registerMacResourceBinariesForSigning(context);
 };
 
-exports._testing = { shouldKeepGigaamOnnxEncoder, validateBundledGigaamModel };
+exports._testing = {
+  shouldKeepGigaamOnnxEncoder,
+  validateBundledGigaamModel,
+  validateProtectedBundledGigaam,
+};

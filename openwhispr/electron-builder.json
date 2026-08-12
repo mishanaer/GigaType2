@@ -154,6 +154,7 @@
         "macos-text-monitor",
         "macos-media-remote",
         "macos-gigaam-encoder",
+        "type-protected-gigaam*",
         "linux-fast-paste",
         "linux-system-audio-helper",
         "linux-text-monitor",
@@ -194,6 +195,11 @@
         "from": "resources/gigaam-ane/",
         "to": "gigaam-ane/",
         "filter": ["**/*", "!.staging/**", "!.compiled/**", "!*.zip"]
+      },
+      {
+        "from": "resources/protected-gigaam/",
+        "to": "protected-gigaam/",
+        "filter": ["*.memento-model", "required.json"]
       }
     ],
     "extendInfo": {
