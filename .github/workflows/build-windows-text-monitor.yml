@@ -32,7 +32,7 @@ jobs:
 
       - name: Compile Windows Text Monitor
         run: |
-          cl /O2 /nologo openwhispr/resources/windows-text-monitor.c /Fe:windows-text-monitor.exe ole32.lib oleaut32.lib
+          cl /O2 /nologo openwhispr/resources/windows-text-monitor.c /Fe:windows-text-monitor.exe ole32.lib oleaut32.lib user32.lib
         shell: cmd
 
       - name: Verify binary
