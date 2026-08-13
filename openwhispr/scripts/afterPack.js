@@ -545,13 +545,27 @@ function pruneGigaamEncoders(context) {
 
   const resourcesDir = resolveResourcesDir(context);
   if (fs.existsSync(path.join(resourcesDir, "protected-gigaam", "required.json"))) {
+    // The protected release carries the ENCRYPTED fp16 CoreML encoder inside the
+    // container, so every plaintext model resource is stripped. The ANE helper
+    // (macos-gigaam-encoder) is KEPT: the sidecar decrypts the encoder spec +
+    // weights into memory and drives them through it on the Neural Engine, so
+    // nothing plaintext ever touches disk.
     for (const target of [
       path.join(resourcesDir, "gigaam-model"),
       path.join(resourcesDir, "gigaam-ane"),
-      path.join(resourcesDir, "bin", "macos-gigaam-encoder"),
     ]) {
       fs.rmSync(target, { recursive: true, force: true });
     }
+    const aneHelper = path.join(resourcesDir, "bin", "macos-gigaam-encoder");
+    if (!fs.existsSync(aneHelper)) {
+      throw new Error(
+        "protected macOS build is missing resources/bin/macos-gigaam-encoder — " +
+          "run npm run compile:gigaam-encoder (the sidecar drives it for the ANE encoder)"
+      );
+    }
+    console.log(
+      "  afterPack: protected — kept the ANE encoder helper, stripped plaintext model resources"
+    );
     return;
   }
   const archName = Arch[context.arch];
