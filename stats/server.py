@@ -18,16 +18,19 @@
 
 Запуск: STATS_PORT=9902 python3 server.py
 Env:    STATS_PORT (default 9902), STATS_DB (default ./data/events.db),
-        STATS_INGEST_TOKEN (пусто = ingest без токена, только для dev!)
+        STATS_INGEST_TOKEN (пусто = ingest без токена, только для dev!),
+        STATS_CACHE_TTL (default 90), STATS_REFRESH_TICK (default 15)
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import math
 import os
 import threading
 import time
+import traceback
 from collections import Counter, defaultdict, deque
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -47,22 +50,128 @@ VERSION_FILE = HERE / "VERSION"
 VERSION = VERSION_FILE.read_text().strip() if VERSION_FILE.exists() else "dev"
 REPORTING_TZ = ZoneInfo("Europe/Moscow")
 
-app = FastAPI()
+
+@contextlib.asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    _start_refresher()
+    yield
+
+
+app = FastAPI(lifespan=_lifespan)
 
 _db = connect(DB_PATH, check_same_thread=False)
 _db_lock = threading.RLock()
 
-# Traction asks for the 1/7/30 day summaries concurrently. Product aggregation
-# includes legacy/canonical dedupe, cohorts and quality metrics, so three copies
-# competing under the module CPU quota can all miss the hub's 5-second timeout.
-# Serialize cache fills and keep each window across one poll interval.
-PRODUCT_CACHE_TTL_SECONDS = 90.0
-_product_cache: dict[float, tuple[float, dict]] = {}
-_product_cache_lock = threading.Lock()
-EVENT_SNAPSHOT_TTL_SECONDS = 90.0
+# Ответы считаются НЕ в запросе. Хаб опрашивает /health + /summary?days=1/7/30
+# раз в минуту с таймаутом 5 с, обсерверному прокси на /product отведено 15 с,
+# а полный пересчёт продуктового пейлоада растёт вместе с историей (13.08.2026:
+# 167k событий → холодные 6–11 с, все три окна в таймауте, карточка Тайпа
+# замёрзла на пятичасовом снапшоте). Поэтому запрос всегда отдаёт последнее
+# посчитанное значение, а пересчитывает фоновый поток. Цена — данные отстают не
+# больше чем на CACHE_TTL_SECONDS; для витрины это незаметно, для таймаутов
+# критично.
+CACHE_TTL_SECONDS = float(os.environ.get("STATS_CACHE_TTL", "90"))
+REFRESH_TICK_SECONDS = float(os.environ.get("STATS_REFRESH_TICK", "15"))
+# Страховка на случай, если фоновый поток умер: настолько протухшее значение
+# запрос пересчитывает сам, пусть и ценой таймаута у одного поллинга.
+CACHE_HARD_LIMIT_SECONDS = 10 * CACHE_TTL_SECONDS
+WARM_WINDOWS = (1.0, 7.0, 30.0)
+_cache: dict[str, tuple[float, object]] = {}
+_cache_lock = threading.Lock()
+_refresh_jobs: dict[str, tuple[object, float]] = {}
+# Модуль живёт на общей с соседями квоте CPU: тяжёлые пересчёты идут по одному.
+# RLock, а не Lock: сборка summary внутри себя строит снапшот событий и product.
+_build_lock = threading.RLock()
+_refresher: threading.Thread | None = None
 SESSION_GAP_SECONDS = 5 * 60
-_event_snapshot: tuple[float, float, list[dict]] | None = None
-_event_snapshot_lock = threading.Lock()
+
+
+def _cached(key: str, builder, ttl: float = CACHE_TTL_SECONDS):
+    """Отдать последнее значение сразу, обновление оставить фону."""
+    with _cache_lock:
+        _refresh_jobs[key] = (builder, ttl)
+        entry = _cache.get(key)
+    if entry is not None and time.monotonic() - entry[0] < CACHE_HARD_LIMIT_SECONDS:
+        return entry[1]
+    return _build(key, builder)
+
+
+def _build(key: str, builder):
+    with _build_lock:
+        with _cache_lock:
+            entry = _cache.get(key)
+        # Пока мы стояли в очереди, значение мог посчитать сосед по локу.
+        if entry is not None and time.monotonic() - entry[0] < REFRESH_TICK_SECONDS:
+            return entry[1]
+        value = builder()
+        with _cache_lock:
+            _cache[key] = (time.monotonic(), value)
+        return value
+
+
+# Порядок обхода: сначала то, на чём стоят остальные ключи. Иначе summary
+# пересобирается на ещё не обновлённом product и витрина отстаёт на два TTL.
+_REFRESH_ORDER = ("events", "retention", "product:", "summary:", "timeseries:")
+
+
+def _refresh_rank(key: str) -> int:
+    for rank, prefix in enumerate(_REFRESH_ORDER):
+        if key == prefix or key.startswith(prefix):
+            return rank
+    return len(_REFRESH_ORDER)
+
+
+def _refresh_due() -> None:
+    with _cache_lock:
+        jobs = sorted(_refresh_jobs.items(), key=lambda job: _refresh_rank(job[0]))
+        ages = {key: entry[0] for key, entry in _cache.items()}
+    now = time.monotonic()
+    for key, (builder, ttl) in jobs:
+        stamp = ages.get(key)
+        if stamp is not None and now - stamp < ttl:
+            continue
+        try:
+            _build(key, builder)
+        except Exception:  # noqa: BLE001 — один битый ключ не роняет прогрев
+            traceback.print_exc()
+
+
+def _warm() -> None:
+    """Прогреть ровно то, что опрашивает хаб, плюс графики дашборда."""
+    for days in WARM_WINDOWS:
+        summary(days)
+        timeseries(days)
+
+
+def _refresh_loop() -> None:
+    try:
+        _warm()
+    except Exception:  # noqa: BLE001
+        traceback.print_exc()
+    while True:
+        time.sleep(REFRESH_TICK_SECONDS)
+        try:
+            _refresh_due()
+        except Exception:  # noqa: BLE001
+            traceback.print_exc()
+
+
+def _start_refresher() -> None:
+    global _refresher
+    if _refresher is not None and _refresher.is_alive():
+        return
+    _refresher = threading.Thread(
+        target=_refresh_loop, name="stats-refresher", daemon=True
+    )
+    _refresher.start()
+
+
+def _reset_caches() -> None:
+    with _cache_lock:
+        _cache.clear()
+        _refresh_jobs.clear()
+
+
 RATE_WINDOW_SECONDS = 60.0
 RATE_LIMIT_PER_IP = 600
 RATE_LIMIT_PER_DEVICE = 12
@@ -232,12 +341,10 @@ async def ingest(request: Request) -> JSONResponse:
         )
     with _db_lock:
         inserted = insert_events(_db, rows)
-    if inserted:
-        global _event_snapshot
-        with _event_snapshot_lock:
-            _event_snapshot = None
-        with _product_cache_lock:
-            _product_cache.clear()
+    # Инвалидации здесь намеренно нет. Пока она была, каждая пачка событий
+    # обнуляла кэши, а при нынешнем потоке (DAU ~800) это значит «кэша нет
+    # вообще»: любой опрос хаба считал витрину с нуля и ловил таймаут.
+    # Свежесть даёт фоновый пересчёт раз в CACHE_TTL_SECONDS.
     return JSONResponse(
         {
             "ok": True,
@@ -359,24 +466,13 @@ def _iter_events(since: float | None = None, until: float | None = None,
 def _read_events(since: float | None = None, until: float | None = None) -> list[dict]:
     """Read events, sharing one parsed all-history snapshot across 1/7/30.
 
-    Windowed timeseries reads stay uncached. Product calculations filter the
-    immutable list in memory and may lag new ingest by at most the explicit
-    snapshot TTL.
+    Windowed reads stay uncached at this level (их кэширует вызывающий).
+    Product calculations filter the immutable list in memory and may lag new
+    ingest by at most CACHE_TTL_SECONDS.
     """
     if since is not None or until is None:
         return _query_events(since, until)
-
-    global _event_snapshot
-    with _event_snapshot_lock:
-        monotonic_now = time.monotonic()
-        if (
-            _event_snapshot is not None
-            and monotonic_now - _event_snapshot[0] < EVENT_SNAPSHOT_TTL_SECONDS
-        ):
-            return _event_snapshot[2]
-        events = _query_events(until=until)
-        _event_snapshot = (time.monotonic(), until, events)
-        return events
+    return _cached("events", lambda: _query_events(until=until))
 
 
 def _dictation_record(event: dict) -> dict | None:
@@ -697,15 +793,10 @@ def _product_payload(days: float, now: float | None = None) -> dict:
     window_days, _ = _window(days, now)
     if now is not None:
         return _compute_product_payload(window_days, now)
-
-    with _product_cache_lock:
-        monotonic_now = time.monotonic()
-        cached = _product_cache.get(window_days)
-        if cached and monotonic_now - cached[0] < PRODUCT_CACHE_TTL_SECONDS:
-            return cached[1]
-        payload = _compute_product_payload(window_days, time.time())
-        _product_cache[window_days] = (time.monotonic(), payload)
-        return payload
+    return _cached(
+        f"product:{window_days:g}",
+        lambda: _compute_product_payload(window_days, time.time()),
+    )
 
 
 def _fmt_int(n: float) -> str:
@@ -722,6 +813,13 @@ def _fmt_int(n: float) -> str:
 def summary(days: float = 1.0) -> JSONResponse:
     """Ядро (installs/dau/events/errors) сравнимо между проектами и уходит в
     «Сводную»; metrics[] — витрина GigaType на карточке «Обзора»."""
+    window_days, _ = _window(days)
+    payload = _cached(f"summary:{window_days:g}", lambda: _compute_summary(days))
+    # no-store обязателен: закэшированный 200 маскирует мёртвый модуль.
+    return JSONResponse(payload, headers={"Cache-Control": "no-store"})
+
+
+def _compute_summary(days: float) -> dict:
     product = _product_payload(days)
     window_days = product["window_days"]
     product_now = datetime.fromisoformat(product["updated_at"]).timestamp()
@@ -741,7 +839,7 @@ def summary(days: float = 1.0) -> JSONResponse:
         retention = compute_retention()
     except Exception:  # noqa: BLE001 — карточки деградируют, ядро выживает
         pass
-    payload = {
+    return {
         "updated_at": product["updated_at"],
         "window_days": window_days,
         "installs": product["installs"],
@@ -764,8 +862,6 @@ def summary(days: float = 1.0) -> JSONResponse:
             {"label": "Eligible success rate", "value": f"{rate * 100:.1f}%" if rate is not None else "—"},
         ] + _retention_cards(retention) + _canonical_cards(product_now, retention),
     }
-    # no-store обязателен: закэшированный 200 маскирует мёртвый модуль.
-    return JSONResponse(payload, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/product")
@@ -776,6 +872,12 @@ def product(days: float = 7.0) -> JSONResponse:
 @app.get("/timeseries")
 def timeseries(days: float = 7.0) -> JSONResponse:
     """Дневные корзины для графиков дашборда (московские даты)."""
+    window_days, _ = _window(days)
+    payload = _cached(f"timeseries:{window_days:g}", lambda: _compute_timeseries(days))
+    return JSONResponse(payload, headers={"Cache-Control": "no-store"})
+
+
+def _compute_timeseries(days: float) -> dict:
     now = time.time()
     window_days, since = _window(days, now)
     # Stream the window instead of materializing every event dict: a 90-day
@@ -868,13 +970,17 @@ def timeseries(days: float = 7.0) -> JSONResponse:
             }
         )
         current_day += timedelta(days=1)
-    return JSONResponse(
-        {"window_days": window_days, "series": series},
-        headers={"Cache-Control": "no-store"},
-    )
+    return {"window_days": window_days, "series": series}
 
 
 def compute_retention(now: float | None = None) -> dict:
+    """Кэшированная обёртка: явный ``now`` считает честно (тесты, история)."""
+    if now is not None:
+        return _compute_retention(now)
+    return _cached("retention", lambda: _compute_retention(time.time()))
+
+
+def _compute_retention(now: float | None = None) -> dict:
     """Fleet retention standard (RETENTION_ROLLOUT.md).
 
     Two complementary views, both per canonical actor (until a product has
@@ -978,8 +1084,11 @@ HUMAN_EVENT_NAMES: tuple[str, ...] = ("first_app_opened", "dictation_finished")
 MACHINE_EVENT_NAMES: tuple[str, ...] = ()
 # Разрыв, после которого следующее человеческое событие открывает новую
 # сессию (веб-стандарт 30 минут; Цева 02.08 — «сессия это когда человек
-# касается ноута», интервалы между user msg).
-SESSION_GAP_SECONDS = 30 * 60
+# касается ноута», интервалы между user msg). Имя своё: раньше эта строка
+# звалась SESSION_GAP_SECONDS и молча перетирала 5-минутный флотский тайм-аут
+# из шапки модуля, так что overview.sessions_per_dau считался по 30 минутам
+# вопреки решению от 07.08 и карточке в реестре хаба.
+HUMAN_SESSION_GAP_SECONDS = 30 * 60
 
 
 def _canonical_cards(now: float, retention: dict | None = None) -> list[dict]:
@@ -1015,7 +1124,7 @@ def _canonical_cards(now: float, retention: dict | None = None) -> list[dict]:
                     "SELECT COUNT(*) FROM (SELECT ts - LAG(ts) OVER"
                     " (PARTITION BY device_id ORDER BY ts) AS delta"
                     + window + human + ") WHERE delta IS NULL OR delta > ?",
-                    (since, *names, SESSION_GAP_SECONDS),
+                    (since, *names, HUMAN_SESSION_GAP_SECONDS),
                 ).fetchone()[0]
                 hours = _db.execute(
                     "SELECT COUNT(DISTINCT device_id || ':' || CAST(ts / 3600 AS INT))"

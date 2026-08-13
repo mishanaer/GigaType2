@@ -37,10 +37,9 @@ def event(days_ago, device, name, event_id, **properties):
 
 class ProductMetricsTest(unittest.TestCase):
     def setUp(self):
-        server._event_snapshot = None
+        server._reset_caches()
         server._db.execute("DELETE FROM events")
         server._db.commit()
-        server._product_cache.clear()
         server._rate_buckets.clear()
 
     def seed(self):
@@ -167,11 +166,37 @@ class ProductMetricsTest(unittest.TestCase):
         # except the device whose only event predates the window.
         self.assertEqual(product["overview"]["mau"], 5)
         self.assertEqual(product["overview"]["ever_used"], 6)
-        self.assertEqual(product["overview"]["sessions_per_dau"], 2.0)
+        # Сессии Тайпа с 07.08.2026 считаются отдельно от диктовок: три события
+        # устройства current-day разнесены на часы, значит три сессии, а не две
+        # диктовки. Ряд /timeseries живёт по старому дневному прокси
+        # (диктовки / устройства) и остаётся на 2.0 — расхождение осознанное.
+        self.assertEqual(product["overview"]["sessions_per_dau"], 3.0)
 
         with patch("server.time.time", return_value=calendar_now):
             series = json.loads(server.timeseries(1).body)["series"]
         self.assertEqual(series[-1]["sessions_per_dau"], 2.0)
+
+    def test_overview_sessions_split_on_the_five_minute_fleet_gap(self):
+        now = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc).timestamp()
+        day_start = datetime(2026, 7, 7, 21, 0, tzinfo=timezone.utc).timestamp()
+        rows = [
+            {
+                "ts": day_start + offset,
+                "device_id": "gap",
+                "name": "app_opened",
+                "event_id": f"gap-{index}",
+                "properties": {},
+            }
+            # 0 и +4 мин — одна сессия, +10 мин — вторая: граница ровно та,
+            # что записана в SESSION_GAP_SECONDS (флотские 5 минут).
+            for index, offset in enumerate((0, 4 * 60, 10 * 60))
+        ]
+        self.assertEqual(insert_events(server._db, rows), 3)
+
+        product = server._product_payload(1, now)
+
+        self.assertEqual(server.SESSION_GAP_SECONDS, 5 * 60)
+        self.assertEqual(product["overview"]["sessions_per_dau"], 2.0)
 
     def test_summary_exposes_only_applicable_canonical_overview_metrics(self):
         self.seed()
@@ -225,6 +250,67 @@ class ProductMetricsTest(unittest.TestCase):
 
             server._product_payload(7, NOW)
             self.assertEqual(calls, [7.0, 7.0])
+
+    def test_summary_answers_from_cache_and_recomputes_in_background(self):
+        self.seed()
+        calls = []
+
+        def fake_compute(days):
+            calls.append(days)
+            return {"window_days": days, "metrics": [], "calls": len(calls)}
+
+        with patch.object(server, "_compute_summary", side_effect=fake_compute):
+            first = json.loads(server.summary(1).body)
+            second = json.loads(server.summary(1).body)
+            self.assertEqual(calls, [1.0])
+            self.assertEqual(second["calls"], first["calls"])
+
+            # Протухшее значение всё равно уходит в ответ мгновенно — за счёт
+            # этого поллер хаба укладывается в свои 5 секунд, — а пересчёт
+            # делает фоновый тик.
+            with server._cache_lock:
+                stamp, value = server._cache["summary:1"]
+                server._cache["summary:1"] = (
+                    stamp - server.CACHE_TTL_SECONDS - 1, value
+                )
+            stale = json.loads(server.summary(1).body)
+            self.assertEqual(calls, [1.0])
+            self.assertEqual(stale["calls"], first["calls"])
+
+            server._refresh_due()
+            self.assertEqual(calls, [1.0, 1.0])
+            self.assertEqual(json.loads(server.summary(1).body)["calls"], 2)
+
+    def test_ingest_keeps_the_warm_cache(self):
+        class FakeRequest:
+            headers: dict[str, str] = {}
+            client = None
+
+            async def body(self):
+                return json.dumps({
+                    "device_id": "fresh",
+                    "events": [{
+                        "name": "app_opened",
+                        "ts": time.time(),
+                        "event_id": "fresh-open",
+                    }],
+                }).encode()
+
+        self.seed()
+        calls = []
+        with patch.object(
+            server, "_compute_summary",
+            side_effect=lambda days: calls.append(days) or {"window_days": days},
+        ):
+            server.summary(1)
+            # Сброс кэша на каждой пачке событий означал бы «кэша нет»: при
+            # DAU в сотни устройств ingest идёт непрерывно (инцидент 13.08).
+            self.assertEqual(
+                json.loads(asyncio.run(server.ingest(FakeRequest())).body)["ingested"],
+                1,
+            )
+            server.summary(1)
+            self.assertEqual(calls, [1.0])
 
     def test_product_windows_share_one_parsed_event_snapshot(self):
         snapshot = [{"ts": NOW, "device_id": "a", "name": "app_opened"}]
