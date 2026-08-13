@@ -21,20 +21,50 @@ function loadTsModule(relPath, requireStub = () => ({})) {
   return module.exports;
 }
 
+// Node >= 21 defines globalThis.navigator as a getter-only accessor, so a
+// plain `global.navigator = ...` assignment is silently dropped in sloppy
+// mode. defineProperty is the only reliable way to install the mock; the
+// original descriptor is restored afterwards.
+async function withNavigator(mock, fn) {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  Object.defineProperty(globalThis, "navigator", {
+    value: mock,
+    configurable: true,
+    writable: true,
+  });
+  try {
+    return await fn();
+  } finally {
+    if (original) {
+      Object.defineProperty(globalThis, "navigator", original);
+    } else {
+      delete globalThis.navigator;
+    }
+  }
+}
+
 // t() stub that echoes the key (plus params when present) so assertions can
 // check which translation was chosen and with which interpolation values.
 const t = (key, params) => (params ? `${key}|${JSON.stringify(params)}` : key);
 
 test("windows denied status wins over every error name, including NotFoundError", () => {
-  const { describeMicAccessError } = loadTsModule("src/utils/recordingErrors.ts");
+  const { describeMicAccessError, getMicAccessErrorTitle } = loadTsModule(
+    "src/utils/recordingErrors.ts"
+  );
   for (const name of ["NotFoundError", "NotAllowedError", "NotReadableError", "AbortError"]) {
-    const result = describeMicAccessError(
-      { name, winMicAccessStatus: "denied" },
-      t,
-      "win32"
-    );
-    assert.match(result, /windowsDesktopAppsBlocked/, `name=${name}`);
+    const failure = { name, winMicAccessStatus: "denied" };
+    assert.match(describeMicAccessError(failure, t, "win32"), /windowsDesktopAppsBlocked/, name);
+    assert.match(getMicAccessErrorTitle(failure, t, "win32"), /micAccessDenied/, name);
   }
+});
+
+test("denied status is windows-only — darwin falls back to the error name", () => {
+  const { describeMicAccessError, getMicAccessErrorTitle } = loadTsModule(
+    "src/utils/recordingErrors.ts"
+  );
+  const failure = { name: "NotReadableError", winMicAccessStatus: "denied" };
+  assert.match(describeMicAccessError(failure, t, "darwin"), /couldNotStart/);
+  assert.match(getMicAccessErrorTitle(failure, t, "darwin"), /micInUse/);
 });
 
 test("windows busy text for NotReadableError when status is granted", () => {
@@ -47,13 +77,25 @@ test("windows busy text for NotReadableError when status is granted", () => {
   assert.match(result, /windowsMicBusyOrBlocked/);
 });
 
-test("stale configured device surfaces deviceUnavailable even when the retry failed differently", () => {
+test("title and description always agree on the root cause after a failed retry", () => {
   const { describeMicAccessError, getMicAccessErrorTitle } = loadTsModule(
     "src/utils/recordingErrors.ts"
   );
-  const failure = { name: "NotReadableError", originalDeviceErrorName: "OverconstrainedError" };
-  assert.match(describeMicAccessError(failure, t, "darwin"), /deviceUnavailable/);
-  assert.match(getMicAccessErrorTitle(failure, t), /micUnavailable/);
+  // Stale device, retry hit a busy default mic → stale device is the root cause.
+  const staleBusy = { name: "NotReadableError", originalDeviceErrorName: "OverconstrainedError" };
+  assert.match(describeMicAccessError(staleBusy, t, "darwin"), /deviceUnavailable/);
+  assert.match(getMicAccessErrorTitle(staleBusy, t, "darwin"), /micUnavailable/);
+
+  // Stale device, retry found zero devices → "no microphones" is authoritative
+  // (advising to pick another device from an empty list would be nonsense).
+  const staleEmpty = { name: "NotFoundError", originalDeviceErrorName: "OverconstrainedError" };
+  assert.match(describeMicAccessError(staleEmpty, t, "darwin"), /noMicrophones/);
+  assert.match(getMicAccessErrorTitle(staleEmpty, t, "darwin"), /micNotFound/);
+
+  // Stale device, retry hit revoked permission → privacy advice is authoritative.
+  const stalePerm = { name: "NotAllowedError", originalDeviceErrorName: "OverconstrainedError" };
+  assert.match(describeMicAccessError(stalePerm, t, "darwin"), /permissionDenied/);
+  assert.match(getMicAccessErrorTitle(stalePerm, t, "darwin"), /micAccessDenied/);
 });
 
 test("non-windows platforms keep the generic couldNotStart text", () => {
@@ -62,13 +104,16 @@ test("non-windows platforms keep the generic couldNotStart text", () => {
   assert.match(result, /couldNotStart/);
 });
 
-test("titles map per error name", () => {
+test("titles map per error name, including legacy PermissionDeniedError", () => {
   const { getMicAccessErrorTitle } = loadTsModule("src/utils/recordingErrors.ts");
-  assert.match(getMicAccessErrorTitle({ name: "NotAllowedError" }, t), /micAccessDenied/);
-  assert.match(getMicAccessErrorTitle({ winMicAccessStatus: "denied" }, t), /micAccessDenied/);
-  assert.match(getMicAccessErrorTitle({ name: "NotFoundError" }, t), /micNotFound/);
-  assert.match(getMicAccessErrorTitle({ name: "NotReadableError" }, t), /micInUse/);
-  assert.match(getMicAccessErrorTitle({ name: "WeirdError" }, t), /recordingError/);
+  assert.match(getMicAccessErrorTitle({ name: "NotAllowedError" }, t, "darwin"), /micAccessDenied/);
+  assert.match(
+    getMicAccessErrorTitle({ name: "PermissionDeniedError" }, t, "darwin"),
+    /micAccessDenied/
+  );
+  assert.match(getMicAccessErrorTitle({ name: "NotFoundError" }, t, "darwin"), /micNotFound/);
+  assert.match(getMicAccessErrorTitle({ name: "NotReadableError" }, t, "darwin"), /micInUse/);
+  assert.match(getMicAccessErrorTitle({ name: "WeirdError" }, t, "darwin"), /recordingError/);
 });
 
 test("getExactAudioDeviceId reads exact and plain string deviceIds only", () => {
@@ -85,64 +130,92 @@ test("fallback helper retries with default device and reports the failed id", as
   const calls = [];
   const stream = { id: "fallback-stream" };
   const err = Object.assign(new Error("busy"), { name: "NotReadableError" });
-  global.navigator = {
-    mediaDevices: {
-      getUserMedia: async (constraints) => {
-        calls.push(constraints);
-        if (calls.length === 1) throw err;
-        return stream;
+  await withNavigator(
+    {
+      mediaDevices: {
+        getUserMedia: async (constraints) => {
+          calls.push(constraints);
+          if (calls.length === 1) throw err;
+          return stream;
+        },
       },
     },
-  };
-  try {
-    let fallbackInfo = null;
-    const result = await getUserMediaWithDefaultDeviceFallback(
-      { audio: { deviceId: { exact: "dead" }, echoCancellation: false } },
-      { echoCancellation: false },
-      { onFallback: (info) => (fallbackInfo = info) }
-    );
-    assert.equal(result.stream, stream);
-    assert.equal(result.usedFallback, true);
-    assert.equal(result.failedDeviceId, "dead");
-    assert.equal(result.originalError, err);
-    assert.deepEqual(fallbackInfo, { failedDeviceId: "dead", error: err });
-    assert.equal(calls.length, 2);
-    assert.equal(calls[1].audio.deviceId, undefined);
-  } finally {
-    delete global.navigator;
-  }
+    async () => {
+      let fallbackInfo = null;
+      const result = await getUserMediaWithDefaultDeviceFallback(
+        { audio: { deviceId: { exact: "dead" }, echoCancellation: false } },
+        { echoCancellation: false },
+        { onFallback: (info) => (fallbackInfo = info) }
+      );
+      assert.equal(result.stream, stream);
+      assert.equal(result.usedFallback, true);
+      assert.equal(result.failedDeviceId, "dead");
+      assert.equal(result.originalError, err);
+      assert.deepEqual(fallbackInfo, { failedDeviceId: "dead", error: err });
+      assert.equal(calls.length, 2);
+      assert.equal(calls[1].audio.deviceId, undefined);
+    }
+  );
 });
 
 test("fallback helper rethrows non-device errors and errors without an exact device", async () => {
   const { getUserMediaWithDefaultDeviceFallback } = loadTsModule("src/utils/audioDeviceUtils.ts");
   const err = Object.assign(new Error("nope"), { name: "NotAllowedError" });
   let calls = 0;
-  global.navigator = {
-    mediaDevices: {
-      getUserMedia: async () => {
-        calls += 1;
-        throw err;
+  await withNavigator(
+    {
+      mediaDevices: {
+        getUserMedia: async () => {
+          calls += 1;
+          throw err;
+        },
       },
     },
-  };
-  try {
-    await assert.rejects(
-      () =>
-        getUserMediaWithDefaultDeviceFallback({ audio: { deviceId: { exact: "x" } } }, {}, {}),
-      /nope/
-    );
-    assert.equal(calls, 1, "permission errors must not trigger a retry");
+    async () => {
+      await assert.rejects(
+        () =>
+          getUserMediaWithDefaultDeviceFallback({ audio: { deviceId: { exact: "x" } } }, {}, {}),
+        /nope/
+      );
+      assert.equal(calls, 1, "permission errors must not trigger a retry");
 
-    calls = 0;
-    err.name = "NotReadableError";
-    await assert.rejects(
-      () => getUserMediaWithDefaultDeviceFallback({ audio: true }, {}, {}),
-      /nope/
-    );
-    assert.equal(calls, 1, "no exact device means no retry");
-  } finally {
-    delete global.navigator;
-  }
+      calls = 0;
+      err.name = "NotReadableError";
+      await assert.rejects(
+        () => getUserMediaWithDefaultDeviceFallback({ audio: true }, {}, {}),
+        /nope/
+      );
+      assert.equal(calls, 1, "no exact device means no retry");
+    }
+  );
+});
+
+test("shouldRetry override widens the retry policy (meeting capture)", async () => {
+  const { getUserMediaWithDefaultDeviceFallback } = loadTsModule("src/utils/audioDeviceUtils.ts");
+  const err = Object.assign(new Error("weird"), { name: "NotSupportedError" });
+  const stream = { id: "s" };
+  let calls = 0;
+  await withNavigator(
+    {
+      mediaDevices: {
+        getUserMedia: async () => {
+          calls += 1;
+          if (calls === 1) throw err;
+          return stream;
+        },
+      },
+    },
+    async () => {
+      const result = await getUserMediaWithDefaultDeviceFallback(
+        { audio: { deviceId: { exact: "x" } } },
+        {},
+        { shouldRetry: () => true }
+      );
+      assert.equal(result.stream, stream);
+      assert.equal(result.usedFallback, true);
+      assert.equal(calls, 2);
+    }
+  );
 });
 
 test("fallback helper attaches originalDeviceErrorName when the retry also fails", async () => {
@@ -150,51 +223,51 @@ test("fallback helper attaches originalDeviceErrorName when the retry also fails
   const first = Object.assign(new Error("gone"), { name: "OverconstrainedError" });
   const second = Object.assign(new Error("busy"), { name: "NotReadableError" });
   let calls = 0;
-  global.navigator = {
-    mediaDevices: {
-      getUserMedia: async () => {
-        calls += 1;
-        throw calls === 1 ? first : second;
+  await withNavigator(
+    {
+      mediaDevices: {
+        getUserMedia: async () => {
+          calls += 1;
+          throw calls === 1 ? first : second;
+        },
       },
     },
-  };
-  try {
-    await assert.rejects(
-      () =>
-        getUserMediaWithDefaultDeviceFallback({ audio: { deviceId: { exact: "x" } } }, {}, {}),
-      (thrown) => {
-        assert.equal(thrown, second);
-        assert.equal(thrown.originalDeviceErrorName, "OverconstrainedError");
-        return true;
-      }
-    );
-  } finally {
-    delete global.navigator;
-  }
+    async () => {
+      await assert.rejects(
+        () =>
+          getUserMediaWithDefaultDeviceFallback({ audio: { deviceId: { exact: "x" } } }, {}, {}),
+        (thrown) => {
+          assert.equal(thrown, second);
+          assert.equal(thrown.originalDeviceErrorName, "OverconstrainedError");
+          return true;
+        }
+      );
+    }
+  );
 });
 
 test("fallback helper honors shouldCancel between attempts", async () => {
   const { getUserMediaWithDefaultDeviceFallback } = loadTsModule("src/utils/audioDeviceUtils.ts");
   const err = Object.assign(new Error("busy"), { name: "NotReadableError" });
   let calls = 0;
-  global.navigator = {
-    mediaDevices: {
-      getUserMedia: async () => {
-        calls += 1;
-        throw err;
+  await withNavigator(
+    {
+      mediaDevices: {
+        getUserMedia: async () => {
+          calls += 1;
+          throw err;
+        },
       },
     },
-  };
-  try {
-    const result = await getUserMediaWithDefaultDeviceFallback(
-      { audio: { deviceId: { exact: "x" } } },
-      {},
-      { shouldCancel: () => true }
-    );
-    assert.equal(result.stream, null);
-    assert.equal(result.usedFallback, false);
-    assert.equal(calls, 1, "cancel must prevent the retry getUserMedia");
-  } finally {
-    delete global.navigator;
-  }
+    async () => {
+      const result = await getUserMediaWithDefaultDeviceFallback(
+        { audio: { deviceId: { exact: "x" } } },
+        {},
+        { shouldCancel: () => true }
+      );
+      assert.equal(result.stream, null);
+      assert.equal(result.usedFallback, false);
+      assert.equal(calls, 1, "cancel must prevent the retry getUserMedia");
+    }
+  );
 });

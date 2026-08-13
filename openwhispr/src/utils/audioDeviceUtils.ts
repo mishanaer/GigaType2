@@ -55,6 +55,12 @@ export async function getUserMediaWithDefaultDeviceFallback(
   opts: {
     shouldCancel?: () => boolean;
     onFallback?: (info: { failedDeviceId: string; error: unknown }) => void;
+    /**
+     * Overrides the DEVICE_FALLBACK_ERROR_NAMES policy deciding whether an
+     * error from the configured device warrants the default-device retry.
+     * The exact-deviceId requirement always applies.
+     */
+    shouldRetry?: (error: unknown, errorName: string | null) => boolean;
   } = {}
 ): Promise<DeviceFallbackResult> {
   try {
@@ -62,8 +68,11 @@ export async function getUserMediaWithDefaultDeviceFallback(
     return { stream, usedFallback: false, failedDeviceId: null, originalError: null };
   } catch (error) {
     const failedDeviceId = getExactAudioDeviceId(constraints);
-    const errorName = (error as { name?: string } | null)?.name;
-    if (!failedDeviceId || !errorName || !DEVICE_FALLBACK_ERROR_NAMES.has(errorName)) {
+    const errorName = (error as { name?: string } | null)?.name ?? null;
+    const retriable = opts.shouldRetry
+      ? opts.shouldRetry(error, errorName)
+      : errorName !== null && DEVICE_FALLBACK_ERROR_NAMES.has(errorName);
+    if (!failedDeviceId || !retriable) {
       throw error;
     }
     if (opts.shouldCancel?.()) {
@@ -78,7 +87,7 @@ export async function getUserMediaWithDefaultDeviceFallback(
     } catch (fallbackError) {
       try {
         (fallbackError as { originalDeviceErrorName?: string | null }).originalDeviceErrorName =
-          errorName ?? null;
+          errorName;
       } catch {
         // DOMException may be frozen in exotic environments — best-effort only
       }

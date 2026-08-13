@@ -723,7 +723,13 @@ export async function startRecording(args: StartRecordingArgs): Promise<void> {
           const result = await getUserMediaWithDefaultDeviceFallback(
             constraints,
             MEETING_MIC_PRIMARY_AUDIO_CONSTRAINTS,
-            {}
+            {
+              // Historical meeting behavior: any failure of the configured
+              // device is worth one default-device retry — a meeting without
+              // the local mic is a much worse outcome than a wasted attempt.
+              shouldRetry: () => true,
+              shouldCancel: () => !isRecordingFlag,
+            }
           );
           if (result.usedFallback) {
             logger.info(
