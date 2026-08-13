@@ -2565,19 +2565,25 @@ class IPCHandlers {
     });
 
     handle("request-microphone-access", async () => {
-      if (process.platform !== "darwin") {
-        return { granted: true, status: "granted" };
+      if (process.platform === "darwin") {
+        const granted = await systemPreferences.askForMediaAccess("microphone");
+        return { granted };
       }
-      const granted = await systemPreferences.askForMediaAccess("microphone");
-      return { granted };
+      if (process.platform === "win32") {
+        // No prompt API on Windows — access is governed by the privacy
+        // settings ("Allow desktop apps to access your microphone").
+        const status = systemPreferences.getMediaAccessStatus("microphone");
+        return { granted: status === "granted", status };
+      }
+      return { granted: true, status: "granted" };
     });
 
     handle("check-microphone-access", () => {
-      if (process.platform !== "darwin") {
-        return { granted: true, status: "granted" };
+      if (process.platform === "darwin" || process.platform === "win32") {
+        const status = systemPreferences.getMediaAccessStatus("microphone");
+        return { granted: status === "granted", status };
       }
-      const status = systemPreferences.getMediaAccessStatus("microphone");
-      return { granted: status === "granted", status };
+      return { granted: true, status: "granted" };
     });
 
     const buildSystemAudioAccess = (partial = {}) => ({

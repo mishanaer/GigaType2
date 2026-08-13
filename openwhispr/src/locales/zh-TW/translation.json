@@ -484,6 +484,9 @@
         "noMicrophones": "未偵測到麥克風。請在 {{settingsPath}} 中連接或選擇麥克風。",
         "permissionDenied": "權限被拒絕。請開啟 {{privacyPath}} 並允許 Type。",
         "couldNotStart": "無法啟動所選的麥克風。請在 {{settingsPath}} 中選擇輸入裝置後重新測試。",
+        "deviceUnavailable": "所選麥克風已無法使用。請在{{settingsPath}}中選擇其他輸入裝置，然後重新測試。",
+        "windowsDesktopAppsBlocked": "Windows 正在封鎖桌面應用程式存取麥克風。請開啟{{privacyPath}}，捲動到頁面底部，開啟「允許桌面應用程式存取您的麥克風」，然後重新測試。",
+        "windowsMicBusyOrBlocked": "無法啟動麥克風。它可能正被其他應用程式使用，或被防毒軟體封鎖。請關閉其他應用程式、檢查防毒軟體，或在{{settingsPath}}中選擇其他裝置，然後重新測試。",
         "noActiveInput": "找不到有效的音訊輸入。請在 {{settingsPath}} 中選擇麥克風。",
         "unknown": "麥克風存取失敗：{{error}}。請選擇其他輸入裝置後再試。",
         "unknownFallback": "未知錯誤"

@@ -71,7 +71,11 @@ const getPlatform = (): "darwin" | "win32" | "linux" => {
   return "darwin"; // Default fallback
 };
 
-const describeMicError = (error: unknown, t: TFunction): string => {
+const describeMicError = (
+  error: unknown,
+  t: TFunction,
+  winMicAccessStatus: string | null = null
+): string => {
   if (!error || typeof error !== "object") {
     return t("hooks.permissions.micErrors.accessFailed");
   }
@@ -86,11 +90,24 @@ const describeMicError = (error: unknown, t: TFunction): string => {
     return t("hooks.permissions.micErrors.noMicrophones", { settingsPath });
   }
 
+  if (name === "OverconstrainedError") {
+    return t("hooks.permissions.micErrors.deviceUnavailable", { settingsPath });
+  }
+
+  // Windows blocks desktop apps via a dedicated privacy toggle. When the OS
+  // reports "denied", every getUserMedia failure is that toggle — not the app.
+  if (getPlatform() === "win32" && winMicAccessStatus === "denied") {
+    return t("hooks.permissions.micErrors.windowsDesktopAppsBlocked", { privacyPath });
+  }
+
   if (name === "NotAllowedError" || name === "SecurityError") {
     return t("hooks.permissions.micErrors.permissionDenied", { privacyPath });
   }
 
   if (name === "NotReadableError" || name === "AbortError") {
+    if (getPlatform() === "win32") {
+      return t("hooks.permissions.micErrors.windowsMicBusyOrBlocked", { settingsPath });
+    }
     return t("hooks.permissions.micErrors.couldNotStart", { settingsPath });
   }
 
@@ -202,7 +219,15 @@ export const usePermissions = (
       setMicPermissionError(null);
     } catch (err) {
       logger.error("Microphone permission denied:", err);
-      const message = describeMicError(err, t);
+      let winMicAccessStatus: string | null = null;
+      if (getPlatform() === "win32") {
+        try {
+          winMicAccessStatus = (await window.electronAPI?.checkMicrophoneAccess?.())?.status ?? null;
+        } catch {
+          // status stays unknown — fall back to generic error texts
+        }
+      }
+      const message = describeMicError(err, t, winMicAccessStatus);
       setMicPermissionError(message);
       if (showAlertDialog) {
         showAlertDialog({
@@ -284,13 +309,21 @@ export const usePermissions = (
     checkPasteToolsAvailability();
   }, [checkPasteToolsAvailability]);
 
-  // On macOS, re-validate microphone permission on mount to override stale
-  // localStorage values (e.g. after TCC reset or app update).
+  // Re-validate microphone permission on mount to override stale localStorage
+  // values (e.g. after TCC reset or app update). On Windows "granted" only
+  // means the OS privacy toggles allow desktop apps — not that the mic ever
+  // opened successfully — so only a "denied" status downgrades the flag there.
   useEffect(() => {
-    if (getPlatform() !== "darwin") return;
-    window.electronAPI?.checkMicrophoneAccess?.().then((result) => {
-      if (result) setMicPermissionGranted(result.granted);
-    });
+    const currentPlatform = getPlatform();
+    if (currentPlatform === "darwin") {
+      window.electronAPI?.checkMicrophoneAccess?.().then((result) => {
+        if (result) setMicPermissionGranted(result.granted);
+      });
+    } else if (currentPlatform === "win32") {
+      window.electronAPI?.checkMicrophoneAccess?.().then((result) => {
+        if (result && !result.granted) setMicPermissionGranted(false);
+      });
+    }
   }, [setMicPermissionGranted]);
 
   useEffect(() => {

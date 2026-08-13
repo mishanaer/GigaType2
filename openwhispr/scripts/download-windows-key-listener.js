@@ -19,7 +19,10 @@ const {
   setExecutable,
 } = require("./lib/download-utils");
 
-const REPO = "Type/openwhispr";
+// This repo's own releases (built by .github/workflows/build-windows-key-listener.yml
+// at the monorepo root) take priority; the upstream repo is a fallback until the
+// first local release exists. Private-repo API access needs GITHUB_TOKEN (set in CI).
+const REPOS = ["mishanaer/GigaType2", "Type/openwhispr"];
 const TAG_PREFIX = "windows-key-listener-v";
 const ZIP_NAME = "windows-key-listener-win32-x64.zip";
 const BINARY_NAME = "windows-key-listener.exe";
@@ -53,7 +56,14 @@ async function main() {
     console.log("\n[windows-key-listener] Fetching latest release...");
   }
   const tagToFind = VERSION_OVERRIDE || TAG_PREFIX;
-  const release = await fetchLatestRelease(REPO, { tagPrefix: tagToFind });
+  let release = null;
+  for (const repo of REPOS) {
+    release = await fetchLatestRelease(repo, { tagPrefix: tagToFind });
+    if (release) {
+      console.log(`[windows-key-listener] Using release from ${repo}`);
+      break;
+    }
+  }
 
   if (!release) {
     console.error("[windows-key-listener] Could not find a release matching prefix:", TAG_PREFIX);
