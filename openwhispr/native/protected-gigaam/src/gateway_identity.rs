@@ -61,12 +61,32 @@ impl CachedInstallToken {
     }
 }
 
+/// Repeating XOR pad shared with `build.rs`. Keep the two in sync.
+const REG_KEY_PAD: [u8; 16] = [
+    0x9e, 0x37, 0x79, 0xb9, 0x7f, 0x4a, 0x7c, 0x15, 0xf3, 0x9c, 0xc0, 0x60, 0x5c, 0xed, 0xc8, 0x34,
+];
+/// XOR-obfuscated registration key baked by `build.rs` (empty in dev/CI builds).
+const OBFUSCATED_REGISTRATION_KEY: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/regkey.obf"));
+
 fn registration_key() -> Result<String, String> {
-    // Release builds receive this at compile time. Runtime env is kept for local
-    // development/CI. The value is never committed to the repository.
-    option_env!("TYPE_REGISTRATION_KEY")
-        .map(str::to_owned)
-        .or_else(|| std::env::var("TYPE_REGISTRATION_KEY").ok())
+    // Release builds bake the key XOR-obfuscated so it is not recoverable with
+    // `strings`; it is reconstructed here only when actually needed. Runtime env
+    // is kept for local development/CI. The value is never committed.
+    if !OBFUSCATED_REGISTRATION_KEY.is_empty() {
+        let bytes: Vec<u8> = OBFUSCATED_REGISTRATION_KEY
+            .iter()
+            .enumerate()
+            .map(|(i, byte)| byte ^ REG_KEY_PAD[i % REG_KEY_PAD.len()])
+            .collect();
+        if let Ok(key) = String::from_utf8(bytes) {
+            if !key.trim().is_empty() {
+                return Ok(key);
+            }
+        }
+    }
+    std::env::var("TYPE_REGISTRATION_KEY")
+        .ok()
         .filter(|value| !value.trim().is_empty())
         .ok_or_else(|| "TYPE_REGISTRATION_KEY is missing from this build".to_string())
 }
@@ -430,6 +450,33 @@ pub async fn refresh_managed_gateway_token() -> Result<(), String> {
 mod tests {
     use super::*;
     use reqwest::Url;
+
+    #[test]
+    fn registration_key_obfuscation_round_trips_and_hides_plaintext() {
+        // build.rs and registration_key() XOR with the same pad, so any baked
+        // key survives; the on-disk blob must never contain the plaintext.
+        let sample = "0123456789abcdef".repeat(4); // shape of a 64-hex key
+        let obfuscated: Vec<u8> = sample
+            .bytes()
+            .enumerate()
+            .map(|(i, byte)| byte ^ REG_KEY_PAD[i % REG_KEY_PAD.len()])
+            .collect();
+        let recovered = String::from_utf8(
+            obfuscated
+                .iter()
+                .enumerate()
+                .map(|(i, byte)| byte ^ REG_KEY_PAD[i % REG_KEY_PAD.len()])
+                .collect(),
+        )
+        .expect("recovered key is valid UTF-8");
+        assert_eq!(recovered, sample);
+        assert!(
+            !obfuscated
+                .windows(sample.len())
+                .any(|window| window == sample.as_bytes()),
+            "obfuscated blob must not contain the plaintext key"
+        );
+    }
 
     fn assert_managed_https_url(value: &str, expected_host: &str) {
         let url = Url::parse(value).expect("managed gateway URL must parse");

@@ -5,6 +5,12 @@ edition = "2021"
 rust-version = "1.85"
 build = "build.rs"
 
+# Strip symbols from release binaries so function names / the internal structure
+# are not handed to a reverse engineer for free (part of the protected-model
+# hardening; see gateway_identity registration-key obfuscation + main anti-debug).
+[profile.release]
+strip = "symbols"
+
 [features]
 model-packaging = ["dep:rand", "dep:tempfile"]
 # Dev-only probe for the ANE encoder stdio driver; never shipped.

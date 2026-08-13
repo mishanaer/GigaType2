@@ -209,8 +209,30 @@ fn serve(mut model: RnntModel, release_id: String) -> Result<()> {
     }
 }
 
+/// Refuse debugger attachment on release macOS builds. `PT_DENY_ATTACH` makes
+/// `task_for_pid`/lldb fail (and terminates the process if a debugger later
+/// attaches), which raises the bar for dumping the decrypted model out of the
+/// live process. Non-fatal if the syscall is rejected; a determined attacker
+/// with root can still bypass it — this is defence-in-depth, not a guarantee.
+#[cfg(all(target_os = "macos", not(debug_assertions)))]
+fn deny_debugger_attachment() {
+    const PT_DENY_ATTACH: i32 = 31;
+    extern "C" {
+        fn ptrace(request: i32, pid: i32, addr: *mut i8, data: i32) -> i32;
+    }
+    // SAFETY: PT_DENY_ATTACH ignores the addr/data arguments; the call owns no
+    // memory and a non-zero return is tolerated.
+    unsafe {
+        let _ = ptrace(PT_DENY_ATTACH, 0, std::ptr::null_mut(), 0);
+    }
+}
+
+#[cfg(not(all(target_os = "macos", not(debug_assertions))))]
+fn deny_debugger_attachment() {}
+
 #[tokio::main]
 async fn main() {
+    deny_debugger_attachment();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format_timestamp_millis()
         .init();
