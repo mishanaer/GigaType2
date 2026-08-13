@@ -48,11 +48,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
-      - name: Download sherpa-onnx binaries
-        run: node scripts/download-sherpa-onnx.js --current
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-
       - name: Download Qdrant binary
         run: node scripts/download-qdrant.js --current
         env:
@@ -138,11 +133,6 @@ jobs:
 
       - name: Download llama-server binaries
         run: node scripts/download-llama-server.js --current
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: Download sherpa-onnx binaries
-        run: node scripts/download-sherpa-onnx.js --current
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
@@ -234,12 +224,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install ffmpeg-static for target architecture
-        if: matrix.arch == 'x64'
-        run: |
-          rm -f node_modules/ffmpeg-static/ffmpeg
-          npm_config_arch=x64 node node_modules/ffmpeg-static/install.js
-
       - name: Cache native binaries
         uses: actions/cache@v4
         with:
@@ -265,11 +249,6 @@ jobs:
 
       - name: Download llama-server binaries
         run: node scripts/download-llama-server.js --current --platform darwin --arch ${{ matrix.arch }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-
-      - name: Download sherpa-onnx binaries
-        run: node scripts/download-sherpa-onnx.js --current --platform darwin --arch ${{ matrix.arch }}
         env:
           GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 

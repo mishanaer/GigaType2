@@ -146,7 +146,6 @@
       "from": "resources/bin/",
       "to": "bin/",
       "filter": [
-        "ffmpeg*",
         "macos-audio-tap",
         "macos-globe-listener",
         "macos-fast-paste",
@@ -162,16 +161,7 @@
         "windows-mic-listener*",
         "windows-text-monitor*",
         "windows-fast-paste*",
-        "speech-vad/**/*",
-        "*.dylib",
-        "*.dll",
-        "*.so*",
-        "!libllama*",
-        "!libggml*",
-        "!libmtmd*",
-        "!llama*",
-        "!ggml*",
-        "!mtmd*"
+        "speech-vad/**/*"
       ]
     }
   ],

@@ -3,7 +3,11 @@
 // Replaces the full ffmpeg-static binary (75 MB) with a 21-28 MB build that
 // still supports all audio formats needed by this app (Opus/WebM, AAC, WAV, MP3).
 //
-// macOS and Linux only. Windows uses ffmpeg-static (no suitable slim build).
+// macOS and Linux only (no suitable slim Windows build).
+//
+// Manual-only: no prebuild script calls this, and electron-builder no longer
+// copies resources/bin/ffmpeg into the app, because nothing reachable spawns
+// ffmpeg. See "FFmpeg (not bundled)" in CLAUDE.md before wiring it back in.
 
 const fs = require("fs");
 const path = require("path");

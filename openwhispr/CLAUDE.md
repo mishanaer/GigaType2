@@ -14,7 +14,7 @@ Type is an Electron-based desktop dictation application that uses GigaAM for spe
 - **Database**: better-sqlite3 for local transcription history
 - **UI Components**: shadcn/ui with Radix primitives
 - **Speech Processing**: GigaAM v3 RNN-T in-process (onnxruntime-node in the ONNX utility process) / OpenAI-compatible transcription endpoint
-- **Audio Processing**: FFmpeg (bundled via ffmpeg-static)
+- **Audio Processing**: none bundled — the renderer encodes 16 kHz mono WAV directly and the main process parses it natively (no ffmpeg ships in any build)
 - **Node.js**: 24 (pinned in `.nvmrc` — CI uses Node 24, do NOT regenerate `package-lock.json` with a different major version)
 
 ### Key Architectural Decisions
@@ -152,8 +152,8 @@ Type is an Electron-based desktop dictation application that uses GigaAM for spe
   - **No ONNX-encoder fallback on arm64.** If CoreML cannot load (macOS < 14, missing model/helper) `gigaam.load` fails and the engine reports the error. `GIGAAM_DISABLE_ANE=1` forces the ONNX path (requires the encoder in the model cache); `GIGAAM_ANE_COMPUTE_UNITS=cpu|all` overrides the compute units. A helper crash is recovered by respawning it on the next request.
   - Model prep: `npm run download:gigaam-ane` (fp16; `--variant int8` or `GIGAAM_ANE_VARIANT=int8` halves the 423 MB at the same measured accuracy) downloads and compiles `resources/gigaam-ane/encoder-ane.mlmodelc` with `xcrun coremlcompiler` — **needs full Xcode**. `prebuild:mac:arm64` runs it. `mac.extraResources` copies both encoders and afterPack keeps only the one that arch can use.
 - **Featurizer**: exact port of onnx-asr's GigaamPreprocessor v3 (n_fft=win=320, hop=160, 64 mels); precomputed window/mel-fbank embedded in `src/workers/gigaamFbankAssets.js`. On the ANE path this JS featurizer is now the slower half of a transcription (~170 ms vs ~115 ms of encoder for 30 s)
-- **onnxruntime version lock**: onnxruntime-node is pinned to the exact version sherpa-onnx links (`libonnxruntime.1.23.2.dylib`); afterPack replaces the bin copy with a symlink into app.asar.unpacked. Do not bump one without the other
-- **Audio decode**: WAV parsed natively in `gigaamLocalAsr.js`; other formats fall back to the slim custom ffmpeg in `resources/bin` (audio-only build, ~2 MB)
+- **onnxruntime version lock**: the pin to `libonnxruntime.1.23.2.dylib` existed because the sherpa-onnx dylibs link that exact soname. sherpa is no longer packaged (see Build Scripts), so onnxruntime-node is now the only ORT in the bundle and the afterPack dylib dedupe is a no-op. Re-packaging sherpa reinstates the lock
+- **Audio decode**: WAV parsed natively in `gigaamLocalAsr.js`; other formats throw — no ffmpeg ships (see FFmpeg (not bundled))
 - **Endpoint config**: renderer uses `gigaamBaseUrl` / `remoteTranscriptionUrl` (unchanged)
 - **Endpoint normalization**: `src/utils/gigaamTranscription.js` appends `/audio/transcriptions` when needed
 - **Auth**: no renderer BYOK API key path for transcription
@@ -189,7 +189,9 @@ Always-on offline semantic search that finds notes by meaning, not just keywords
 - **download-llama-server.js**: Downloads llama.cpp server for local LLM inference
 - **download-windows-key-listener.js**: Downloads prebuilt Windows key listener binary
 - **download-windows-mic-listener.js**: Downloads prebuilt Windows mic listener binary
-- **download-sherpa-onnx.js**: Downloads sherpa-onnx diarization binary
+- **download-sherpa-onnx.js**: Downloads the sherpa-onnx diarization binary. Manual-only — diarization has no UI, so this is not in any `prebuild:*` chain and the binary/libs are excluded from the packaged `resources/bin/`
+- **download-diarization-models.js**: Downloads the diarization models (~35 MB). Manual-only, for the same reason
+- **download-ffmpeg.js**: Downloads a slim ffmpeg (macOS/Linux only). Manual-only — nothing reachable spawns ffmpeg
 - **download-qdrant.js**: Downloads Qdrant vector DB binary for local semantic search
 - **download-minilm.js**: Downloads all-MiniLM-L6-v2 ONNX model + tokenizer for local embeddings
 - **build-globe-listener.js**: Compiles macOS Globe key listener from Swift source
@@ -207,12 +209,22 @@ Always-on offline semantic search that finds notes by meaning, not just keywords
 
 ## Key Implementation Details
 
-### 1. FFmpeg Integration
+### 1. FFmpeg (not bundled)
 
-FFmpeg is bundled with the app and doesn't require system installation:
-```javascript
-// FFmpeg is unpacked from ASAR to app.asar.unpacked/node_modules/ffmpeg-static/
-```
+No ffmpeg binary ships in any build. The renderer encodes 16 kHz mono s16 WAV
+directly (`audioManager.js`) and `gigaamLocalAsr.js` parses WAV natively, so the
+dictation path never needs it.
+
+`src/helpers/ffmpegUtils.js` and `gigaamLocalAsr._decodeWithFfmpeg()` still resolve
+an ffmpeg from `resources/bin`, `C:\ffmpeg\bin`, or `PATH`, and return null /
+throw "unsupported audio format and ffmpeg is not available" when there is none.
+Their only callers — diarization, `transcribe-audio-file`, `retry-transcription`
+on legacy WebM — are unreachable in the current product. Anything that adds a
+non-WAV audio path (file import, in particular) must bundle ffmpeg again: add it
+back to the `resources/bin/` filter in `electron-builder.json`, wire
+`download:ffmpeg` into the `prebuild:*` scripts (it is manual-only today, and
+has no Windows target), and make `resolveBinaryPath` append `.exe` on Windows —
+both ffmpeg lookups currently search for a file named exactly `ffmpeg`.
 
 ### 2. Audio Recording Flow
 
@@ -590,14 +602,13 @@ const { t } = useTranslation();
 ### Common Issues and Solutions
 
 1. **No Audio Detected**:
-   - Check FFmpeg path resolution
    - Verify microphone permissions
    - Check audio levels in debug logs
 
 2. **Transcription Fails**:
    - Check GigaAM local ASR status (`/health` on ports 8765-8775)
    - Verify `gigaamBaseUrl` / `remoteTranscriptionUrl`
-   - Verify FFmpeg is executable if audio conversion was involved
+   - "unsupported audio format and ffmpeg is not available" means non-WAV audio reached the engine; no ffmpeg ships to convert it
 
 3. **Clipboard Not Working**:
    - macOS: Check accessibility permissions (required for AppleScript paste)
@@ -610,7 +621,6 @@ const { t } = useTranslation();
 4. **Build Issues**:
    - Use `npm run pack` for unsigned builds (CSC_IDENTITY_AUTO_DISCOVERY=false)
    - Signing requires Apple Developer account
-   - ASAR unpacking needed for FFmpeg
    - electron-builder automatically skips signing and notarization when CSC_IDENTITY_AUTO_DISCOVERY=false
    - **Lockfile**: Always use Node 24 when running `npm install` (matches CI). If your local Node version differs, use `nvm exec 24 npm install`. Running `npm install` with a different major version will produce an incompatible `package-lock.json` that breaks `npm ci` in CI.
 
