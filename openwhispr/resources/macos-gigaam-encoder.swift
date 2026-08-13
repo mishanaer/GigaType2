@@ -136,45 +136,100 @@ func parseComputeUnits(_ raw: String?) -> MLComputeUnits {
 }
 
 let args = CommandLine.arguments
-guard args.count >= 2 else {
-    logLine("usage: macos-gigaam-encoder <encoder.mlmodelc|encoder.mlpackage> [--compute-units cpu_ane|all|cpu]")
-    exit(2)
-}
-
-let modelPath = args[1]
 var requestedComputeUnits: String? = nil
 if let flagIndex = args.firstIndex(of: "--compute-units"), flagIndex + 1 < args.count {
     requestedComputeUnits = args[flagIndex + 1]
 }
-
-var modelURL = URL(fileURLWithPath: modelPath)
-guard FileManager.default.fileExists(atPath: modelURL.path) else {
-    logLine("model not found at \(modelURL.path)")
-    exit(3)
-}
-
-let loadStarted = Date()
-// Packaged builds ship a precompiled .mlmodelc (compiled at build time, the way
-// Xcode bundles models). A raw .mlpackage — handy in dev — is compiled here and
-// the result is left in the system temp dir for CoreML to reuse.
-if modelURL.pathExtension == "mlpackage" {
-    do {
-        modelURL = try MLModel.compileModel(at: modelURL)
-    } catch {
-        logLine("compileModel failed: \(error.localizedDescription)")
-        exit(4)
-    }
-}
+// Protected build: the model is decrypted by the Rust sidecar and streamed in
+// over stdin, so nothing plaintext is ever written to disk. `--from-memory`
+// selects that path; otherwise the model is a file argument (the normal build).
+let fromMemory = args.contains("--from-memory")
 
 let configuration = MLModelConfiguration()
 configuration.computeUnits = parseComputeUnits(requestedComputeUnits)
 
-let model: MLModel
-do {
-    model = try MLModel(contentsOf: modelURL, configuration: configuration)
-} catch {
-    logLine("MLModel load failed: \(error.localizedDescription)")
-    exit(5)
+// The in-memory ML Program spec and its weight blob MUST outlive the model, or
+// CoreML reads freed memory and inference returns NaN. Held for the process life.
+var retainedSpec: Data?
+var retainedBlob: Data?
+
+func loadModelFromMemory() -> MLModel? {
+    guard #available(macOS 15, *) else {
+        logLine("--from-memory requires macOS 15+ (MLModelAsset blobMapping)")
+        return nil
+    }
+    // Startup framing: magic "GENM", u32 specLen, u32 blobLen, then the two blobs.
+    guard let header = readExact(12), readU32(header, at: 0) == 0x4745_4e4d else {
+        logLine("expected in-memory model header (GENM)")
+        return nil
+    }
+    let specLen = Int(readU32(header, at: 4))
+    let blobLen = Int(readU32(header, at: 8))
+    guard specLen > 0, specLen < 64 * 1024 * 1024, blobLen > 0, blobLen < 4096 * 1024 * 1024 else {
+        logLine("in-memory model header out of range (spec \(specLen), blob \(blobLen))")
+        return nil
+    }
+    guard let specBytes = readExact(specLen), let blobBytes = readExact(blobLen) else {
+        logLine("truncated in-memory model payload")
+        return nil
+    }
+    retainedSpec = Data(specBytes)
+    retainedBlob = Data(blobBytes)
+    // ML Program weights are an external blob referenced as "@model_path/weights/
+    // weight.bin"; the ObjC API resolves that against a file-URL keyed on the
+    // relative blob path. Matches coremltools' native create_model_asset_from_memory.
+    let mapping: [URL: Data] = [URL(fileURLWithPath: "weights/weight.bin"): retainedBlob!]
+    do {
+        let asset = try MLModelAsset(specification: retainedSpec!, blobMapping: mapping)
+        let sem = DispatchSemaphore(value: 0)
+        var loaded: MLModel?
+        var loadErr: Error?
+        Task {
+            do { loaded = try await MLModel.load(asset: asset, configuration: configuration) }
+            catch { loadErr = error }
+            sem.signal()
+        }
+        sem.wait()
+        if let e = loadErr { logLine("MLModelAsset load failed: \(e.localizedDescription)"); return nil }
+        return loaded
+    } catch {
+        logLine("MLModelAsset build failed: \(error.localizedDescription)")
+        return nil
+    }
+}
+
+func loadModelFromPath() -> MLModel? {
+    guard args.count >= 2, !args[1].hasPrefix("--") else {
+        logLine("usage: macos-gigaam-encoder <encoder.mlmodelc|encoder.mlpackage> [--compute-units cpu_ane|all|cpu] | --from-memory")
+        return nil
+    }
+    var modelURL = URL(fileURLWithPath: args[1])
+    guard FileManager.default.fileExists(atPath: modelURL.path) else {
+        logLine("model not found at \(modelURL.path)")
+        return nil
+    }
+    // Packaged builds ship a precompiled .mlmodelc (compiled at build time, the way
+    // Xcode bundles models). A raw .mlpackage — handy in dev — is compiled here and
+    // the result is left in the system temp dir for CoreML to reuse.
+    if modelURL.pathExtension == "mlpackage" {
+        do {
+            modelURL = try MLModel.compileModel(at: modelURL)
+        } catch {
+            logLine("compileModel failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    do {
+        return try MLModel(contentsOf: modelURL, configuration: configuration)
+    } catch {
+        logLine("MLModel load failed: \(error.localizedDescription)")
+        return nil
+    }
+}
+
+let loadStarted = Date()
+guard let model = fromMemory ? loadModelFromMemory() : loadModelFromPath() else {
+    exit(fromMemory ? 5 : 3)
 }
 let loadMs = Int(Date().timeIntervalSince(loadStarted) * 1000)
 
