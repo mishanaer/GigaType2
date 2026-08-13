@@ -407,6 +407,11 @@
   "hooks": {
     "audioRecording": {
       "errorTitles": {
+        "micAccessDenied": "マイクへのアクセスが拒否されました",
+        "micNotFound": "マイクが見つかりません",
+        "micInUse": "マイクは使用中です",
+        "micUnavailable": "マイクを利用できません",
+        "recordingError": "録音エラー",
         "sessionExpired": "セッション期限切れ",
         "offline": "オフラインです",
         "dailyLimitReached": "1 日の上限に達しました"

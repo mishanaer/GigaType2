@@ -4,7 +4,13 @@ import AudioManager from "../helpers/audioManager";
 import logger from "../utils/logger";
 import { playStartCue, playStopCue } from "../utils/dictationCues";
 import { getSettings } from "../stores/settingsStore";
-import { getRecordingErrorTitle, getRecordingErrorDescription } from "../utils/recordingErrors";
+import {
+  getRecordingErrorTitle,
+  getRecordingErrorDescription,
+  getMicAccessErrorTitle,
+  describeMicAccessError,
+} from "../utils/recordingErrors";
+import { getPlatform } from "../utils/platform";
 import {
   getOutputMethod,
   getOutputStatus,
@@ -225,8 +231,13 @@ export const useAudioRecording = (toast, options = {}) => {
       onError: (error) => {
         const session = dictationSessionRef.current;
         const sessionId = session?.sessionId || null;
-        const title = getRecordingErrorTitle(error, t);
-        const description = getRecordingErrorDescription(error, t);
+        // Failed microphone opens carry a structured micAccessFailure and get
+        // the same localized, platform-aware texts as the onboarding mic test.
+        const micFailure = error?.micAccessFailure;
+        const title = micFailure ? getMicAccessErrorTitle(micFailure, t) : getRecordingErrorTitle(error, t);
+        const description = micFailure
+          ? describeMicAccessError(micFailure, t, getPlatform())
+          : getRecordingErrorDescription(error, t);
         const errorArea =
           error?.title === "Paste Error"
             ? "paste"

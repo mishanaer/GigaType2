@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { getSettings, selectResolvedMeetingTranscription } from "./settingsStore";
-import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
+import {
+  isBuiltInMicrophone,
+  getUserMediaWithDefaultDeviceFallback,
+} from "../utils/audioDeviceUtils";
 import { getBaseLanguageCode } from "../utils/languageSupport";
 import type { SystemAudioAccessResult, SystemAudioStrategy } from "../types/electron";
 import {
@@ -717,32 +720,20 @@ export async function startRecording(args: StartRecordingArgs): Promise<void> {
       }),
       getMeetingMicConstraints().then(async (constraints) => {
         try {
-          return await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (err) {
-          const hasExactDevice =
-            typeof constraints.audio === "object" &&
-            constraints.audio !== null &&
-            "deviceId" in constraints.audio;
-          if (hasExactDevice) {
-            try {
-              const fallbackStream = await navigator.mediaDevices.getUserMedia({
-                audio: MEETING_MIC_PRIMARY_AUDIO_CONSTRAINTS,
-              });
-              logger.info(
-                "Meeting mic capture recovered using default device",
-                { error: (err as Error).message },
-                "meeting"
-              );
-              return fallbackStream;
-            } catch (fallbackErr) {
-              logger.error(
-                "Meeting mic capture failed, continuing with system audio only",
-                { error: (fallbackErr as Error).message },
-                "meeting"
-              );
-              return null;
-            }
+          const result = await getUserMediaWithDefaultDeviceFallback(
+            constraints,
+            MEETING_MIC_PRIMARY_AUDIO_CONSTRAINTS,
+            {}
+          );
+          if (result.usedFallback) {
+            logger.info(
+              "Meeting mic capture recovered using default device",
+              { error: (result.originalError as Error | null)?.message },
+              "meeting"
+            );
           }
+          return result.stream;
+        } catch (err) {
           logger.error(
             "Meeting mic capture failed, continuing with system audio only",
             { error: (err as Error).message, constraints },

@@ -1,5 +1,8 @@
 import logger from "../utils/logger";
-import { isBuiltInMicrophone } from "../utils/audioDeviceUtils";
+import {
+  isBuiltInMicrophone,
+  getUserMediaWithDefaultDeviceFallback,
+} from "../utils/audioDeviceUtils";
 import { isSecureEndpoint } from "../utils/urlUtils";
 import {
   isBuiltInGigaamEndpoint,
@@ -82,18 +85,6 @@ const NO_PROCESSING_AUDIO_CONSTRAINTS = {
   autoGainControl: false,
   channelCount: 2,
 };
-
-// Errors where a specific device failed but the system default may still work
-// (stale saved deviceId, unplugged/broken device, device grabbed exclusively).
-const DEVICE_FALLBACK_ERROR_NAMES = new Set([
-  "OverconstrainedError",
-  "ConstraintNotSatisfiedError",
-  "NotFoundError",
-  "DevicesNotFoundError",
-  "NotReadableError",
-  "TrackStartError",
-  "AbortError",
-]);
 
 const isNoTextTranscription = (error) => error?.message?.startsWith("No text transcribed");
 
@@ -313,31 +304,29 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         return false;
       }
 
-      let micStream;
-      try {
-        micStream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch (error) {
-        // A configured device that cannot start must not kill dictation while
-        // the system default still works — retry once without a deviceId.
-        const failedDeviceId = constraints?.audio?.deviceId?.exact;
-        if (!failedDeviceId || !DEVICE_FALLBACK_ERROR_NAMES.has(error?.name)) {
-          throw error;
+      // A configured device that cannot start must not kill dictation while
+      // the system default still works — retry once without a deviceId.
+      const fallbackResult = await getUserMediaWithDefaultDeviceFallback(
+        constraints,
+        NO_PROCESSING_AUDIO_CONSTRAINTS,
+        {
+          shouldCancel: shouldCancelStart,
+          onFallback: ({ failedDeviceId, error }) => {
+            logger.warn(
+              "Configured microphone failed to start, retrying with system default",
+              { error: error?.name, message: error?.message },
+              "audio"
+            );
+            this._failedMicDeviceIds.add(failedDeviceId);
+            this.cachedMicDeviceId = null;
+          },
         }
-        if (shouldCancelStart?.()) {
-          logger.debug("Recording start cancelled before device fallback", {}, "audio");
-          return false;
-        }
-        logger.warn(
-          "Configured microphone failed to start, retrying with system default",
-          { error: error?.name, message: error?.message },
-          "audio"
-        );
-        this._failedMicDeviceIds.add(failedDeviceId);
-        this.cachedMicDeviceId = null;
-        micStream = await navigator.mediaDevices.getUserMedia({
-          audio: { ...NO_PROCESSING_AUDIO_CONSTRAINTS },
-        });
+      );
+      if (!fallbackResult.stream) {
+        logger.debug("Recording start cancelled before device fallback", {}, "audio");
+        return false;
       }
+      const micStream = fallbackResult.stream;
       if (shouldCancelStart?.()) {
         micStream.getTracks().forEach((track) => track.stop());
         logger.debug("Recording start cancelled after microphone opened", {}, "audio");
@@ -410,25 +399,44 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       return true;
     } catch (error) {
+      // English fallbacks only — the consumer (useAudioRecording) localizes
+      // via micAccessFailure + describeMicAccessError/getMicAccessErrorTitle.
       let errorTitle = "Recording Error";
-      let errorDescription = `Failed to access microphone: ${error.message}`;
+      let errorDescription = `Failed to access microphone: ${error?.message}`;
 
-      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+      if (error?.name === "NotAllowedError" || error?.name === "PermissionDeniedError") {
         errorTitle = "Microphone Access Denied";
         errorDescription =
           "Please grant microphone permission in your system settings and try again.";
-      } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+      } else if (error?.name === "NotFoundError" || error?.name === "DevicesNotFoundError") {
         errorTitle = "No Microphone Found";
         errorDescription = "No microphone was detected. Please connect a microphone and try again.";
-      } else if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+      } else if (error?.name === "NotReadableError" || error?.name === "TrackStartError") {
         errorTitle = "Microphone In Use";
         errorDescription =
           "The microphone is being used by another application. Please close other apps and try again.";
       }
 
+      // The OS-level status turns an opaque NotReadable/NotFound into a
+      // precise diagnosis on Windows (privacy toggle vs busy device).
+      let winMicAccessStatus = null;
+      if (window.electronAPI?.getPlatform?.() === "win32") {
+        try {
+          winMicAccessStatus = (await window.electronAPI?.checkMicrophoneAccess?.())?.status ?? null;
+        } catch {
+          // status stays unknown — generic texts will be used
+        }
+      }
+
       this.onError?.({
         title: errorTitle,
         description: errorDescription,
+        micAccessFailure: {
+          name: error?.name ?? null,
+          message: error?.message ?? null,
+          originalDeviceErrorName: error?.originalDeviceErrorName ?? null,
+          winMicAccessStatus,
+        },
       });
       return false;
     }

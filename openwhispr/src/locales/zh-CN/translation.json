@@ -407,6 +407,11 @@
   "hooks": {
     "audioRecording": {
       "errorTitles": {
+        "micAccessDenied": "麦克风访问被拒绝",
+        "micNotFound": "未找到麦克风",
+        "micInUse": "麦克风被占用",
+        "micUnavailable": "麦克风不可用",
+        "recordingError": "录音错误",
         "sessionExpired": "会话已过期",
         "offline": "你已离线",
         "dailyLimitReached": "已达到每日上限"

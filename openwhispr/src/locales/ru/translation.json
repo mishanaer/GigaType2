@@ -413,6 +413,11 @@
   "hooks": {
     "audioRecording": {
       "errorTitles": {
+        "micAccessDenied": "Доступ к микрофону запрещён",
+        "micNotFound": "Микрофон не найден",
+        "micInUse": "Микрофон занят",
+        "micUnavailable": "Микрофон недоступен",
+        "recordingError": "Ошибка записи",
         "sessionExpired": "Сессия истекла",
         "offline": "Нет подключения к интернету",
         "dailyLimitReached": "Дневной лимит достигнут"

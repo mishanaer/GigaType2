@@ -407,6 +407,11 @@
   "hooks": {
     "audioRecording": {
       "errorTitles": {
+        "micAccessDenied": "Acceso al micrófono denegado",
+        "micNotFound": "Micrófono no encontrado",
+        "micInUse": "Micrófono en uso",
+        "micUnavailable": "Micrófono no disponible",
+        "recordingError": "Error de grabación",
         "sessionExpired": "Sesión expirada",
         "offline": "Sin conexión",
         "dailyLimitReached": "Límite diario alcanzado"
