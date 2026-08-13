@@ -12,6 +12,7 @@ import {
   getLocalSpeechGateDecision,
   recordLocalSpeechWindow,
 } from "./localSpeechGate";
+import { computeSmartSpacingPrefix } from "../utils/pasteSpacing";
 import { getSettings } from "../stores/settingsStore";
 import { syncService } from "../services/SyncService.js";
 
@@ -71,6 +72,29 @@ const GIGATYPE_ASR_MODEL = "gigaam-v3-e2e-rnnt";
 const MIN_TRANSCRIBABLE_AUDIO_BYTES = 512;
 const MIN_TRANSCRIBABLE_DURATION_SECONDS = 0.2;
 
+// All browser audio processing disabled to avoid OS-level side-effects.
+// AGC off: Chromium's AGC on Windows mutates the system mic volume via WASAPI (#476).
+// Echo cancellation and noise suppression off to avoid latency and speech distortion.
+// Stereo recording required — mono WebM breaks silence detection on Linux/PipeWire (#472).
+const NO_PROCESSING_AUDIO_CONSTRAINTS = {
+  echoCancellation: false,
+  noiseSuppression: false,
+  autoGainControl: false,
+  channelCount: 2,
+};
+
+// Errors where a specific device failed but the system default may still work
+// (stale saved deviceId, unplugged/broken device, device grabbed exclusively).
+const DEVICE_FALLBACK_ERROR_NAMES = new Set([
+  "OverconstrainedError",
+  "ConstraintNotSatisfiedError",
+  "NotFoundError",
+  "DevicesNotFoundError",
+  "NotReadableError",
+  "TrackStartError",
+  "AbortError",
+]);
+
 const isNoTextTranscription = (error) => error?.message?.startsWith("No text transcribed");
 
 class AudioManager {
@@ -110,6 +134,10 @@ class AudioManager {
     this.sttConfig = null;
     this.lastAudioBlob = null;
     this.lastAudioMetadata = null;
+    this._lastPasteInfo = null;
+    // Device ids that failed to open this session — skipped so every later
+    // dictation doesn't repeat a doomed (slow on Windows) getUserMedia call.
+    this._failedMicDeviceIds = new Set();
     this._localSpeechGateState = null;
     this._silenceInterval = null;
     this._silenceCtx = null;
@@ -207,19 +235,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
     const { preferBuiltInMic: preferBuiltIn, selectedMicDeviceId: selectedDeviceId } =
       getSettings();
 
-    // All browser audio processing disabled to avoid OS-level side-effects.
-    // AGC off: Chromium's AGC on Windows mutates the system mic volume via WASAPI (#476).
-    // Echo cancellation and noise suppression off to avoid latency and speech distortion.
-    // Stereo recording required — mono WebM breaks silence detection on Linux/PipeWire (#472).
-    const noProcessing = {
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: false,
-      channelCount: 2,
-    };
+    const noProcessing = { ...NO_PROCESSING_AUDIO_CONSTRAINTS };
 
     if (preferBuiltIn) {
-      if (this.cachedMicDeviceId) {
+      if (this.cachedMicDeviceId && !this._failedMicDeviceIds.has(this.cachedMicDeviceId)) {
         logger.debug(
           "Using cached microphone device ID",
           { deviceId: this.cachedMicDeviceId },
@@ -231,7 +250,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         const audioInputs = devices.filter((d) => d.kind === "audioinput");
-        const builtInMic = audioInputs.find((d) => isBuiltInMicrophone(d.label));
+        const builtInMic = audioInputs.find(
+          (d) => isBuiltInMicrophone(d.label) && !this._failedMicDeviceIds.has(d.deviceId)
+        );
 
         if (builtInMic) {
           this.cachedMicDeviceId = builtInMic.deviceId;
@@ -251,7 +272,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       }
     }
 
-    if (!preferBuiltIn && selectedDeviceId) {
+    if (!preferBuiltIn && selectedDeviceId && !this._failedMicDeviceIds.has(selectedDeviceId)) {
       logger.debug("Using selected microphone", { deviceId: selectedDeviceId }, "audio");
       return { audio: { deviceId: { exact: selectedDeviceId }, ...noProcessing } };
     }
@@ -292,7 +313,31 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         return false;
       }
 
-      const micStream = await navigator.mediaDevices.getUserMedia(constraints);
+      let micStream;
+      try {
+        micStream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (error) {
+        // A configured device that cannot start must not kill dictation while
+        // the system default still works — retry once without a deviceId.
+        const failedDeviceId = constraints?.audio?.deviceId?.exact;
+        if (!failedDeviceId || !DEVICE_FALLBACK_ERROR_NAMES.has(error?.name)) {
+          throw error;
+        }
+        if (shouldCancelStart?.()) {
+          logger.debug("Recording start cancelled before device fallback", {}, "audio");
+          return false;
+        }
+        logger.warn(
+          "Configured microphone failed to start, retrying with system default",
+          { error: error?.name, message: error?.message },
+          "audio"
+        );
+        this._failedMicDeviceIds.add(failedDeviceId);
+        this.cachedMicDeviceId = null;
+        micStream = await navigator.mediaDevices.getUserMedia({
+          audio: { ...NO_PROCESSING_AUDIO_CONSTRAINTS },
+        });
+      }
       if (shouldCancelStart?.()) {
         micStream.getTracks().forEach((track) => track.stop());
         logger.debug("Recording start cancelled after microphone opened", {}, "audio");
@@ -1048,8 +1093,27 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
   async safePaste(text, options = {}) {
     try {
-      return await window.electronAPI.pasteText(text, options);
+      const prefix = computeSmartSpacingPrefix(this._lastPasteInfo, text);
+      // verificationText: macOS AX verification and paste checks must match on
+      // the raw transcription — a target field may collapse the leading space.
+      const result = await window.electronAPI.pasteText(prefix + text, {
+        ...options,
+        ...(prefix ? { verificationText: text } : {}),
+      });
+      // Track pastes whose keystroke reached an app. inserted === true is the
+      // verified case; "edit-field-unknown" (win32 without the text monitor)
+      // and "verification-unavailable" (macOS without an AX target) mean the
+      // keystroke was sent and almost certainly landed. Confirmed failures and
+      // clipboard-only outcomes reset the state — the user pastes by hand and
+      // we no longer know what precedes the cursor.
+      const likelyPasted =
+        result?.inserted === true ||
+        result?.reason === "edit-field-unknown" ||
+        result?.reason === "verification-unavailable";
+      this._lastPasteInfo = likelyPasted ? { text, pastedAt: Date.now() } : null;
+      return result;
     } catch (error) {
+      this._lastPasteInfo = null;
       const message =
         error?.message ??
         (typeof error?.toString === "function" ? error.toString() : String(error));
@@ -1285,6 +1349,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   cleanup() {
     this.lastAudioBlob = null;
     this.lastAudioMetadata = null;
+    this._lastPasteInfo = null;
     if (this.isStreaming) {
       this.cleanupStreaming();
     }

@@ -484,6 +484,9 @@
         "noMicrophones": "No se detectaron micrófonos. Conecta o selecciona un micrófono en {{settingsPath}}.",
         "permissionDenied": "Permiso denegado. Abre {{privacyPath}} y permite Type.",
         "couldNotStart": "No se pudo iniciar el micrófono seleccionado. Elige un dispositivo en {{settingsPath}} y vuelve a probar.",
+        "deviceUnavailable": "El micrófono seleccionado ya no está disponible. Elige otro dispositivo de entrada en {{settingsPath}} y repite la prueba.",
+        "windowsDesktopAppsBlocked": "Windows está bloqueando el acceso al micrófono para aplicaciones de escritorio. Abre {{privacyPath}}, desplázate hasta el final, activa «Permitir que las aplicaciones de escritorio accedan al micrófono» y repite la prueba.",
+        "windowsMicBusyOrBlocked": "No se pudo iniciar el micrófono. Puede que otra aplicación lo esté usando o que un antivirus lo esté bloqueando. Cierra otras aplicaciones, revisa tu antivirus o elige otro dispositivo en {{settingsPath}} y repite la prueba.",
         "noActiveInput": "No se encontró una entrada de audio activa. Elige un micrófono en {{settingsPath}}.",
         "unknown": "Falló el acceso al micrófono: {{error}}. Selecciona otro dispositivo e inténtalo de nuevo.",
         "unknownFallback": "Error desconocido"

@@ -2564,20 +2564,36 @@ class IPCHandlers {
       return mediaPlayer.resumeMedia();
     });
 
+    // On Windows there is no prompt API — access is governed by the privacy
+    // settings ("Allow desktop apps to access your microphone"). The status
+    // can also be "not-determined"/"unknown" (absent ConsentStore registry
+    // value on LTSC/managed images) while the mic works, so only an explicit
+    // "denied" counts as not granted.
+    const readWindowsMicAccess = () => {
+      const status = systemPreferences.getMediaAccessStatus("microphone");
+      return { granted: status !== "denied", status };
+    };
+
     handle("request-microphone-access", async () => {
-      if (process.platform !== "darwin") {
-        return { granted: true, status: "granted" };
+      if (process.platform === "darwin") {
+        const granted = await systemPreferences.askForMediaAccess("microphone");
+        return { granted };
       }
-      const granted = await systemPreferences.askForMediaAccess("microphone");
-      return { granted };
+      if (process.platform === "win32") {
+        return readWindowsMicAccess();
+      }
+      return { granted: true, status: "granted" };
     });
 
     handle("check-microphone-access", () => {
-      if (process.platform !== "darwin") {
-        return { granted: true, status: "granted" };
+      if (process.platform === "darwin") {
+        const status = systemPreferences.getMediaAccessStatus("microphone");
+        return { granted: status === "granted", status };
       }
-      const status = systemPreferences.getMediaAccessStatus("microphone");
-      return { granted: status === "granted", status };
+      if (process.platform === "win32") {
+        return readWindowsMicAccess();
+      }
+      return { granted: true, status: "granted" };
     });
 
     const buildSystemAudioAccess = (partial = {}) => ({

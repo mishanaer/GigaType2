@@ -71,7 +71,11 @@ const getPlatform = (): "darwin" | "win32" | "linux" => {
   return "darwin"; // Default fallback
 };
 
-const describeMicError = (error: unknown, t: TFunction): string => {
+const describeMicError = (
+  error: unknown,
+  t: TFunction,
+  winMicAccessStatus: string | null = null
+): string => {
   if (!error || typeof error !== "object") {
     return t("hooks.permissions.micErrors.accessFailed");
   }
@@ -79,11 +83,23 @@ const describeMicError = (error: unknown, t: TFunction): string => {
   const err = error as { name?: string; message?: string };
   const name = err.name || "";
   const message = (err.message || "").toLowerCase();
+  const platform = getPlatform();
   const settingsPath = getPlatformSettingsPath(t);
   const privacyPath = getPlatformPrivacyPath(t);
 
+  // Windows blocks desktop apps via a dedicated privacy toggle. When the OS
+  // reports "denied", every getUserMedia failure is that toggle — including
+  // NotFoundError, because a blocked app enumerates zero audio devices.
+  if (platform === "win32" && winMicAccessStatus === "denied") {
+    return t("hooks.permissions.micErrors.windowsDesktopAppsBlocked", { privacyPath });
+  }
+
   if (name === "NotFoundError") {
     return t("hooks.permissions.micErrors.noMicrophones", { settingsPath });
+  }
+
+  if (name === "OverconstrainedError") {
+    return t("hooks.permissions.micErrors.deviceUnavailable", { settingsPath });
   }
 
   if (name === "NotAllowedError" || name === "SecurityError") {
@@ -91,6 +107,9 @@ const describeMicError = (error: unknown, t: TFunction): string => {
   }
 
   if (name === "NotReadableError" || name === "AbortError") {
+    if (platform === "win32") {
+      return t("hooks.permissions.micErrors.windowsMicBusyOrBlocked", { settingsPath });
+    }
     return t("hooks.permissions.micErrors.couldNotStart", { settingsPath });
   }
 
@@ -202,7 +221,15 @@ export const usePermissions = (
       setMicPermissionError(null);
     } catch (err) {
       logger.error("Microphone permission denied:", err);
-      const message = describeMicError(err, t);
+      let winMicAccessStatus: string | null = null;
+      if (getPlatform() === "win32") {
+        try {
+          winMicAccessStatus = (await window.electronAPI?.checkMicrophoneAccess?.())?.status ?? null;
+        } catch {
+          // status stays unknown — fall back to generic error texts
+        }
+      }
+      const message = describeMicError(err, t, winMicAccessStatus);
       setMicPermissionError(message);
       if (showAlertDialog) {
         showAlertDialog({
@@ -285,7 +312,12 @@ export const usePermissions = (
   }, [checkPasteToolsAvailability]);
 
   // On macOS, re-validate microphone permission on mount to override stale
-  // localStorage values (e.g. after TCC reset or app update).
+  // localStorage values (e.g. after TCC reset or app update). Windows is
+  // deliberately excluded: getMediaAccessStatus can return not-determined /
+  // unknown there (absent ConsentStore registry value on LTSC/managed images)
+  // while getUserMedia works fine, so an OS-status downgrade would lock users
+  // out of onboarding. The Windows status is only consulted after a real
+  // getUserMedia failure (see requestMicPermission).
   useEffect(() => {
     if (getPlatform() !== "darwin") return;
     window.electronAPI?.checkMicrophoneAccess?.().then((result) => {

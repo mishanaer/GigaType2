@@ -144,6 +144,21 @@ static BOOL AreRequiredModifiersPressed(void) {
     return TRUE;
 }
 
+// The shell opens the Start menu when Win is released without another key
+// press in between. Our hook either suppresses the hotkey's base key or (for
+// modifier-only combos like Ctrl+Win) there is no base key at all, so the
+// shell would open Start on every dictation. Injecting a benign unassigned
+// key event (VK 0xFF, same trick PowerToys uses) marks the Win press as "used".
+static void SuppressStartMenuOnWinRelease(void) {
+    if (!(g_leftWinDown || g_rightWinDown)) return;
+    INPUT input;
+    ZeroMemory(&input, sizeof(input));
+    input.type = INPUT_KEYBOARD;
+    input.ki.wVk = 0xFF;
+    input.ki.dwFlags = KEYEVENTF_KEYUP;
+    SendInput(1, &input, sizeof(INPUT));
+}
+
 static const char* CaptureKeyName(DWORD vkCode) {
     static char name[16];
 
@@ -443,6 +458,14 @@ DWORD ParseKeyCode(const char* keyName) {
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
         KBDLLHOOKSTRUCT* kbd = (KBDLLHOOKSTRUCT*)lParam;
+        // VK 0xFF is the unassigned "dummy" key we inject in
+        // SuppressStartMenuOnWinRelease (no real keyboard produces it). It
+        // must not run the state machine: it would hit the missed-KEY_UP
+        // self-heal below (the suppressed base key never latches into
+        // GetAsyncKeyState) and stop push-to-talk right after it starts.
+        if (kbd->vkCode == 0xFF) {
+            return CallNextHookEx(g_hook, nCode, wParam, lParam);
+        }
         if (g_captureMode) {
             return HandleCaptureEvent(wParam, kbd);
         }
@@ -491,6 +514,7 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
             if (isKeyDown) {
                 if (!g_isKeyDown && AreRequiredModifiersPressed()) {
                     g_isKeyDown = TRUE;
+                    if (g_requireWin) SuppressStartMenuOnWinRelease();
                     printf("KEY_DOWN\n");
                     fflush(stdout);
                 }
@@ -513,6 +537,9 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
                     if (!g_isKeyDown) {
                         g_isKeyDown = TRUE;
                         g_suppressRequiredModifiersUntilReleased = TRUE;
+                        // The base key event is suppressed below, so the shell
+                        // never sees a key press while Win is held.
+                        if (g_requireWin) SuppressStartMenuOnWinRelease();
                         printf("KEY_DOWN\n");
                         fflush(stdout);
                     }
