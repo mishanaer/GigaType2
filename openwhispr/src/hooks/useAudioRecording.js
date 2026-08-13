@@ -4,7 +4,13 @@ import AudioManager from "../helpers/audioManager";
 import logger from "../utils/logger";
 import { playStartCue, playStopCue } from "../utils/dictationCues";
 import { getSettings } from "../stores/settingsStore";
-import { getRecordingErrorTitle, getRecordingErrorDescription } from "../utils/recordingErrors";
+import {
+  getRecordingErrorTitle,
+  getRecordingErrorDescription,
+  getMicAccessErrorTitle,
+  describeMicAccessError,
+} from "../utils/recordingErrors";
+import { getPlatform } from "../utils/platform";
 import {
   getOutputMethod,
   getOutputStatus,
@@ -225,8 +231,18 @@ export const useAudioRecording = (toast, options = {}) => {
       onError: (error) => {
         const session = dictationSessionRef.current;
         const sessionId = session?.sessionId || null;
-        const title = getRecordingErrorTitle(error, t);
-        const description = getRecordingErrorDescription(error, t);
+        // Failed microphone opens carry a structured micAccessFailure and get
+        // the same localized, platform-aware texts as the onboarding mic test.
+        const micFailure = error?.micAccessFailure;
+        const title = micFailure
+          ? getMicAccessErrorTitle(micFailure, t, getPlatform())
+          : getRecordingErrorTitle(error, t);
+        const description = micFailure
+          ? describeMicAccessError(micFailure, t, getPlatform())
+          : getRecordingErrorDescription(error, t);
+        // Telemetry must stay locale-stable: keep the English fallback title
+        // for mic failures instead of the translated toast title.
+        const safeMessage = micFailure ? error?.title || "Recording Error" : title;
         const errorArea =
           error?.title === "Paste Error"
             ? "paste"
@@ -256,7 +272,7 @@ export const useAudioRecording = (toast, options = {}) => {
               status: "failed",
               transcribed: false,
               error_code: error?.code || error?.title || "TRANSCRIPTION_FAILED",
-              safe_message: title,
+              safe_message: safeMessage,
             });
           }
         }
@@ -267,7 +283,7 @@ export const useAudioRecording = (toast, options = {}) => {
             ...(audioProperties || {}),
             error_area: errorArea,
             error_code: error?.code || error?.title || "RECORDING_ERROR",
-            safe_message: title,
+            safe_message: safeMessage,
           });
         }
         if (errorArea !== "paste") {
@@ -280,7 +296,7 @@ export const useAudioRecording = (toast, options = {}) => {
               output_attempted: false,
               error_area: errorArea,
               error_code: error?.code || error?.title || "RECORDING_ERROR",
-              safe_message: title,
+              safe_message: safeMessage,
             }
           );
         }

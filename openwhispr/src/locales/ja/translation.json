@@ -407,6 +407,11 @@
   "hooks": {
     "audioRecording": {
       "errorTitles": {
+        "micAccessDenied": "マイクへのアクセスが拒否されました",
+        "micNotFound": "マイクが見つかりません",
+        "micInUse": "マイクは使用中です",
+        "micUnavailable": "マイクを利用できません",
+        "recordingError": "録音エラー",
         "sessionExpired": "セッション期限切れ",
         "offline": "オフラインです",
         "dailyLimitReached": "1 日の上限に達しました"
@@ -483,10 +488,10 @@
         "accessFailed": "マイクへのアクセスに失敗しました。もう一度お試しください。",
         "noMicrophones": "マイクが検出されませんでした。{{settingsPath}} でマイクを接続または選択してください。",
         "permissionDenied": "権限が拒否されました。{{privacyPath}} を開いて Type を許可してください。",
-        "couldNotStart": "選択したマイクを開始できませんでした。{{settingsPath}} で入力デバイスを選択してから、テストを再実行してください。",
-        "deviceUnavailable": "選択したマイクは利用できなくなりました。{{settingsPath}} で別の入力デバイスを選択して、テストをやり直してください。",
-        "windowsDesktopAppsBlocked": "Windows がデスクトップ アプリのマイク アクセスをブロックしています。{{privacyPath}} を開き、ページの一番下までスクロールして「デスクトップ アプリがマイクにアクセスできるようにする」をオンにしてから、テストをやり直してください。",
-        "windowsMicBusyOrBlocked": "マイクを起動できませんでした。他のアプリが使用中か、ウイルス対策ソフトにブロックされている可能性があります。他のアプリを閉じるか、ウイルス対策ソフトを確認するか、{{settingsPath}} で別のデバイスを選択して、テストをやり直してください。",
+        "couldNotStart": "選択したマイクを開始できませんでした。{{settingsPath}} で入力デバイスを選択してから、もう一度お試しください。",
+        "deviceUnavailable": "選択したマイクは利用できなくなりました。{{settingsPath}} で別の入力デバイスを選択して、もう一度お試しください。",
+        "windowsDesktopAppsBlocked": "Windows がデスクトップ アプリのマイク アクセスをブロックしています。{{privacyPath}} を開き、ページの一番下までスクロールして「デスクトップ アプリがマイクにアクセスできるようにする」をオンにしてから、もう一度お試しください。",
+        "windowsMicBusyOrBlocked": "マイクを起動できませんでした。他のアプリが使用中か、ウイルス対策ソフトにブロックされている可能性があります。他のアプリを閉じるか、ウイルス対策ソフトを確認するか、{{settingsPath}} で別のデバイスを選択して、もう一度お試しください。",
         "noActiveInput": "アクティブな音声入力が見つかりませんでした。{{settingsPath}} でマイクを選択してください。",
         "unknown": "マイクへのアクセスに失敗しました: {{error}}。別の入力デバイスを選択してもう一度お試しください。",
         "unknownFallback": "不明なエラー"

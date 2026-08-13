@@ -413,6 +413,11 @@
   "hooks": {
     "audioRecording": {
       "errorTitles": {
+        "micAccessDenied": "Microphone Access Denied",
+        "micNotFound": "No Microphone Found",
+        "micInUse": "Microphone In Use",
+        "micUnavailable": "Microphone Unavailable",
+        "recordingError": "Recording Error",
         "sessionExpired": "Session Expired",
         "offline": "You're Offline",
         "dailyLimitReached": "Daily Limit Reached"
@@ -489,10 +494,10 @@
         "accessFailed": "Microphone access failed. Please try again.",
         "noMicrophones": "No microphones were detected. Connect or select a microphone in {{settingsPath}}.",
         "permissionDenied": "Permission was denied. Open {{privacyPath}} and allow Type.",
-        "couldNotStart": "Could not start the selected microphone. Choose an input device in {{settingsPath}}, then rerun the test.",
-        "deviceUnavailable": "The selected microphone is no longer available. Choose another input device in {{settingsPath}}, then rerun the test.",
-        "windowsDesktopAppsBlocked": "Windows is blocking microphone access for desktop apps. Open {{privacyPath}}, scroll to the bottom, turn on “Allow desktop apps to access your microphone”, then rerun the test.",
-        "windowsMicBusyOrBlocked": "Could not start the microphone. It may be in use by another app or blocked by antivirus microphone protection. Close other apps, check your antivirus, or pick a different device in {{settingsPath}}, then rerun the test.",
+        "couldNotStart": "Could not start the selected microphone. Choose an input device in {{settingsPath}}, then try again.",
+        "deviceUnavailable": "The selected microphone is no longer available. Choose another input device in {{settingsPath}}, then try again.",
+        "windowsDesktopAppsBlocked": "Windows is blocking microphone access for desktop apps. Open {{privacyPath}}, scroll to the bottom, turn on “Allow desktop apps to access your microphone”, then try again.",
+        "windowsMicBusyOrBlocked": "Could not start the microphone. It may be in use by another app or blocked by antivirus microphone protection. Close other apps, check your antivirus, or pick a different device in {{settingsPath}}, then try again.",
         "noActiveInput": "No active audio input was found. Pick a microphone in {{settingsPath}}.",
         "unknown": "Microphone access failed: {{error}}. Select a different input device and try again.",
         "unknownFallback": "Unknown error"

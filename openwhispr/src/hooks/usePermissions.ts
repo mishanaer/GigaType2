@@ -5,6 +5,8 @@ import type { PasteToolsResult } from "../types/electron";
 import { useLocalStorage } from "./useLocalStorage";
 import logger from "../utils/logger";
 import { areRequiredPermissionsMet } from "../utils/permissions";
+import { getPlatform } from "../utils/platform";
+import { describeMicAccessError } from "../utils/recordingErrors";
 import { trackTelemetryEvent } from "../utils/telemetry";
 
 export interface UsePermissionsReturn {
@@ -36,41 +38,6 @@ const stopTracks = (stream?: MediaStream) => {
   }
 };
 
-const getPlatformSettingsPath = (t: TFunction): string => {
-  if (typeof navigator !== "undefined") {
-    const ua = navigator.userAgent.toLowerCase();
-    if (ua.includes("win")) return t("hooks.permissions.paths.windowsMicrophone");
-    if (ua.includes("linux")) return t("hooks.permissions.paths.linuxSound");
-  }
-  return t("hooks.permissions.paths.defaultSound");
-};
-
-const getPlatformPrivacyPath = (t: TFunction): string => {
-  if (typeof navigator !== "undefined") {
-    const ua = navigator.userAgent.toLowerCase();
-    if (ua.includes("win")) return t("hooks.permissions.paths.windowsMicrophone");
-    if (ua.includes("linux")) return t("hooks.permissions.paths.linuxPrivacy");
-  }
-  return t("hooks.permissions.paths.defaultPrivacy");
-};
-
-const getPlatform = (): "darwin" | "win32" | "linux" => {
-  if (typeof window !== "undefined" && window.electronAPI?.getPlatform) {
-    const platform = window.electronAPI.getPlatform();
-    if (platform === "darwin" || platform === "win32" || platform === "linux") {
-      return platform;
-    }
-  }
-  // Fallback to user agent detection
-  if (typeof navigator !== "undefined") {
-    const ua = navigator.userAgent.toLowerCase();
-    if (ua.includes("mac")) return "darwin";
-    if (ua.includes("win")) return "win32";
-    if (ua.includes("linux")) return "linux";
-  }
-  return "darwin"; // Default fallback
-};
-
 const describeMicError = (
   error: unknown,
   t: TFunction,
@@ -81,45 +48,11 @@ const describeMicError = (
   }
 
   const err = error as { name?: string; message?: string };
-  const name = err.name || "";
-  const message = (err.message || "").toLowerCase();
-  const platform = getPlatform();
-  const settingsPath = getPlatformSettingsPath(t);
-  const privacyPath = getPlatformPrivacyPath(t);
-
-  // Windows blocks desktop apps via a dedicated privacy toggle. When the OS
-  // reports "denied", every getUserMedia failure is that toggle — including
-  // NotFoundError, because a blocked app enumerates zero audio devices.
-  if (platform === "win32" && winMicAccessStatus === "denied") {
-    return t("hooks.permissions.micErrors.windowsDesktopAppsBlocked", { privacyPath });
-  }
-
-  if (name === "NotFoundError") {
-    return t("hooks.permissions.micErrors.noMicrophones", { settingsPath });
-  }
-
-  if (name === "OverconstrainedError") {
-    return t("hooks.permissions.micErrors.deviceUnavailable", { settingsPath });
-  }
-
-  if (name === "NotAllowedError" || name === "SecurityError") {
-    return t("hooks.permissions.micErrors.permissionDenied", { privacyPath });
-  }
-
-  if (name === "NotReadableError" || name === "AbortError") {
-    if (platform === "win32") {
-      return t("hooks.permissions.micErrors.windowsMicBusyOrBlocked", { settingsPath });
-    }
-    return t("hooks.permissions.micErrors.couldNotStart", { settingsPath });
-  }
-
-  if (message.includes("no audio input") || message.includes("not available")) {
-    return t("hooks.permissions.micErrors.noActiveInput", { settingsPath });
-  }
-
-  return t("hooks.permissions.micErrors.unknown", {
-    error: err.message || t("hooks.permissions.micErrors.unknownFallback"),
-  });
+  return describeMicAccessError(
+    { name: err.name, message: err.message, winMicAccessStatus },
+    t,
+    getPlatform()
+  );
 };
 
 export const usePermissions = (

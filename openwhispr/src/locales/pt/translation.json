@@ -379,6 +379,11 @@
   "hooks": {
     "audioRecording": {
       "errorTitles": {
+        "micAccessDenied": "Acesso ao microfone negado",
+        "micNotFound": "Microfone não encontrado",
+        "micInUse": "Microfone em uso",
+        "micUnavailable": "Microfone indisponível",
+        "recordingError": "Erro de gravação",
         "sessionExpired": "Sessão expirada",
         "offline": "Sem conexão",
         "dailyLimitReached": "Limite diário atingido"
@@ -455,10 +460,10 @@
         "accessFailed": "Falha no acesso ao microfone. Tente novamente.",
         "noMicrophones": "Nenhum microfone detectado. Conecte ou selecione um microfone em {{settingsPath}}.",
         "permissionDenied": "Permissão negada. Abra {{privacyPath}} e permita o Type.",
-        "couldNotStart": "Não foi possível iniciar o microfone selecionado. Escolha um dispositivo em {{settingsPath}} e teste novamente.",
-        "deviceUnavailable": "O microfone selecionado não está mais disponível. Escolha outro dispositivo de entrada em {{settingsPath}} e repita o teste.",
-        "windowsDesktopAppsBlocked": "O Windows está bloqueando o acesso ao microfone para aplicativos de desktop. Abra {{privacyPath}}, role até o final, ative “Permitir que aplicativos de desktop acessem seu microfone” e repita o teste.",
-        "windowsMicBusyOrBlocked": "Não foi possível iniciar o microfone. Ele pode estar em uso por outro aplicativo ou bloqueado por um antivírus. Feche outros aplicativos, verifique seu antivírus ou escolha outro dispositivo em {{settingsPath}} e repita o teste.",
+        "couldNotStart": "Não foi possível iniciar o microfone selecionado. Escolha um dispositivo em {{settingsPath}} e tente novamente.",
+        "deviceUnavailable": "O microfone selecionado não está mais disponível. Escolha outro dispositivo de entrada em {{settingsPath}} e tente novamente.",
+        "windowsDesktopAppsBlocked": "O Windows está bloqueando o acesso ao microfone para aplicativos de desktop. Abra {{privacyPath}}, role até o final, ative “Permitir que aplicativos de desktop acessem seu microfone” e tente novamente.",
+        "windowsMicBusyOrBlocked": "Não foi possível iniciar o microfone. Ele pode estar em uso por outro aplicativo ou bloqueado por um antivírus. Feche outros aplicativos, verifique seu antivírus ou escolha outro dispositivo em {{settingsPath}} e tente novamente.",
         "noActiveInput": "Nenhuma entrada de áudio ativa encontrada. Escolha um microfone em {{settingsPath}}.",
         "unknown": "Falha no acesso ao microfone: {{error}}. Selecione outro dispositivo e tente novamente.",
         "unknownFallback": "Erro desconhecido"

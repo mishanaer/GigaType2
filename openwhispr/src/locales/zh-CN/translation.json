@@ -407,6 +407,11 @@
   "hooks": {
     "audioRecording": {
       "errorTitles": {
+        "micAccessDenied": "麦克风访问被拒绝",
+        "micNotFound": "未找到麦克风",
+        "micInUse": "麦克风被占用",
+        "micUnavailable": "麦克风不可用",
+        "recordingError": "录音错误",
         "sessionExpired": "会话已过期",
         "offline": "你已离线",
         "dailyLimitReached": "已达到每日上限"
@@ -483,10 +488,10 @@
         "accessFailed": "麦克风访问失败，请重试。",
         "noMicrophones": "未检测到麦克风。请在 {{settingsPath}} 中连接或选择麦克风。",
         "permissionDenied": "权限被拒绝。请打开 {{privacyPath}} 并允许 Type。",
-        "couldNotStart": "无法启动所选麦克风。请在 {{settingsPath}} 中选择输入设备，然后重新测试。",
-        "deviceUnavailable": "所选麦克风已不可用。请在{{settingsPath}}中选择其他输入设备，然后重新测试。",
-        "windowsDesktopAppsBlocked": "Windows 正在阻止桌面应用访问麦克风。请打开{{privacyPath}}，滚动到页面底部，开启“允许桌面应用访问你的麦克风”，然后重新测试。",
-        "windowsMicBusyOrBlocked": "无法启动麦克风。它可能正被其他应用占用，或被杀毒软件拦截。请关闭其他应用、检查杀毒软件，或在{{settingsPath}}中选择其他设备，然后重新测试。",
+        "couldNotStart": "无法启动所选麦克风。请在 {{settingsPath}} 中选择输入设备，然后重试。",
+        "deviceUnavailable": "所选麦克风已不可用。请在{{settingsPath}}中选择其他输入设备，然后重试。",
+        "windowsDesktopAppsBlocked": "Windows 正在阻止桌面应用访问麦克风。请打开{{privacyPath}}，滚动到页面底部，开启“允许桌面应用访问你的麦克风”，然后重试。",
+        "windowsMicBusyOrBlocked": "无法启动麦克风。它可能正被其他应用占用，或被杀毒软件拦截。请关闭其他应用、检查杀毒软件，或在{{settingsPath}}中选择其他设备，然后重试。",
         "noActiveInput": "未找到活跃的音频输入。请在 {{settingsPath}} 中选择麦克风。",
         "unknown": "麦克风访问失败：{{error}}。请选择其他输入设备后重试。",
         "unknownFallback": "未知错误"
