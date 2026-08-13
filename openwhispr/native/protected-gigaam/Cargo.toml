@@ -19,6 +19,11 @@ name = "ane_probe"
 path = "src/bin/ane_probe.rs"
 required-features = ["ane-probe"]
 
+[[bin]]
+name = "full_probe"
+path = "src/bin/full_probe.rs"
+required-features = ["ane-probe"]
+
 # Offline operator tool; never part of the shipped application. Kept in this
 # crate so the container writer and the fail-closed reader are one codebase.
 [[bin]]
