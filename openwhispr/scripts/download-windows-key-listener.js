@@ -21,7 +21,8 @@ const {
 
 // This repo's own releases (built by .github/workflows/build-windows-key-listener.yml
 // at the monorepo root) take priority; the upstream repo is a fallback until the
-// first local release exists. Private-repo API access needs GITHUB_TOKEN (set in CI).
+// first local release exists. A repo whose matching release lacks the zip asset
+// (e.g. a partially-failed workflow run) is skipped, not treated as final.
 const REPOS = ["mishanaer/GigaType2", "Type/openwhispr"];
 const TAG_PREFIX = "windows-key-listener-v";
 const ZIP_NAME = "windows-key-listener-win32-x64.zip";
@@ -58,11 +59,17 @@ async function main() {
   const tagToFind = VERSION_OVERRIDE || TAG_PREFIX;
   let release = null;
   for (const repo of REPOS) {
-    release = await fetchLatestRelease(repo, { tagPrefix: tagToFind });
-    if (release) {
-      console.log(`[windows-key-listener] Using release from ${repo}`);
-      break;
+    const candidate = await fetchLatestRelease(repo, { tagPrefix: tagToFind });
+    if (!candidate) continue;
+    if (!candidate.assets.some((a) => a.name === ZIP_NAME)) {
+      console.warn(
+        `[windows-key-listener] Release ${candidate.tag} in ${repo} lacks ${ZIP_NAME}, trying next repo`
+      );
+      continue;
     }
+    console.log(`[windows-key-listener] Using release ${candidate.tag} from ${repo}`);
+    release = candidate;
+    break;
   }
 
   if (!release) {

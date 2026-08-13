@@ -83,8 +83,16 @@ const describeMicError = (
   const err = error as { name?: string; message?: string };
   const name = err.name || "";
   const message = (err.message || "").toLowerCase();
+  const platform = getPlatform();
   const settingsPath = getPlatformSettingsPath(t);
   const privacyPath = getPlatformPrivacyPath(t);
+
+  // Windows blocks desktop apps via a dedicated privacy toggle. When the OS
+  // reports "denied", every getUserMedia failure is that toggle — including
+  // NotFoundError, because a blocked app enumerates zero audio devices.
+  if (platform === "win32" && winMicAccessStatus === "denied") {
+    return t("hooks.permissions.micErrors.windowsDesktopAppsBlocked", { privacyPath });
+  }
 
   if (name === "NotFoundError") {
     return t("hooks.permissions.micErrors.noMicrophones", { settingsPath });
@@ -94,18 +102,12 @@ const describeMicError = (
     return t("hooks.permissions.micErrors.deviceUnavailable", { settingsPath });
   }
 
-  // Windows blocks desktop apps via a dedicated privacy toggle. When the OS
-  // reports "denied", every getUserMedia failure is that toggle — not the app.
-  if (getPlatform() === "win32" && winMicAccessStatus === "denied") {
-    return t("hooks.permissions.micErrors.windowsDesktopAppsBlocked", { privacyPath });
-  }
-
   if (name === "NotAllowedError" || name === "SecurityError") {
     return t("hooks.permissions.micErrors.permissionDenied", { privacyPath });
   }
 
   if (name === "NotReadableError" || name === "AbortError") {
-    if (getPlatform() === "win32") {
+    if (platform === "win32") {
       return t("hooks.permissions.micErrors.windowsMicBusyOrBlocked", { settingsPath });
     }
     return t("hooks.permissions.micErrors.couldNotStart", { settingsPath });
@@ -309,21 +311,18 @@ export const usePermissions = (
     checkPasteToolsAvailability();
   }, [checkPasteToolsAvailability]);
 
-  // Re-validate microphone permission on mount to override stale localStorage
-  // values (e.g. after TCC reset or app update). On Windows "granted" only
-  // means the OS privacy toggles allow desktop apps — not that the mic ever
-  // opened successfully — so only a "denied" status downgrades the flag there.
+  // On macOS, re-validate microphone permission on mount to override stale
+  // localStorage values (e.g. after TCC reset or app update). Windows is
+  // deliberately excluded: getMediaAccessStatus can return not-determined /
+  // unknown there (absent ConsentStore registry value on LTSC/managed images)
+  // while getUserMedia works fine, so an OS-status downgrade would lock users
+  // out of onboarding. The Windows status is only consulted after a real
+  // getUserMedia failure (see requestMicPermission).
   useEffect(() => {
-    const currentPlatform = getPlatform();
-    if (currentPlatform === "darwin") {
-      window.electronAPI?.checkMicrophoneAccess?.().then((result) => {
-        if (result) setMicPermissionGranted(result.granted);
-      });
-    } else if (currentPlatform === "win32") {
-      window.electronAPI?.checkMicrophoneAccess?.().then((result) => {
-        if (result && !result.granted) setMicPermissionGranted(false);
-      });
-    }
+    if (getPlatform() !== "darwin") return;
+    window.electronAPI?.checkMicrophoneAccess?.().then((result) => {
+      if (result) setMicPermissionGranted(result.granted);
+    });
   }, [setMicPermissionGranted]);
 
   useEffect(() => {

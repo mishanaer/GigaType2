@@ -905,11 +905,20 @@ class ClipboardManager {
 
         if (shouldRestore && verifyPaste) {
           const verificationStartedAt = Date.now();
-          const verification = await this._verifyMacOSPasteWithPolling(text, verifyPaste, {
-            intervalMs: options.verificationIntervalMs,
-            timeoutMs: options.verificationTimeoutMs,
-            queryTimeoutMs: options.verificationQueryTimeoutMs,
-          });
+          // verificationText (when set) is the text without any smart-spacing
+          // prefix: fields that trim a leading space would otherwise fail the
+          // includes() check for text that visibly pasted fine.
+          const verification = await this._verifyMacOSPasteWithPolling(
+            typeof options.verificationText === "string" && options.verificationText
+              ? options.verificationText
+              : text,
+            verifyPaste,
+            {
+              intervalMs: options.verificationIntervalMs,
+              timeoutMs: options.verificationTimeoutMs,
+              queryTimeoutMs: options.verificationQueryTimeoutMs,
+            }
+          );
           timings.verificationMs = Date.now() - verificationStartedAt;
           outcome.verification = verification;
 

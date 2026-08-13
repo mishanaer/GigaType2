@@ -796,7 +796,7 @@ declare global {
       getAudioDiagnostics: () => Promise<AudioDiagnosticsResult>;
 
       // System settings helpers
-      requestMicrophoneAccess?: () => Promise<{ granted: boolean }>;
+      requestMicrophoneAccess?: () => Promise<{ granted: boolean; status?: string }>;
       checkMicrophoneAccess?: () => Promise<{ granted: boolean; status: string }>;
       checkSystemAudioAccess?: () => Promise<SystemAudioAccessResult>;
       requestSystemAudioAccess?: () => Promise<SystemAudioAccessResult>;

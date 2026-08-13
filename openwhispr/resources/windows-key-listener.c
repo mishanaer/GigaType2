@@ -458,6 +458,14 @@ DWORD ParseKeyCode(const char* keyName) {
 LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
         KBDLLHOOKSTRUCT* kbd = (KBDLLHOOKSTRUCT*)lParam;
+        // VK 0xFF is the unassigned "dummy" key we inject in
+        // SuppressStartMenuOnWinRelease (no real keyboard produces it). It
+        // must not run the state machine: it would hit the missed-KEY_UP
+        // self-heal below (the suppressed base key never latches into
+        // GetAsyncKeyState) and stop push-to-talk right after it starts.
+        if (kbd->vkCode == 0xFF) {
+            return CallNextHookEx(g_hook, nCode, wParam, lParam);
+        }
         if (g_captureMode) {
             return HandleCaptureEvent(wParam, kbd);
         }
