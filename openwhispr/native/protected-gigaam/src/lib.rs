@@ -1,3 +1,5 @@
+#[cfg(target_os = "macos")]
+pub mod ane_encoder;
 pub mod featurizer;
 pub mod gateway_identity;
 pub mod model;
