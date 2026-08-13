@@ -67,6 +67,14 @@ The client uses the existing `/register` and `/me` routes and requires these add
 - `GET /model/v1/releases/{release_id}?model_id=...`;
 - `POST /model/v1/releases/{release_id}/key`.
 
+These routes are implemented server-side in the GigaTool repository
+(`packages/gateway/src/model*.ts`, operator runbook in
+`packages/gateway/MODEL_DELIVERY.md`). Registration with `product: "type"` is
+gated by the gateway's `TYPE_REGISTRATION_KEY`; the release registry
+(`MODEL_RELEASES_PATH`) holds the descriptors and CEKs. Until a registry is
+configured the namespace answers 503 and existing gateway clients are
+unaffected.
+
 The exact-release lookup is required because an older installer may first activate after a
 newer model has become current. The key route must validate entitlement/admission, the DPoP
 token, model/release/key identity, and wrapping fingerprint before wrapping the release CEK.
