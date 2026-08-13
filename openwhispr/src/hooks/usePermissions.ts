@@ -152,6 +152,11 @@ export const usePermissions = (
       stopTracks(stream);
       setMicPermissionGranted(true);
       setMicPermissionError(null);
+      void trackTelemetryEvent("permission_result", {
+        permission: "microphone",
+        status: "granted",
+        trigger: "user_request",
+      });
     } catch (err) {
       logger.error("Microphone permission denied:", err);
       let winMicAccessStatus: string | null = null;
@@ -162,6 +167,12 @@ export const usePermissions = (
           // status stays unknown — fall back to generic error texts
         }
       }
+      void trackTelemetryEvent("permission_result", {
+        permission: "microphone",
+        status: "denied",
+        os_status: winMicAccessStatus ?? undefined,
+        trigger: "user_request",
+      });
       const message = describeMicError(err, t, winMicAccessStatus);
       setMicPermissionError(message);
       if (showAlertDialog) {
@@ -217,6 +228,11 @@ export const usePermissions = (
       const alreadyGranted =
         (await window.electronAPI?.promptAccessibilityPermission?.()) ??
         (await window.electronAPI?.checkAccessibilityPermission?.(true));
+      void trackTelemetryEvent("permission_result", {
+        permission: "accessibility",
+        status: alreadyGranted ? "granted" : "prompt",
+        trigger: "user_request",
+      });
       if (alreadyGranted) {
         setAccessibilityPermissionGranted(true);
         return;
