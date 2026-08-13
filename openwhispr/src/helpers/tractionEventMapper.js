@@ -41,6 +41,12 @@ const EVENT_PROPERTIES = {
     "linux_paste_tool_ready",
   ],
   model_ready: ["source", "model", "provider"],
+  // Fresh-install model fetch (~890 MB) — the first-run blocker. Failures here
+  // stop a user before their first dictation and were previously invisible.
+  model_download: ["source", "model", "status", "bytes", "duration_ms", "error_code"],
+  // Onboarding funnel: step reached and setup completion.
+  onboarding_step: ["step"],
+  onboarding_completed: ["agent_named", "language"],
   // --- Permission funnel (mirrors MultiTool's "Запрошенные permissions") ---
   // OS permission prompts: how many installs are asked and how many grant/deny.
   permission_result: ["permission", "status", "os_status", "trigger"],

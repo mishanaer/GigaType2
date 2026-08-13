@@ -226,6 +226,9 @@ DIRECT_EVENT_PROPERTIES = {
         "linux_paste_tool_ready",
     },
     "model_ready": {"source", "model", "provider"},
+    "model_download": {"source", "model", "status", "bytes", "duration_ms", "error_code"},
+    "onboarding_step": {"step"},
+    "onboarding_completed": {"agent_named", "language"},
     # Permission funnel (mirror of the client mapper). Was emitted but dropped.
     "permission_result": {"permission", "status", "os_status", "trigger"},
     "requirement_status_changed": {
