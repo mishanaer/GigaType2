@@ -195,6 +195,27 @@ COMMON_INGEST_PROPERTIES = {
     "platform_name",
     "arch",
 }
+# Shared by dictation_output_attempted / _succeeded (identical payload).
+_DICTATION_OUTPUT_PROPERTIES = {
+    "session_id",
+    "activation_mode",
+    "trigger",
+    "provider",
+    "model",
+    "audio_duration_ms",
+    "raw_transcript_chars",
+    "raw_transcript_words",
+    "final_output_chars",
+    "final_output_words",
+    "output_method",
+    "output_status",
+    "output_latency_ms",
+    "total_latency_ms",
+    "transcription_latency_ms",
+    "success",
+    "status",
+    "output_attempted",
+}
 DIRECT_EVENT_PROPERTIES = {
     "first_app_opened": set(),
     "app_opened": set(),
@@ -205,6 +226,50 @@ DIRECT_EVENT_PROPERTIES = {
         "linux_paste_tool_ready",
     },
     "model_ready": {"source", "model", "provider"},
+    # Permission funnel (mirror of the client mapper). Was emitted but dropped.
+    "permission_result": {"permission", "status", "os_status", "trigger"},
+    "requirement_status_changed": {
+        "requirement",
+        "ready",
+        "permission_type",
+        "microphone_ready",
+        "macos_accessibility_ready",
+        "windows_paste_tool_ready",
+        "linux_paste_tool_ready",
+    },
+    "all_required_permissions_granted": {
+        "permission_type",
+        "microphone_ready",
+        "macos_accessibility_ready",
+        "windows_paste_tool_ready",
+        "linux_paste_tool_ready",
+    },
+    # Dictation sub-funnel (started → audio → transcribed → output).
+    "dictation_started": {"session_id", "activation_mode", "trigger"},
+    "dictation_audio_captured": {
+        "session_id",
+        "activation_mode",
+        "trigger",
+        "audio_duration_ms",
+        "status",
+    },
+    "dictation_transcribed": {
+        "session_id",
+        "activation_mode",
+        "trigger",
+        "provider",
+        "model",
+        "audio_duration_ms",
+        "raw_transcript_chars",
+        "raw_transcript_words",
+        "transcription_latency_ms",
+        "total_latency_ms",
+        "status",
+        "transcribed",
+        "error_code",
+    },
+    "dictation_output_attempted": _DICTATION_OUTPUT_PROPERTIES,
+    "dictation_output_succeeded": _DICTATION_OUTPUT_PROPERTIES,
     "dictation_finished": {
         "session_id",
         "activation_mode",
@@ -707,6 +772,21 @@ def _compute_product_payload(days: float, now: float) -> dict:
         for version, row in sorted(versions.items(), key=lambda item: len(item[1]["devices"]), reverse=True)
     ]
 
+    # Permission funnel: how many prompts resolved which way (mic / accessibility).
+    permission_results = Counter(
+        (event["properties"].get("permission"), event["properties"].get("status"))
+        for event in window_events
+        if event["name"] == "permission_result"
+        and event["properties"].get("permission")
+        and event["properties"].get("status")
+    )
+    # Dictation sub-funnel: stage counts expose where dictations drop off.
+    dictation_stages = ("dictation_started", "dictation_audio_captured",
+                        "dictation_transcribed", "dictation_output_succeeded")
+    dictation_stage_counts = Counter(
+        event["name"] for event in window_events if event["name"] in dictation_stages
+    )
+
     canonical_finishes = [record for record in window_records if not record["legacy"]]
     return {
         "updated_at": datetime.fromtimestamp(now, timezone.utc).isoformat(timespec="seconds"),
@@ -732,11 +812,31 @@ def _compute_product_payload(days: float, now: float) -> dict:
         "funnel": {
             "cohort": len(cohort),
             "first_opened": len(cohort),
+            "permission_asked": sum(
+                reached(device, ("permission_result", "requirement_status_changed"))
+                for device in cohort
+            ),
+            "permissions_granted": sum(
+                reached(device, ("all_required_permissions_granted",)) for device in cohort
+            ),
             "requirements_ready": sum(reached(device, ("requirements_ready",)) for device in cohort),
             "model_ready": sum(reached(device, ("model_ready",)) for device in cohort),
             "first_success": sum(any(ts >= first for ts in success_times[device]) for device, first in cohort.items()),
             "activation_7d": activated / len(mature_activation) if mature_activation else None,
             "activation_7d_cohort": len(mature_activation),
+        },
+        # Prompt outcomes (mic / accessibility) — the "Запрошенные permissions"
+        # view: how many were asked and how many granted vs denied.
+        "permission_results": [
+            {"permission": perm, "status": status, "count": count}
+            for (perm, status), count in permission_results.most_common()
+        ],
+        # Where dictations drop off between start and delivered output.
+        "dictation_funnel": {
+            "started": dictation_stage_counts["dictation_started"],
+            "audio_captured": dictation_stage_counts["dictation_audio_captured"],
+            "transcribed": dictation_stage_counts["dictation_transcribed"],
+            "output_succeeded": dictation_stage_counts["dictation_output_succeeded"],
         },
         "retention": {
             f"d{period}": _retention(successes, since, now, period) for period in (1, 7, 30)
