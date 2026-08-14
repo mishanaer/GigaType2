@@ -50,17 +50,23 @@ mod platform {
     use super::*;
     use chacha20poly1305::aead::{Aead, KeyInit, Payload};
     use chacha20poly1305::{XChaCha20Poly1305, XNonce};
+    use core_foundation::base::TCFType;
     use core_foundation::data::CFData;
+    use core_foundation::dictionary::CFDictionary;
+    use core_foundation::error::CFError;
+    use core_foundation::string::CFString;
     use hkdf::Hkdf;
     use security_framework::access_control::{ProtectionMode, SecAccessControl};
     use security_framework::item::{
         ItemSearchOptions, KeyClass, Location, Reference, SearchResult,
     };
     use security_framework::key::{Algorithm, GenerateKeyOptions, KeyType, SecKey, Token};
-    #[allow(deprecated)]
-    use security_framework::os::macos::key::SecKeyExt;
     use security_framework_sys::access_control::kSecAccessControlPrivateKeyUsage;
     use security_framework_sys::base::errSecItemNotFound;
+    use security_framework_sys::item::{
+        kSecAttrKeyClass, kSecAttrKeyClassPublic, kSecAttrKeyType, kSecAttrKeyTypeECSECPrimeRandom,
+    };
+    use security_framework_sys::key::SecKeyCreateWithData;
     use zeroize::Zeroize;
 
     const SIGNING_LABEL: &str = "ai.gigatype.model-signing.v1";
@@ -202,6 +208,46 @@ mod platform {
         Ok(output)
     }
 
+    /// Import a peer's ephemeral P-256 public key (65-byte uncompressed SEC1
+    /// point) for ECDH. The key MUST be imported with an explicit public key
+    /// class: the deprecated `SecKeyCreateFromData` path passes only
+    /// `kSecAttrKeyType`, so the framework infers a class that `key_exchange`
+    /// rejects with errSecInvalidKeyClass / CSSMERR_CSP_INVALID_KEY_CLASS
+    /// (-67712). This is on the CEK-unwrap hot path, so a wrong class breaks
+    /// every protected activation.
+    fn import_ec_public_key(point: &[u8]) -> Result<SecKey> {
+        let data = CFData::from_buffer(point);
+        // SAFETY: the attribute keys/values are static Security.framework
+        // constants, `data` and `attributes` outlive the call, and `error` is a
+        // valid out-parameter consumed only on the null-return path.
+        unsafe {
+            let attributes = CFDictionary::from_CFType_pairs(&[
+                (
+                    CFString::wrap_under_get_rule(kSecAttrKeyType),
+                    CFString::wrap_under_get_rule(kSecAttrKeyTypeECSECPrimeRandom),
+                ),
+                (
+                    CFString::wrap_under_get_rule(kSecAttrKeyClass),
+                    CFString::wrap_under_get_rule(kSecAttrKeyClassPublic),
+                ),
+            ]);
+            let mut error = std::ptr::null_mut();
+            let key = SecKeyCreateWithData(
+                data.as_concrete_TypeRef(),
+                attributes.as_concrete_TypeRef(),
+                &mut error,
+            );
+            if key.is_null() {
+                Err(anyhow!(
+                    "import ephemeral P-256 key: {:?}",
+                    CFError::wrap_under_create_rule(error)
+                ))
+            } else {
+                Ok(SecKey::wrap_under_create_rule(key))
+            }
+        }
+    }
+
     impl HardwareIdentity {
         pub fn load() -> Result<Self> {
             Ok(Self {
@@ -244,9 +290,7 @@ mod platform {
             if ephemeral.len() != 65 || ephemeral[0] != 4 {
                 bail!("invalid ephemeral P-256 key");
             }
-            #[allow(deprecated)]
-            let ephemeral_key = SecKey::from_data(KeyType::ec(), &CFData::from_buffer(&ephemeral))
-                .map_err(|error| anyhow!("import ephemeral P-256 key: {error:?}"))?;
+            let ephemeral_key = import_ec_public_key(&ephemeral)?;
             let mut shared = self
                 .wrapping
                 .key_exchange(Algorithm::ECDHKeyExchangeStandard, &ephemeral_key, 32, None)
@@ -310,6 +354,41 @@ mod platform {
         fn rejects_non_minimal_or_trailing_der() {
             assert!(der_to_jose(&[0x30, 0x06, 0x02, 0x01, 1, 0x02, 0x01]).is_err());
             assert!(der_to_jose(&[0x30, 0x06, 0x02, 0x01, 1, 0x02, 0x01, 2, 0]).is_err());
+        }
+
+        // Regression for the -67712 (CSSMERR_CSP_INVALID_KEY_CLASS) that broke
+        // every protected activation: the CEK-unwrap ECDH failed because the
+        // peer's ephemeral public key was imported without an explicit public
+        // key class. Uses ordinary software keys (no Secure Enclave, no
+        // entitlements) so it runs under a plain `cargo test`; ECDH must
+        // commute, which proves the import produced a usable public key.
+        #[test]
+        fn imports_peer_public_key_so_ecdh_commutes() {
+            use super::{import_ec_public_key, Algorithm, GenerateKeyOptions, KeyType, SecKey};
+            fn software_p256() -> SecKey {
+                let mut options = GenerateKeyOptions::default();
+                options.set_key_type(KeyType::ec()).set_size_in_bits(256);
+                SecKey::new(&options).expect("generate a software P-256 key")
+            }
+            fn point(key: &SecKey) -> Vec<u8> {
+                key.public_key()
+                    .expect("public key")
+                    .external_representation()
+                    .expect("uncompressed point")
+                    .to_vec()
+            }
+            let alice = software_p256();
+            let bob = software_p256();
+            let peer_bob = import_ec_public_key(&point(&bob)).expect("import bob's public key");
+            let peer_alice = import_ec_public_key(&point(&alice)).expect("import alice's public key");
+            let ab = alice
+                .key_exchange(Algorithm::ECDHKeyExchangeStandard, &peer_bob, 32, None)
+                .expect("alice·Bob ECDH");
+            let ba = bob
+                .key_exchange(Algorithm::ECDHKeyExchangeStandard, &peer_alice, 32, None)
+                .expect("bob·Alice ECDH");
+            assert_eq!(ab.len(), 32);
+            assert_eq!(ab, ba, "ECDH shared secret must be identical both ways");
         }
     }
 }

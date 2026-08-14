@@ -180,6 +180,7 @@
     "category": "public.app-category.productivity",
     "target": ["dmg", "zip"],
     "icon": "src/assets/icon.icns",
+    "minimumSystemVersion": "15.0",
     "gatekeeperAssess": false,
     "hardenedRuntime": true,
     "notarize": true,

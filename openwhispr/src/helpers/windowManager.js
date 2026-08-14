@@ -81,6 +81,12 @@ class WindowManager {
           app.setActivationPolicy("regular");
           await app.dock.show();
         } else {
+          // app.dock.hide() alone is unreliable while the activation policy is
+          // still "regular": macOS re-adds the Dock icon the moment a window is
+          // shown or focused, so the user's "hide" setting appears to do nothing.
+          // Switching to "accessory" (agent app) makes the app truly dock-less;
+          // the control panel / overlay windows still open and take focus.
+          app.setActivationPolicy("accessory");
           app.dock.hide();
         }
         debugLogger.info("macOS Dock visibility changed", { visible: this.showDockIcon }, "window");

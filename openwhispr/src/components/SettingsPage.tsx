@@ -62,13 +62,6 @@ export default function SettingsPage() {
       <WalletSettingsCells
         dictationKey={dictationKey}
         onHotkeyChange={registerHotkey}
-        onFnConflictWarning={() =>
-          showAlertDialog({
-            title: "Fn используется macOS",
-            description:
-              "Хоткей сохранится, но Type и системное действие Fn могут срабатывать одновременно. Системное действие можно изменить в настройках клавиатуры macOS.",
-          })
-        }
         hotkeyDisabled={isHotkeyRegistering}
         validateHotkey={validateDictationHotkey}
         activationMode={activationMode}

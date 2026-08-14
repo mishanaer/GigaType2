@@ -18,7 +18,12 @@
 use std::path::Path;
 
 use anyhow::{anyhow, Result};
+#[cfg(target_os = "macos")]
+use anyhow::{bail, Context};
 use ndarray::{Array1, Array2, Array3, ArrayD, IxDyn};
+
+#[cfg(target_os = "macos")]
+use crate::ane_encoder::AneEncoder;
 
 use super::featurizer::{Featurizer, N_MELS};
 use super::model::{
@@ -84,8 +89,35 @@ pub(super) fn tokens_to_timed_words(
 /// Where the encoder runs. The prediction network and joiner are always ONNX (7 MB, and
 /// their per-frame cost is negligible); only the encoder is worth moving off the CPU.
 enum EncoderBackend {
-    /// `v3_e2e_rnnt_encoder(.int8).onnx` through `ort`.
+    /// `v3_e2e_rnnt_encoder(.int8).onnx` through `ort` (Windows / dev).
     Onnx(ort::session::Session),
+    /// fp16 CoreML ML Program on the Apple Neural Engine, loaded from memory and
+    /// driven over stdio (macOS 15+). See [`AneEncoder`].
+    #[cfg(target_os = "macos")]
+    Ane(AneEncoder),
+}
+
+/// Locate the ANE encoder helper (`macos-gigaam-encoder`) shipped next to the
+/// sidecar. `TYPE_ANE_ENCODER_PATH` overrides it for development.
+#[cfg(target_os = "macos")]
+fn resolve_ane_helper() -> Result<std::path::PathBuf> {
+    if let Ok(path) = std::env::var("TYPE_ANE_ENCODER_PATH") {
+        let path = std::path::PathBuf::from(path);
+        if path.exists() {
+            return Ok(path);
+        }
+    }
+    let exe = std::env::current_exe().context("locate the sidecar executable")?;
+    let dir = exe
+        .parent()
+        .ok_or_else(|| anyhow!("sidecar executable has no parent directory"))?;
+    for candidate in ["macos-gigaam-encoder", "bin/macos-gigaam-encoder"] {
+        let path = dir.join(candidate);
+        if path.exists() {
+            return Ok(path);
+        }
+    }
+    bail!("ANE encoder helper (macos-gigaam-encoder) not found next to the sidecar")
 }
 
 pub struct RnntModel {
@@ -95,6 +127,47 @@ pub struct RnntModel {
     featurizer: Featurizer,
     vocab: Vec<String>,
     blank: usize,
+}
+
+/// Run the ONNX encoder graph. A free function (not a method) so [`RnntModel::encode`]
+/// can hold a `&mut` borrow of just the encoder session without re-borrowing `self`.
+fn run_onnx_encoder(
+    session: &mut ort::session::Session,
+    features: &Array3<f32>,
+    length: &Array1<i64>,
+) -> Result<(Vec<f32>, usize, usize, usize)> {
+    use ort::inputs;
+    use ort::value::TensorRef;
+
+    let f_ref =
+        TensorRef::from_array_view(features.view()).map_err(|e| anyhow!("enc features: {e}"))?;
+    let l_ref =
+        TensorRef::from_array_view(length.view()).map_err(|e| anyhow!("enc length: {e}"))?;
+    let out = session
+        .run(inputs!["audio_signal" => f_ref, "length" => l_ref])
+        .map_err(|e| anyhow!("encoder run: {e}"))?;
+
+    let enc = out
+        .get("encoded")
+        .ok_or_else(|| anyhow!("encoder output 'encoded' missing"))?
+        .try_extract_array::<f32>()
+        .map_err(|e| anyhow!("encoded extract: {e}"))?;
+    let shape = enc.shape(); // [1, D, T']
+    let (d, tp) = (shape[1], shape[2]);
+    let flat: Vec<f32> = enc.iter().copied().collect();
+
+    let enc_len = out
+        .get("encoded_len")
+        .ok_or_else(|| anyhow!("encoder output 'encoded_len' missing"))?
+        .try_extract_array::<i32>()
+        .map_err(|e| anyhow!("encoded_len extract: {e}"))?
+        .iter()
+        .next()
+        .copied()
+        .unwrap_or(tp as i32)
+        .max(0) as usize;
+
+    Ok((flat, d, tp, enc_len.min(tp)))
 }
 
 impl RnntModel {
@@ -124,34 +197,69 @@ impl RnntModel {
     where
         F: FnMut(&str) -> Result<zeroize::Zeroizing<Vec<u8>>>,
     {
-        if files.len() != 3 {
-            return Err(anyhow!(
-                "RNN-T protected release must contain three ONNX graphs"
-            ));
-        }
         let vocab_bytes = read(vocab_name)?;
         let vocab = load_vocab_bytes(&vocab_bytes)?;
         let blank = find_blank_idx(&vocab);
         drop(vocab_bytes);
 
-        let encoder_bytes = read(files[0])?;
-        let encoder = build_session_from_memory(&encoder_bytes)?;
-        drop(encoder_bytes);
-        let decoder_bytes = read(files[1])?;
-        let decoder = build_session_from_memory(&decoder_bytes)?;
-        drop(decoder_bytes);
-        let joiner_bytes = read(files[2])?;
-        let joiner = build_session_from_memory(&joiner_bytes)?;
-        drop(joiner_bytes);
+        // macOS: the encoder is an fp16 CoreML ML Program run on the ANE. The
+        // release carries it as two assets — the model spec and its weight blob —
+        // decrypted here and streamed to the helper; nothing plaintext hits disk.
+        // The prediction network and joiner stay on ONNX Runtime.
+        #[cfg(target_os = "macos")]
+        {
+            if files.len() != 4 {
+                return Err(anyhow!(
+                    "protected macOS release must contain the encoder spec + weights, decoder, and joiner"
+                ));
+            }
+            let helper = resolve_ane_helper()?;
+            let spec = read(files[0])?;
+            let weights = read(files[1])?;
+            let encoder = AneEncoder::spawn(&helper, &spec, &weights)?;
+            drop(spec);
+            drop(weights);
+            let decoder_bytes = read(files[2])?;
+            let decoder = build_session_from_memory(&decoder_bytes)?;
+            drop(decoder_bytes);
+            let joiner_bytes = read(files[3])?;
+            let joiner = build_session_from_memory(&joiner_bytes)?;
+            drop(joiner_bytes);
+            return Ok(Self {
+                encoder: EncoderBackend::Ane(encoder),
+                decoder,
+                joiner,
+                featurizer: Featurizer::new(),
+                vocab,
+                blank,
+            });
+        }
 
-        Ok(Self {
-            encoder: EncoderBackend::Onnx(encoder),
-            decoder,
-            joiner,
-            featurizer: Featurizer::new(),
-            vocab,
-            blank,
-        })
+        #[cfg(not(target_os = "macos"))]
+        {
+            if files.len() != 3 {
+                return Err(anyhow!(
+                    "RNN-T protected release must contain three ONNX graphs"
+                ));
+            }
+            let encoder_bytes = read(files[0])?;
+            let encoder = build_session_from_memory(&encoder_bytes)?;
+            drop(encoder_bytes);
+            let decoder_bytes = read(files[1])?;
+            let decoder = build_session_from_memory(&decoder_bytes)?;
+            drop(decoder_bytes);
+            let joiner_bytes = read(files[2])?;
+            let joiner = build_session_from_memory(&joiner_bytes)?;
+            drop(joiner_bytes);
+            Ok(Self {
+                encoder: EncoderBackend::Onnx(encoder),
+                decoder,
+                joiner,
+                featurizer: Featurizer::new(),
+                vocab,
+                blank,
+            })
+        }
     }
 
     /// Transcribe a 16 kHz mono waveform to punctuated Russian text.
@@ -235,51 +343,22 @@ impl RnntModel {
         features: Vec<f32>,
         frames: usize,
     ) -> Result<(Vec<f32>, usize, usize, usize)> {
-        let features = Array3::from_shape_vec((1, N_MELS, frames), features)
-            .map_err(|e| anyhow!("feature reshape: {e}"))?;
-        let length = Array1::from_vec(vec![frames as i64]);
-        self.encode_onnx(&features, &length)
-    }
-
-    /// The ONNX encoder path.
-    fn encode_onnx(
-        &mut self,
-        features: &Array3<f32>,
-        length: &Array1<i64>,
-    ) -> Result<(Vec<f32>, usize, usize, usize)> {
-        use ort::inputs;
-        use ort::value::TensorRef;
-
-        let EncoderBackend::Onnx(session) = &mut self.encoder;
-        let f_ref = TensorRef::from_array_view(features.view())
-            .map_err(|e| anyhow!("enc features: {e}"))?;
-        let l_ref =
-            TensorRef::from_array_view(length.view()).map_err(|e| anyhow!("enc length: {e}"))?;
-        let out = session
-            .run(inputs!["audio_signal" => f_ref, "length" => l_ref])
-            .map_err(|e| anyhow!("encoder run: {e}"))?;
-
-        let enc = out
-            .get("encoded")
-            .ok_or_else(|| anyhow!("encoder output 'encoded' missing"))?
-            .try_extract_array::<f32>()
-            .map_err(|e| anyhow!("encoded extract: {e}"))?;
-        let shape = enc.shape(); // [1, D, T']
-        let (d, tp) = (shape[1], shape[2]);
-        let flat: Vec<f32> = enc.iter().copied().collect();
-
-        let enc_len = out
-            .get("encoded_len")
-            .ok_or_else(|| anyhow!("encoder output 'encoded_len' missing"))?
-            .try_extract_array::<i32>()
-            .map_err(|e| anyhow!("encoded_len extract: {e}"))?
-            .iter()
-            .next()
-            .copied()
-            .unwrap_or(tp as i32)
-            .max(0) as usize;
-
-        Ok((flat, d, tp, enc_len.min(tp)))
+        match &mut self.encoder {
+            EncoderBackend::Onnx(session) => {
+                let features = Array3::from_shape_vec((1, N_MELS, frames), features)
+                    .map_err(|e| anyhow!("feature reshape: {e}"))?;
+                let length = Array1::from_vec(vec![frames as i64]);
+                run_onnx_encoder(session, &features, &length)
+            }
+            // `features` is already [N_MELS, frames] row-major — the exact log-mel
+            // layout the ANE helper's request frame expects. The helper trims each
+            // chunk to ceil(frames/4), so every returned frame is valid.
+            #[cfg(target_os = "macos")]
+            EncoderBackend::Ane(encoder) => {
+                let (encoded, dim, tp) = encoder.encode_full(&features, frames)?;
+                Ok((encoded, dim, tp, tp))
+            }
+        }
     }
 
     /// One transducer step: prediction network (decoder) then joiner. Returns the joint
