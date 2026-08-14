@@ -540,6 +540,77 @@ function shouldKeepGigaamOnnxEncoder(archName, env = process.env) {
   return archName !== "arm64" || env.GIGAAM_MAC_ENCODER === "onnx";
 }
 
+// Move the protected helper into a nested app bundle and leave a launcher in its
+// place. Secure Enclave access needs the keychain-access-groups +
+// application-identifier entitlements, and AMFI only honours those when a
+// provisioning profile authorizes them — a profile can only live inside a bundle
+// (Contents/embedded.provisionprofile), which a bare Mach-O in Resources/bin has
+// nowhere to carry. Signing a bare helper with those entitlements gets it
+// SIGKILLed instead. So the release ships:
+//
+//   bin/type-protected-gigaam                                  <- launcher (no privileged entitlements)
+//   bin/TypeProtectedGigaAM.app/Contents/MacOS/type-protected-gigaam  <- real helper (signed WITH them)
+//
+// The spawn path the app uses is unchanged, so nothing in the main process moves.
+function assembleProtectedHelperBundle(context, resourcesDir) {
+  const binDir = path.join(resourcesDir, "bin");
+  const helper = path.join(binDir, "type-protected-gigaam");
+  const launcher = path.join(binDir, "type-protected-gigaam-launcher");
+  const bundle = path.join(binDir, "TypeProtectedGigaAM.app");
+  const bundleExecutable = path.join(bundle, "Contents", "MacOS", "type-protected-gigaam");
+
+  if (fs.existsSync(bundleExecutable)) return; // already assembled
+
+  if (!fs.existsSync(launcher)) {
+    throw new Error(
+      "protected macOS build is missing resources/bin/type-protected-gigaam-launcher — " +
+        "run npm run compile:protected-gigaam-launcher"
+    );
+  }
+  if (!fs.existsSync(helper)) {
+    throw new Error("protected macOS build is missing resources/bin/type-protected-gigaam");
+  }
+
+  // The nested bundle claims the SAME identifier as the app, so the
+  // application-identifier entitlement the helper needs matches the profile the
+  // outer app is signed with.
+  const bundleId = context.packager.appInfo.id;
+  const version = context.packager.appInfo.version;
+
+  fs.mkdirSync(path.dirname(bundleExecutable), { recursive: true });
+  fs.renameSync(helper, bundleExecutable);
+  fs.renameSync(launcher, helper);
+  fs.chmodSync(helper, 0o755);
+  fs.chmodSync(bundleExecutable, 0o755);
+
+  fs.writeFileSync(
+    path.join(bundle, "Contents", "Info.plist"),
+    `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key><string>${bundleId}</string>
+    <key>CFBundleName</key><string>TypeProtectedGigaAM</string>
+    <key>CFBundleDisplayName</key><string>Type Protected GigaAM</string>
+    <key>CFBundleExecutable</key><string>type-protected-gigaam</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+    <key>CFBundleShortVersionString</key><string>${version}</string>
+    <key>CFBundleVersion</key><string>${version}</string>
+    <key>LSMinimumSystemVersion</key><string>15.0</string>
+    <key>LSBackgroundOnly</key><true/>
+    <key>LSUIElement</key><true/>
+</dict>
+</plist>
+`,
+    { mode: 0o644 }
+  );
+
+  console.log(
+    "  afterPack: protected — wrapped the helper in TypeProtectedGigaAM.app (Secure Enclave entitlements need an embedded profile)"
+  );
+}
+
 function pruneGigaamEncoders(context) {
   if (context.electronPlatformName !== "darwin") return;
 
@@ -563,6 +634,7 @@ function pruneGigaamEncoders(context) {
           "run npm run compile:gigaam-encoder (the sidecar drives it for the ANE encoder)"
       );
     }
+    assembleProtectedHelperBundle(context, resourcesDir);
     console.log(
       "  afterPack: protected — kept the ANE encoder helper, stripped plaintext model resources"
     );
