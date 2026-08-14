@@ -161,16 +161,10 @@ export default function WalletSettingsCells({
 
   const handleHotkeyChange = useCallback(
     async (newHotkey: string) => {
-      if (isGlobeLikeHotkey(newHotkey) && window.electronAPI?.isFnHotkeyAvailable) {
-        try {
-          if (!(await window.electronAPI.isFnHotkeyAvailable())) {
-            onFnConflictWarning?.();
-          }
-        } catch {
-          onFnConflictWarning?.();
-        }
-      }
-
+      // Globe/Fn is the default macOS dictation key. The old "Fn используется
+      // macOS" warning fired on every setup and was pure noise (the hotkey saves
+      // and works regardless), so it was removed per team feedback.
+      void onFnConflictWarning;
       const registered = await onHotkeyChange(newHotkey);
       if (registered === false) {
         handleHotkeyInvalid();
@@ -178,7 +172,7 @@ export default function WalletSettingsCells({
       }
       setIsHotkeyArmed(false);
     },
-    [handleHotkeyInvalid, onFnConflictWarning, onHotkeyChange]
+    [handleHotkeyInvalid, onHotkeyChange]
   );
 
   const handleHotkeyBlur = useCallback(() => {
