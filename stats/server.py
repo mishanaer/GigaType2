@@ -375,7 +375,10 @@ def _overview_period_starts(now: float) -> dict[str, float]:
     day_start = current.replace(hour=0, minute=0, second=0, microsecond=0)
     return {
         "dau": day_start.timestamp(),
-        "wau": (day_start - timedelta(days=day_start.weekday())).timestamp(),
+        # Traction fleet decision 2026-08-17: WAU is rolling too — the
+        # last 7 Moscow dates. Week-to-date collapsed onto DAU every
+        # Monday morning, exactly like month-to-date MAU before 01.08.
+        "wau": (day_start - timedelta(days=6)).timestamp(),
         "mau": (day_start - timedelta(days=29)).timestamp(),
     }
 
