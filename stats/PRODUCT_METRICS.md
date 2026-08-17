@@ -56,8 +56,9 @@ the same first-open cohort, never raw event counts.
   historical import.
 - `Europe/Moscow` is the reporting timezone for daily activity and cohorts.
   DAU is the distinct active installation count from 00:00 MSK on the current
-  date and WAU is the current ISO week from Monday 00:00 MSK; both are partial
-  current periods, never trailing 24-hour/7-day windows. MAU is the rolling
+  date, never a trailing 24-hour window. WAU is the rolling last 7 Moscow
+  dates including today (fleet decision of 2026-08-17: week-to-date collapsed
+  onto DAU every Monday). MAU is the rolling
   last 30 Moscow dates including today (fleet decision of 2026-08-01: a
   calendar month-to-date cliffed to daily values every 1st and read as broken
   data). Product seven- and 30-date views likewise include today plus the

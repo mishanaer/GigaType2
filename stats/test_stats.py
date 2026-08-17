@@ -81,7 +81,7 @@ class ProductMetricsTest(unittest.TestCase):
             "tools_per_dau": None,
         })
 
-    def test_overview_uses_moscow_day_iso_week_and_rolling_30_dates(self):
+    def test_overview_uses_moscow_day_and_rolling_7_and_30_dates(self):
         calendar_now = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc).timestamp()
         rows = [
             {
@@ -113,7 +113,7 @@ class ProductMetricsTest(unittest.TestCase):
                 },
             },
             {
-                # Monday of the current ISO week.
+                # Monday of the current ISO week — inside the rolling week.
                 "ts": datetime(2026, 7, 6, 8, 0, tzinfo=timezone.utc).timestamp(),
                 "device_id": "current-week",
                 "name": "app_opened",
@@ -121,7 +121,8 @@ class ProductMetricsTest(unittest.TestCase):
                 "properties": {},
             },
             {
-                # Sunday of the previous ISO week, still inside the window.
+                # Sunday of the previous ISO week. WAU is rolling since
+                # 2026-08-17, so this one counts too.
                 "ts": datetime(2026, 7, 5, 8, 0, tzinfo=timezone.utc).timestamp(),
                 "device_id": "previous-week",
                 "name": "app_opened",
@@ -161,7 +162,8 @@ class ProductMetricsTest(unittest.TestCase):
 
         self.assertEqual(product["active_devices"], 1)
         self.assertEqual(product["overview"]["dau"], 1)
-        self.assertEqual(product["overview"]["wau"], 2)
+        # Rolling last 7 Moscow dates (2026-07-02..2026-07-08).
+        self.assertEqual(product["overview"]["wau"], 3)
         # Rolling last 30 Moscow dates (2026-06-09..2026-07-08): everyone
         # except the device whose only event predates the window.
         self.assertEqual(product["overview"]["mau"], 5)
