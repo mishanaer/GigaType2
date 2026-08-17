@@ -8,7 +8,7 @@ which AMFI honours only when an embedded **provisioning profile** authorizes
 them. An unsigned or merely ad-hoc-signed build always fails activation with
 `OSStatus -34018`; that is expected, not a bug.
 
-A profile can only be embedded in a *bundle*, so `afterPack.js` wraps the helper:
+A profile can only be embedded in a _bundle_, so `afterPack.js` wraps the helper:
 
 ```
 Contents/Resources/bin/
@@ -27,7 +27,7 @@ key lands in the default group — the signer's application-identifier.
 
 ## Who signs
 
-Signer: **Mikhail Naer, team `SBHVKH5UUY`**. The certificate *and* the profile
+Signer: **Mikhail Naer, team `SBHVKH5UUY`**. The certificate _and_ the profile
 must come from the same team — a certificate from another team with this
 profile is rejected by AMFI.
 
@@ -58,6 +58,7 @@ Verify:
 ```bash
 codesign --verify --deep --strict --verbose=2 Type.app
 codesign -d --entitlements :- Type.app/Contents/Resources/bin/TypeProtectedGigaAM.app
+node scripts/verify-macos-app-identity.js /path/to/Type.app
 ```
 
 The helper's entitlements must show `SBHVKH5UUY.ai.gigatype.app` in both
@@ -74,10 +75,11 @@ The helper's entitlements must show `SBHVKH5UUY.ai.gigatype.app` in both
   H=$(node -e "const a=require('@electron/asar'),c=require('crypto');console.log(c.createHash('sha256').update(a.getRawHeader('Type.app/Contents/Resources/app.asar').headerString).digest('hex'))")
   /usr/libexec/PlistBuddy -c "Set :ElectronAsarIntegrity:Resources/app.asar:hash $H" Type.app/Contents/Info.plist
   ```
+
   Then re-sign — editing `Info.plist` invalidates the signature.
 
 - **Signing a build that came out of a DMG?** Copy it off the read-only volume
-  first, and re-sign *every* nested Mach-O: a handed-over build may carry ad-hoc
+  first, and re-sign _every_ nested Mach-O: a handed-over build may carry ad-hoc
   signatures inside, and mixed signatures fail `--verify --deep --strict`.
 
 - **Permissions not sticking (Accessibility toggle does nothing)?** More than one
@@ -85,6 +87,11 @@ The helper's entitlements must show `SBHVKH5UUY.ai.gigatype.app` in both
   plus code requirement, and copies signed by different teams collide. Keep one
   install, unregister the others (`lsregister -u <path>`), then
   `tccutil reset Accessibility ai.gigatype.app`.
+
+  Current builds repair the known legacy Type bundle IDs once when a returning
+  user explicitly presses the Accessibility permission button. Release CI also
+  rejects an outer or protected-helper bundle unless both its identifier and
+  signing team remain `ai.gigatype.app` / `SBHVKH5UUY`.
 
 - **Notarization** needs credentials for team `SBHVKH5UUY` that we do not have
   yet. Signed-but-unnotarized builds run locally; Gatekeeper warns elsewhere.

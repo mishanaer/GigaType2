@@ -8,6 +8,7 @@ const DevServerManager = require("./devServerManager");
 const { i18nMain } = require("./i18nMain");
 const { DEV_SERVER_PORT } = DevServerManager;
 const { isAllowedAppNavigation, isSafeExternalUrl } = require("./securityPolicy");
+const { calculateControlPanelBounds } = require("./controlPanelBounds");
 const {
   MAIN_WINDOW_CONFIG,
   CONTROL_PANEL_CONFIG,
@@ -47,13 +48,20 @@ class WindowManager {
     this.showDockIcon = true;
     this._dockVisibilityPromise = Promise.resolve();
     this._mainWindowRaiseTimers = new Set();
+    this._controlPanelResizeTimers = new Set();
+    this._desiredControlPanelContentSize = null;
     this._dictationPanelShowGeneration = 0;
     this.ensureTrayHandler = null;
 
     app.on("before-quit", () => {
       this.isQuitting = true;
+      this._clearControlPanelResizeTimers();
       this.hotkeyManager.unregisterAll();
     });
+
+    for (const eventName of ["display-metrics-changed", "display-added", "display-removed"]) {
+      screen.on(eventName, () => this.recoverControlPanelLayout());
+    }
   }
 
   setTelemetryManager(telemetryManager) {
@@ -234,8 +242,32 @@ class WindowManager {
     }
 
     const requestedHeight = Math.ceil(Number(height));
-    if (!Number.isFinite(requestedHeight) || requestedHeight <= 0) {
+    const requestedWidth = width === undefined ? undefined : Math.ceil(Number(width));
+    if (
+      !Number.isFinite(requestedHeight) ||
+      requestedHeight <= 0 ||
+      (requestedWidth !== undefined && (!Number.isFinite(requestedWidth) || requestedWidth <= 0))
+    ) {
       return { success: false, message: "Invalid content height" };
+    }
+
+    this._desiredControlPanelContentSize = {
+      height: requestedHeight,
+      width: requestedWidth,
+    };
+
+    const result = this._applyDesiredControlPanelSize();
+    if (result.deferred) {
+      this._scheduleControlPanelResizeRecovery();
+    }
+    return result;
+  }
+
+  _applyDesiredControlPanelSize() {
+    const win = this.controlPanelWindow;
+    const desired = this._desiredControlPanelContentSize;
+    if (!win || win.isDestroyed() || !desired) {
+      return { success: false, message: "Control panel window not available" };
     }
 
     const currentBounds = win.getBounds();
@@ -243,43 +275,65 @@ class WindowManager {
       x: currentBounds.x + currentBounds.width / 2,
       y: currentBounds.y + currentBounds.height / 2,
     });
-    const workArea = display.workArea || display.bounds;
-    const usesExplicitWidth = width !== undefined;
-    const minHeight = usesExplicitWidth ? 1 : CONTROL_PANEL_CONFIG.minHeight || 360;
-    const maxHeight = Math.max(minHeight, workArea.height - 48);
-    const nextHeight = Math.max(minHeight, Math.min(requestedHeight, maxHeight));
-    const requestedWidth = width === undefined ? currentBounds.width : Math.ceil(Number(width));
-    const minWidth = 320;
-    const maxWidth = Math.max(minWidth, workArea.width - 48);
-    const nextWidth =
-      Number.isFinite(requestedWidth) && requestedWidth > 0
-        ? Math.max(minWidth, Math.min(requestedWidth, maxWidth))
-        : currentBounds.width;
+    const layout = calculateControlPanelBounds({
+      currentBounds,
+      display,
+      requestedHeight: desired.height,
+      requestedWidth: desired.width,
+    });
 
+    if (!layout) {
+      debugLogger.warn(
+        "Deferring control panel resize until display metrics are ready",
+        { displayBounds: display?.bounds, workArea: display?.workArea, desired },
+        "window"
+      );
+      return { success: false, deferred: true, bounds: currentBounds };
+    }
+
+    const { bounds: nextBounds, minWidth, minHeight } = layout;
     win.setMinimumSize(minWidth, minHeight);
 
     if (
-      Math.abs(currentBounds.height - nextHeight) <= 1 &&
-      Math.abs(currentBounds.width - nextWidth) <= 1
+      Math.abs(currentBounds.x - nextBounds.x) <= 1 &&
+      Math.abs(currentBounds.y - nextBounds.y) <= 1 &&
+      Math.abs(currentBounds.height - nextBounds.height) <= 1 &&
+      Math.abs(currentBounds.width - nextBounds.width) <= 1
     ) {
+      this._clearControlPanelResizeTimers();
       return { success: true, bounds: currentBounds };
     }
 
-    const centerX = currentBounds.x + currentBounds.width / 2;
-    const centerY = currentBounds.y + currentBounds.height / 2;
-    const maxX = workArea.x + workArea.width - nextWidth;
-    const maxY = workArea.y + workArea.height - nextHeight;
-    const nextX = Math.max(workArea.x, Math.min(Math.round(centerX - nextWidth / 2), maxX));
-    const nextY = Math.max(workArea.y, Math.min(Math.round(centerY - nextHeight / 2), maxY));
-    const nextBounds = {
-      x: nextX,
-      y: nextY,
-      width: nextWidth,
-      height: nextHeight,
-    };
-
     win.setBounds(nextBounds);
+    this._clearControlPanelResizeTimers();
     return { success: true, bounds: nextBounds };
+  }
+
+  _clearControlPanelResizeTimers() {
+    for (const timer of this._controlPanelResizeTimers) {
+      clearTimeout(timer);
+    }
+    this._controlPanelResizeTimers.clear();
+  }
+
+  _scheduleControlPanelResizeRecovery() {
+    if (this._controlPanelResizeTimers.size > 0) return;
+
+    for (const delayMs of [250, 1000, 3000]) {
+      const timer = setTimeout(() => {
+        this._controlPanelResizeTimers.delete(timer);
+        this._applyDesiredControlPanelSize();
+      }, delayMs);
+      this._controlPanelResizeTimers.add(timer);
+    }
+  }
+
+  recoverControlPanelLayout() {
+    if (!this._desiredControlPanelContentSize) return;
+    const result = this._applyDesiredControlPanelSize();
+    if (result.deferred) {
+      this._scheduleControlPanelResizeRecovery();
+    }
   }
 
   async loadWindowContent(window, isControlPanel = false) {
@@ -664,6 +718,7 @@ class WindowManager {
 
   async createControlPanelWindow() {
     if (this.controlPanelWindow && !this.controlPanelWindow.isDestroyed()) {
+      this.recoverControlPanelLayout();
       if (this.controlPanelWindow.isMinimized()) {
         this.controlPanelWindow.restore();
       }
@@ -728,6 +783,7 @@ class WindowManager {
 
     this.controlPanelWindow.once("ready-to-show", () => {
       clearVisibilityTimer();
+      this.recoverControlPanelLayout();
       void this.ensureDockVisibility();
       this.controlPanelWindow.show();
       this.controlPanelWindow.focus();
@@ -742,6 +798,7 @@ class WindowManager {
 
     this.controlPanelWindow.on("closed", () => {
       clearVisibilityTimer();
+      this._clearControlPanelResizeTimers();
       this.controlPanelWindow = null;
     });
 
@@ -1082,6 +1139,7 @@ class WindowManager {
 
   recoverAfterSystemResume() {
     this.resetWindowsPushState();
+    this.recoverControlPanelLayout();
 
     if (!this.mainWindow || this.mainWindow.isDestroyed()) {
       return;

@@ -338,10 +338,12 @@ jobs:
 
       - name: Verify packaged macOS native binaries
         run: |
-          APP_PATH=$(ls -d dist/mac*/GigaType.app | head -n1)
+          APP_PATH=$(find dist -type d -name Type.app -print -quit)
+          test -n "$APP_PATH" || { echo "Type.app not found"; exit 1; }
           for bin in macos-audio-tap macos-globe-listener macos-fast-paste macos-mic-listener macos-text-monitor macos-media-remote; do
             test -x "$APP_PATH/Contents/Resources/bin/$bin" || { echo "Missing in bundle: $bin"; exit 1; }
           done
+          node scripts/verify-macos-app-identity.js "$APP_PATH"
 
       - name: Setup Python
         uses: actions/setup-python@v5

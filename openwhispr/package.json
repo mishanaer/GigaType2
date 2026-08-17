@@ -80,6 +80,7 @@
     "download:gigaam-model": "node scripts/download-gigaam-model.js",
     "prepare:protected-gigaam": "node scripts/prepare-protected-gigaam.js",
     "verify:gigaam-model": "node scripts/verify-gigaam-model.js",
+    "verify:mac-identity": "node scripts/verify-macos-app-identity.js",
     "format:js": "eslint . --fix && cd src && eslint . --fix && prettier --write \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
     "format": "npm run format:js",
     "format:check": "eslint . && cd src && eslint . && prettier --check \"**/*.{js,jsx,ts,tsx,json,css,md}\"",
