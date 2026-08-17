@@ -654,4 +654,13 @@ TelemetryService.safeErrorCode = safeErrorCode;
 TelemetryService.safeErrorMessage = safeErrorMessage;
 TelemetryService.stackHash = stackHash;
 
+// Shared main-process instance so helpers that don't receive it explicitly
+// (e.g. the local ASR model downloader) can still emit events. main.js sets it
+// once after constructing the service; readers no-op until then.
+let sharedInstance = null;
+TelemetryService.setShared = (instance) => {
+  sharedInstance = instance;
+};
+TelemetryService.shared = () => sharedInstance;
+
 module.exports = TelemetryService;

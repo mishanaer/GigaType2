@@ -74,6 +74,12 @@
   <div class="section-title"><h2>First-value funnel</h2><span class="note">distinct installs first opened in the window</span></div>
   <section class="card"><div class="funnel" id="funnel"></div><div class="note" id="activation-note"></div></section>
 
+  <div class="section-title"><h2>Permission &amp; dictation funnels</h2><span class="note">setup prompts and where dictations drop off</span></div>
+  <section class="grid2">
+    <div class="card"><div class="card-head"><h2>Permission prompts</h2><span class="note">mic / accessibility outcomes in the window</span></div><div class="tiles" id="permission-results"></div></div>
+    <div class="card"><div class="card-head"><h2>Dictation sub-funnel</h2><span class="note">started → delivered output</span></div><div class="funnel" id="dictation-funnel"></div></div>
+  </section>
+
   <div class="section-title"><h2>Usage over time</h2><span class="note">Moscow dates</span></div>
   <section class="grid2">
     <div class="card chart"><div class="card-head"><h2>Active dictators</h2><span class="note">unique / day</span></div><div id="c-dictators"></div></div>
@@ -124,10 +130,20 @@ function barChart(el, series, key) {
   });
 }
 
+function funnelSteps(target, first, steps) {
+  $(target).innerHTML=steps.map(([label,value])=>`<div class="step"><div class="value">${fmt(value)}</div><div class="label">${esc(label)} · ${first?pct(value/first):'—'}</div><div class="track"><div class="fill" style="width:${first?Math.min(100,(value||0)/first*100):0}%"></div></div></div>`).join('');
+}
+function renderPermissionResults(rows) {
+  if (!rows.length) { $('permission-results').innerHTML='<div class="note">no prompts in the window</div>'; return; }
+  $('permission-results').innerHTML=rows.map(r=>tile(`${esc(r.permission)} · ${esc(r.status)}`,fmt(r.count),'prompts')).join('');
+}
+function renderDictationFunnel(f) {
+  const started=f.started||0;
+  funnelSteps('dictation-funnel',started,[['Started',f.started],['Audio captured',f.audio_captured],['Transcribed',f.transcribed],['Output delivered',f.output_succeeded]]);
+}
 function renderFunnel(funnel) {
   const first=funnel.first_opened || 0;
-  const steps=[['First opened',funnel.first_opened],['Requirements ready',funnel.requirements_ready],['Model ready',funnel.model_ready],['First success',funnel.first_success]];
-  $('funnel').innerHTML=steps.map(([label,value])=>`<div class="step"><div class="value">${fmt(value)}</div><div class="label">${esc(label)} · ${first?pct(value/first):'—'}</div><div class="track"><div class="fill" style="width:${first?Math.min(100,value/first*100):0}%"></div></div></div>`).join('');
+  funnelSteps('funnel',first,[['First opened',funnel.first_opened],['Permission asked',funnel.permission_asked],['Permissions granted',funnel.permissions_granted],['Requirements ready',funnel.requirements_ready],['Model ready',funnel.model_ready],['First success',funnel.first_success]]);
   $('activation-note').textContent=funnel.activation_7d_cohort ? `7-day activation: ${pct(funnel.activation_7d)} · ${fmt(funnel.activation_7d_cohort)} mature first-open installs` : '7-day activation: waiting for a mature cohort';
 }
 
@@ -149,6 +165,8 @@ async function load() {
       tile('Latency p50',ms(product.quality.latency_p50_ms),`p90 ${ms(product.quality.latency_p90_ms)}`)+
       tile(`Active devices ${win}`,fmt(product.active_devices),`${fmt(product.installs)} seen all-time`);
     renderFunnel(product.funnel);
+    renderPermissionResults(product.permission_results||[]);
+    renderDictationFunnel(product.dictation_funnel||{});
     barChart($('c-dictators'),timeseries.series||[],'dictators');
     barChart($('c-dictations'),timeseries.series||[],'dictations');
     $('retention').innerHTML=['d1','d7','d30'].map(key=>{const row=product.retention[key];return tile(key.toUpperCase(),pct(row.rate),`${fmt(row.returned)} / ${fmt(row.cohort)} mature`);}).join('');

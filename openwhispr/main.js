@@ -281,6 +281,7 @@ function initializeCoreManagers() {
   changeLanguage(uiLanguage);
   debugLogger.refreshLogLevel();
   telemetryManager = new TelemetryService();
+  TelemetryService.setShared(telemetryManager);
 
   windowManager = new WindowManager();
   windowManager.setTelemetryManager?.(telemetryManager);
