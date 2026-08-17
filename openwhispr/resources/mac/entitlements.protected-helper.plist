@@ -2,16 +2,32 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- The protected-model helper stores its Secure Enclave key references and
-         wrapped CEK cache in the Data Protection Keychain, which macOS only
-         grants to processes with an application identifier. Without these two
-         entitlements SecKeyCreateRandomKey fails with errSecMissingEntitlement
-         (-34018) and protected activation is impossible. -->
+    <!-- Entitlements for the REAL protected helper inside
+         Resources/bin/TypeProtectedGigaAM.app (assembled by afterPack.js). It
+         stores its Secure Enclave key references and wrapped-CEK cache in the
+         Data Protection Keychain, which macOS only grants to a process that has
+         an application identifier authorized by an embedded provisioning
+         profile. Without these SecKeyCreateRandomKey fails with
+         errSecMissingEntitlement (-34018).
+
+         The team prefix (SBHVKH5UUY) and identifier MUST match the signer's
+         Developer ID + provisioning profile. Current signer: Mikhail Naer
+         (SBHVKH5UUY), profile application-identifier SBHVKH5UUY.ai.gigatype.app,
+         keychain-access-groups SBHVKH5UUY.*. If a different team signs, update
+         all three strings to that team's <TEAMID>.ai.gigatype.app.
+
+         model_identity.rs sets no explicit kSecAttrAccessGroup, so the key lands
+         in the default group = this application-identifier — which is why the
+         nested bundle's id matches the outer app (ai.gigatype.app). -->
     <key>com.apple.application-identifier</key>
-    <string>LTS79DWRGJ.ai.gigatype.protected-gigaam</string>
+    <string>SBHVKH5UUY.ai.gigatype.app</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>SBHVKH5UUY</string>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
     <key>keychain-access-groups</key>
     <array>
-        <string>LTS79DWRGJ.ai.gigatype.protected-gigaam</string>
+        <string>SBHVKH5UUY.ai.gigatype.app</string>
     </array>
 </dict>
 </plist>
