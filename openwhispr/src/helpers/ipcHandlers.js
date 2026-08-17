@@ -23,6 +23,7 @@ const {
 } = require("./speakerAssignmentPolicy");
 const { downsample24kTo16k, pcm16ToWav } = require("../utils/audioUtils");
 const postMigrationDetector = require("./postMigrationDetector");
+const { repairLegacyAccessibilityIfNeeded } = require("./macosAccessibilityRepair");
 const {
   DEFAULT_EXPECTED_SPEAKER_COUNT,
   MAX_SPEAKER_COUNT,
@@ -1384,6 +1385,23 @@ class IPCHandlers {
     // This handler is called from an explicit user action in onboarding/settings.
     handle("prompt-accessibility-permission", async () => {
       if (process.platform !== "darwin") return true;
+      const trusted = systemPreferences.isTrustedAccessibilityClient(false);
+      const repair = await repairLegacyAccessibilityIfNeeded({
+        platform: process.platform,
+        isPackaged: app.isPackaged,
+        isTrusted: trusted,
+        hasExistingUserData: postMigrationDetector.hasExistingUserData(),
+        userDataPath: app.getPath("userData"),
+      });
+      if (repair.attempted) {
+        debugLogger.info(
+          "Repaired legacy macOS Accessibility registrations",
+          {
+            results: repair.results.map(({ bundleId, success }) => ({ bundleId, success })),
+          },
+          "permissions"
+        );
+      }
       return systemPreferences.isTrustedAccessibilityClient(true);
     });
 

@@ -1,6 +1,7 @@
 {
   "appId": "ai.gigatype.app",
   "afterPack": "scripts/afterPack.js",
+  "afterSign": "scripts/verifyMacIdentityAfterSign.js",
   "afterAllArtifactBuild": "scripts/afterAllArtifactBuild.js",
   "productName": "Type",
   "protocols": {

@@ -32,8 +32,14 @@ function isReturningFromOldBundle() {
   if (isWithinDismissBackoff()) return false;
   const userData = app.getPath("userData");
   const hasDb = DB_FILENAMES.some((name) => fs.existsSync(path.join(userData, name)));
-  if (!hasDb) return false;
-  return fs.existsSync(path.join(userData, ".env"));
+  return hasDb && fs.existsSync(path.join(userData, ".env"));
+}
+
+function hasExistingUserData() {
+  if (process.platform !== "darwin") return false;
+  const userData = app.getPath("userData");
+  const hasDb = DB_FILENAMES.some((name) => fs.existsSync(path.join(userData, name)));
+  return hasDb || fs.existsSync(path.join(userData, ".env"));
 }
 
 function markBundleMigrated() {
@@ -53,6 +59,7 @@ function markBundleMigrationDismissed() {
 }
 
 module.exports = {
+  hasExistingUserData,
   isReturningFromOldBundle,
   markBundleMigrated,
   markBundleMigrationDismissed,

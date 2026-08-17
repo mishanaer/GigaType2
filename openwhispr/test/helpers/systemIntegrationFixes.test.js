@@ -61,7 +61,8 @@ test("hiding the macOS Dock icon keeps open windows active", () => {
 
   assert.ok(setShowDockIconSource);
   assert.match(setShowDockIconSource, /app\.dock\.hide\(\)/);
-  assert.doesNotMatch(setShowDockIconSource, /setActivationPolicy\("accessory"\)/);
+  assert.match(setShowDockIconSource, /setActivationPolicy\("regular"\)/);
+  assert.match(setShowDockIconSource, /setActivationPolicy\("accessory"\)/);
   assert.match(
     windowManagerSource,
     /_alwaysOnTopOptions\(\) \{[\s\S]*?skipTransformProcessType: true/
@@ -147,6 +148,8 @@ test("capsule visibility has one renderer owner and Windows resume restores the 
   assert.match(mainSource, /powerMonitor\.on\("resume"[\s\S]*recoverWindowsAfterResume/);
   assert.match(mainSource, /powerMonitor\.on\("unlock-screen", recoverWindowsAfterResume\)/);
   assert.match(mainSource, /windowsKeyManager\.restart\(currentHotkey\)/);
+  assert.match(windowManagerSource, /this\.recoverControlPanelLayout\(\)/);
+  assert.match(windowManagerSource, /display-metrics-changed/);
 });
 
 test("Windows capture waits for the native hook and the capsule recovers above shell surfaces", () => {

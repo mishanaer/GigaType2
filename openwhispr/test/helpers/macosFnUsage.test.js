@@ -99,15 +99,13 @@ test("manual Fn selection is passed to the native hotkey registration path", () 
 
   assert.ok(handlerStart >= 0);
   assert.ok(saveCall > handlerStart);
-  assert.match(handlerSource, /isFnHotkeyAvailable/);
+  assert.doesNotMatch(handlerSource, /isFnHotkeyAvailable/);
+  assert.match(handlerSource, /await onHotkeyChange\(newHotkey\)/);
   assert.doesNotMatch(handlerSource, /if\s*\(!isAvailable\)\s*\{\s*handleHotkeyInvalid/);
 });
 
 test("Caps Lock is captured as an assignable hotkey", () => {
-  const source = fs.readFileSync(
-    path.join(repoRoot, "src/components/ui/HotkeyInput.tsx"),
-    "utf8"
-  );
+  const source = fs.readFileSync(path.join(repoRoot, "src/components/ui/HotkeyInput.tsx"), "utf8");
   assert.match(source, /CapsLock:\s*"CapsLock"/);
 
   const modifierSetStart = source.indexOf("const MODIFIER_CODES");

@@ -47,11 +47,16 @@ test("bundled app metadata uses Type as the visible product name", () => {
 
 test("macOS release artifacts use one signed notarization pipeline", () => {
   const builderConfig = JSON.parse(read("electron-builder.json"));
+  const protectedEntitlements = read("resources/mac/entitlements.protected-helper.plist");
+  const releaseWorkflow = read(".github/workflows/release.yml");
 
+  assert.equal(builderConfig.appId, "ai.gigatype.app");
   assert.equal(builderConfig.mac.hardenedRuntime, true);
   assert.equal(builderConfig.mac.notarize, true);
   assert.equal(builderConfig.dmg.sign, true);
-  assert.equal(builderConfig.afterSign, undefined);
+  assert.equal(builderConfig.afterSign, "scripts/verifyMacIdentityAfterSign.js");
+  assert.match(protectedEntitlements, /SBHVKH5UUY\.ai\.gigatype\.app/);
+  assert.match(releaseWorkflow, /verify-macos-app-identity\.js/);
 });
 
 test("local-only transcription provider surface does not advertise OpenAI", () => {
