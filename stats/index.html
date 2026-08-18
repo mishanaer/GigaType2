@@ -68,6 +68,9 @@
     </div>
   </header>
 
+  <div class="section-title"><h2>Canonical audience</h2><span class="note">human activity is separate from background startup</span></div>
+  <section class="tiles" id="audience-tiles"></section>
+
   <div class="section-title"><h2>Value delivered</h2><span class="note">successful, ≥1s dictations</span></div>
   <section class="tiles" id="value-tiles"></section>
 
@@ -156,6 +159,13 @@ async function load() {
     ]);
     const win=product.window_days===1?'today MSK':`${product.window_days} Moscow dates`;
     $('sub').textContent=`updated ${product.updated_at} · window ${win}`;
+    $('audience-tiles').innerHTML=
+      tile('Known active users',fmt(summary.overview.ever_used),'human activity, all time')+
+      tile('DAU · human',fmt(summary.overview.dau),'excludes startup-only launches')+
+      tile('DAU · app running',fmt(product.app_running_overview.dau),`${fmt(product.startup_only_today)} startup-only today`)+
+      tile('WAU · human',fmt(summary.overview.wau),'rolling 7 Moscow dates')+
+      tile('MAU · human',fmt(summary.overview.mau),'rolling 30 Moscow dates')+
+      tile('Tools / DAU',summary.overview.tools_per_dau?.toFixed(2)||'—','successful dictations / human DAU');
     $('value-tiles').innerHTML=
       tile(`Active dictators ${win}`,fmt(product.active_dictators),`${fmt(product.repeat_dictators)} used on 2+ days`)+
       tile(`Successful dictations ${win}`,fmt(product.successful_dictations),`${product.dictations_per_active_dictator?.toFixed(1)||'—'} per active dictator`)+
@@ -179,9 +189,10 @@ async function load() {
     $('error-note').textContent=`${fmt(product.errors.count)} events · ${fmt(product.errors.affected_devices)} devices`;
     $('errors').innerHTML=(product.errors.top_signatures||[]).map(row=>`<div class="signature"><span>${esc(row.signature)}</span><b>${fmt(row.count)}</b></div>`).join('')||'<div class="empty">no errors</div>';
     const c=product.coverage;
-    $('coverage').innerHTML=`Canonical finishes: <b>${fmt(c.canonical_finishes)}</b> · legacy success-only: <b>${fmt(c.legacy_success_only)}</b> · duration: <b>${pct(c.duration)}</b> · latency: <b>${pct(c.latency)}</b> · event id: <b>${pct(c.event_id)}</b>${c.canonical_finishes===0?' · <span class="warning">success rate is unavailable until canonical finishes arrive or PostHog is backfilled</span>':''}`;
+    const sources=Object.entries(c.ingest_sources||{}).map(([key,value])=>`${esc(key)}: <b>${fmt(value)}</b>`).join(' · ');
+    $('coverage').innerHTML=`Canonical finishes: <b>${fmt(c.canonical_finishes)}</b> · legacy success-only: <b>${fmt(c.legacy_success_only)}</b> · duration: <b>${pct(c.duration)}</b> · latency: <b>${pct(c.latency)}</b> · event id: <b>${pct(c.event_id)}</b>${sources?' · delivery '+sources:''}${c.canonical_finishes===0?' · <span class="warning">success rate is unavailable until canonical finishes arrive or the legacy PostHog bridge catches up</span>':''}`;
     const series=timeseries.series||[];
-    $('table').innerHTML=series.length?`<table><tr><th>day</th><th>dictators</th><th>successes</th><th>sessions/DAU</th><th>attempts</th><th>success</th><th>words</th><th>devices</th><th>errors</th></tr>${series.map(row=>`<tr><td>${esc(row.day)}</td><td>${fmt(row.dictators)}</td><td>${fmt(row.dictations)}</td><td>${row.sessions_per_dau==null?'—':(+row.sessions_per_dau).toFixed(2)}</td><td>${fmt(row.attempts)}</td><td>${pct(row.success_rate)}</td><td>${fmt(row.words)}</td><td>${fmt(row.devices)}</td><td>${fmt(row.errors)}</td></tr>`).join('')}</table>`:'no data yet';
+    $('table').innerHTML=series.length?`<table><tr><th>day</th><th>human DAU</th><th>app running</th><th>dictators</th><th>successes</th><th>sessions/DAU</th><th>attempts</th><th>success</th><th>words</th><th>errors</th></tr>${series.map(row=>`<tr><td>${esc(row.day)}</td><td>${fmt(row.devices)}</td><td>${fmt(row.app_running)}</td><td>${fmt(row.dictators)}</td><td>${fmt(row.dictations)}</td><td>${row.sessions_per_dau==null?'—':(+row.sessions_per_dau).toFixed(2)}</td><td>${fmt(row.attempts)}</td><td>${pct(row.success_rate)}</td><td>${fmt(row.words)}</td><td>${fmt(row.errors)}</td></tr>`).join('')}</table>`:'no data yet';
   } catch(error) { $('sub').textContent='load failed: '+error; }
 }
 
