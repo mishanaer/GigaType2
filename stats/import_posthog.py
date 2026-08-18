@@ -197,7 +197,15 @@ def main() -> int:
             )
             fetched += len(rows)
             if database is not None:
-                inserted += insert_events(database, rows)
+                received_at = datetime.now(timezone.utc).timestamp()
+                inserted += insert_events(database, [
+                    {
+                        **row,
+                        "received_at": received_at,
+                        "ingest_source": "posthog",
+                    }
+                    for row in rows
+                ])
             if result_count < page_size:
                 break
             if next_cursor is None or next_cursor == cursor:

@@ -97,7 +97,7 @@ class ProductMetricsTest(unittest.TestCase):
     def test_materialized_period_snapshot_and_duplicate_replay(self):
         self.seed()
         server._materialized.rebuild(
-            server.sqlite_events(server.DB_PATH),
+            server._materialized_events(),
             error_names=frozenset(server.ERROR_EVENTS),
             code_revision="test",
         )
@@ -160,7 +160,7 @@ class ProductMetricsTest(unittest.TestCase):
                 # Monday of the current ISO week — inside the rolling week.
                 "ts": datetime(2026, 7, 6, 8, 0, tzinfo=timezone.utc).timestamp(),
                 "device_id": "current-week",
-                "name": "app_opened",
+                "name": "dictation_finished",
                 "event_id": "current-week",
                 "properties": {},
             },
@@ -169,7 +169,7 @@ class ProductMetricsTest(unittest.TestCase):
                 # 2026-08-17, so this one counts too.
                 "ts": datetime(2026, 7, 5, 8, 0, tzinfo=timezone.utc).timestamp(),
                 "device_id": "previous-week",
-                "name": "app_opened",
+                "name": "dictation_finished",
                 "event_id": "previous-week",
                 "properties": {},
             },
@@ -178,7 +178,7 @@ class ProductMetricsTest(unittest.TestCase):
                 # MAU is rolling since 2026-08-01, so this one counts.
                 "ts": datetime(2026, 6, 30, 20, 59, tzinfo=timezone.utc).timestamp(),
                 "device_id": "previous-month",
-                "name": "app_opened",
+                "name": "dictation_finished",
                 "event_id": "previous-month",
                 "properties": {},
             },
@@ -187,7 +187,7 @@ class ProductMetricsTest(unittest.TestCase):
                 # rolling window, whose start bound is inclusive.
                 "ts": datetime(2026, 6, 8, 21, 0, tzinfo=timezone.utc).timestamp(),
                 "device_id": "window-oldest-date",
-                "name": "app_opened",
+                "name": "dictation_finished",
                 "event_id": "window-oldest-date",
                 "properties": {},
             },
@@ -195,7 +195,7 @@ class ProductMetricsTest(unittest.TestCase):
                 # 23:59 MSK on 2026-06-08 — one minute before the window.
                 "ts": datetime(2026, 6, 8, 20, 59, tzinfo=timezone.utc).timestamp(),
                 "device_id": "before-window",
-                "name": "app_opened",
+                "name": "dictation_finished",
                 "event_id": "before-window",
                 "properties": {},
             },
@@ -212,11 +212,9 @@ class ProductMetricsTest(unittest.TestCase):
         # except the device whose only event predates the window.
         self.assertEqual(product["overview"]["mau"], 5)
         self.assertEqual(product["overview"]["ever_used"], 6)
-        # Сессии Тайпа с 07.08.2026 считаются отдельно от диктовок: три события
-        # устройства current-day разнесены на часы, значит три сессии, а не две
-        # диктовки. Ряд /timeseries живёт по старому дневному прокси
-        # (диктовки / устройства) и остаётся на 2.0 — расхождение осознанное.
-        self.assertEqual(product["overview"]["sessions_per_dau"], 3.0)
+        # Фоновый app_opened не считается человеческой сессией. Две диктовки
+        # разнесены больше чем на пять минут, значит это две сессии.
+        self.assertEqual(product["overview"]["sessions_per_dau"], 2.0)
 
         with patch("server.time.time", return_value=calendar_now):
             series = json.loads(server.timeseries(1).body)["series"]
@@ -229,7 +227,7 @@ class ProductMetricsTest(unittest.TestCase):
             {
                 "ts": day_start + offset,
                 "device_id": "gap",
-                "name": "app_opened",
+                "name": "dictation_finished",
                 "event_id": f"gap-{index}",
                 "properties": {},
             }
@@ -243,6 +241,26 @@ class ProductMetricsTest(unittest.TestCase):
 
         self.assertEqual(server.SESSION_GAP_SECONDS, 5 * 60)
         self.assertEqual(product["overview"]["sessions_per_dau"], 2.0)
+
+    def test_background_startup_is_separate_from_human_dau(self):
+        now = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc).timestamp()
+        self.assertEqual(insert_events(server._db, [{
+            "ts": now - 60,
+            "device_id": "startup-only",
+            "name": "app_opened",
+            "event_id": "startup-only",
+            "properties": {},
+        }]), 1)
+
+        product = server._product_payload(1, now)
+
+        self.assertEqual(product["overview"]["dau"], 0)
+        self.assertEqual(product["app_running_overview"]["dau"], 1)
+        self.assertEqual(product["startup_only_today"], 1)
+        with patch("server.time.time", return_value=now):
+            series = json.loads(server.timeseries(1).body)["series"]
+        self.assertEqual(series[-1]["devices"], 0)
+        self.assertEqual(series[-1]["app_running"], 1)
 
     def test_summary_exposes_only_applicable_canonical_overview_metrics(self):
         self.seed()
@@ -489,6 +507,33 @@ class ProductMetricsTest(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         self.assertTrue(all(math.isfinite(row[0]) and row[0] <= time.time() + 2 for row in rows))
         self.assertEqual(json.loads(rows[0][1]), {"event_id": "clock-one"})
+
+    def test_ingest_preserves_event_and_server_receipt_times_and_source(self):
+        event_time = NOW - 120
+
+        class FakeRequest:
+            headers = {"x-stats-source": "posthog"}
+            client = None
+
+            async def body(self):
+                return json.dumps({
+                    "device_id": "two-clocks",
+                    "events": [{
+                        "ts": event_time,
+                        "name": "dictation_finished",
+                        "event_id": "two-clocks",
+                        "properties": {"outcome": "succeeded"},
+                    }],
+                }).encode()
+
+        with patch("server.time.time", return_value=NOW):
+            payload = json.loads(asyncio.run(server.ingest(FakeRequest())).body)
+        self.assertEqual(payload["ingested"], 1)
+        row = server._db.execute(
+            "SELECT ts, received_at, ingest_source FROM events WHERE event_id = ?",
+            ("two-clocks",),
+        ).fetchone()
+        self.assertEqual(row, (event_time, NOW, "posthog"))
 
     def test_ingest_enforces_server_side_event_and_property_allowlists(self):
         class FakeRequest:

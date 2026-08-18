@@ -41,7 +41,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 
 from storage import connect, insert_events
-from materialized import MaterializedStats, sqlite_events
+from materialized import FactEvent, MaterializedStats
 
 HERE = Path(__file__).resolve().parent
 PORT = int(os.environ.get("STATS_PORT", "9902"))
@@ -52,6 +52,7 @@ METRICS_DB_PATH = Path(
 INGEST_TOKEN = os.environ.get("STATS_INGEST_TOKEN", "")
 VERSION_FILE = HERE / "VERSION"
 VERSION = VERSION_FILE.read_text().strip() if VERSION_FILE.exists() else "dev"
+STATS_LOGIC_REVISION = f"{VERSION}:human-activity-v2"
 REPORTING_TZ = ZoneInfo("Europe/Moscow")
 SUMMARY_BATCH_CAPABILITY = "summary_batch_v1"
 PERIOD_SNAPSHOT_CAPABILITY = "period_snapshot_v1"
@@ -161,7 +162,7 @@ def _refresh_loop() -> None:
         time.sleep(REFRESH_TICK_SECONDS)
         try:
             if _materialized_ready.is_set() and _materialized.telemetry()["dirty_dates"]:
-                _materialized.refresh(code_revision=VERSION)
+                _materialized.refresh(code_revision=STATS_LOGIC_REVISION)
             _refresh_due()
         except Exception:  # noqa: BLE001
             traceback.print_exc()
@@ -187,18 +188,21 @@ def _ensure_materialized() -> None:
         telemetry = _materialized.telemetry()
         derived_count = int(telemetry.get("processed_events") or 0)
         derived = telemetry.get("source_watermark")
+        last_revision = (telemetry.get("last_run") or {}).get("code_revision")
         derived_ts = datetime.fromisoformat(derived).timestamp() if derived else None
-        if int(raw_count) != derived_count or (
+        if last_revision != STATS_LOGIC_REVISION or int(raw_count) != derived_count or (
             raw_watermark is not None and
             (derived_ts is None or derived_ts + 1 <= float(raw_watermark))
         ):
             _materialized.rebuild(
-                sqlite_events(DB_PATH),
+                _materialized_events(),
                 error_names=frozenset(ERROR_EVENTS),
-                code_revision=VERSION,
+                code_revision=STATS_LOGIC_REVISION,
             )
         elif derived is None:
-            _materialized.refresh(kind="bootstrap", code_revision=VERSION)
+            _materialized.refresh(
+                kind="bootstrap", code_revision=STATS_LOGIC_REVISION
+            )
         _materialized_ready.set()
     except Exception:  # noqa: BLE001 — legacy summary remains available
         traceback.print_exc()
@@ -223,6 +227,14 @@ ERROR_EVENTS = {
     "renderer_process_gone",
     "app_crashed",
 }
+
+# Canonical product activity requires a person to use Type. ``app_opened`` is
+# deliberately excluded: packaged builds enable hidden OS login startup, so a
+# launch event alone proves that the process ran, not that the person used it.
+HUMAN_EVENT_NAMES: tuple[str, ...] = (
+    "first_app_opened", "dictation", "dictation_finished",
+)
+APP_RUNNING_EVENT_NAMES = frozenset((*HUMAN_EVENT_NAMES, "app_open", "app_opened"))
 
 COMMON_INGEST_PROPERTIES = {
     "event_id",
@@ -416,6 +428,12 @@ async def ingest(request: Request) -> JSONResponse:
     ):
         return JSONResponse({"error": "rate limit"}, status_code=429)
     now = time.time()
+    headers = getattr(request, "headers", {})
+    ingest_source = (
+        "posthog"
+        if headers.get("x-stats-source", "").strip().lower() == "posthog"
+        else "direct"
+    )
     rows = []
     rejected = 0
     for ev in events:
@@ -448,6 +466,8 @@ async def ingest(request: Request) -> JSONResponse:
                 "name": event_name,
                 "properties": properties,
                 "event_id": event_id,
+                "received_at": now,
+                "ingest_source": ingest_source,
             }
         )
     with _db_lock:
@@ -455,8 +475,11 @@ async def ingest(request: Request) -> JSONResponse:
     if rows and _materialized_ready.is_set():
         _materialized.record_events(
             [
-                (row["ts"], row.get("device_id") or "", row["name"],
-                 row.get("event_id") or "")
+                FactEvent(
+                    row["ts"], row.get("device_id") or "", row["name"],
+                    row.get("event_id") or "", True,
+                    _is_human_activity(row), _is_human_activity(row),
+                )
                 for row in rows
             ],
             error_names=frozenset(ERROR_EVENTS),
@@ -521,14 +544,15 @@ def _query_events(since: float | None = None, until: float | None = None) -> lis
     with _db_lock:
         rows = list(
             _db.execute(
-                "SELECT ts, device_id, name, properties, event_id FROM events"
+                "SELECT ts, device_id, name, properties, event_id, "
+                "received_at, ingest_source FROM events"
                 + where
                 + " ORDER BY ts",
                 params,
             )
         )
     events = []
-    for ts, device, name, raw_properties, event_id in rows:
+    for ts, device, name, raw_properties, event_id, received_at, ingest_source in rows:
         try:
             properties = json.loads(raw_properties or "{}")
         except json.JSONDecodeError:
@@ -540,6 +564,8 @@ def _query_events(since: float | None = None, until: float | None = None) -> lis
                 "name": name,
                 "properties": properties if isinstance(properties, dict) else {},
                 "event_id": event_id or "",
+                "received_at": float(received_at or 0),
+                "ingest_source": ingest_source or "unknown",
             }
         )
     return events
@@ -564,14 +590,18 @@ def _iter_events(since: float | None = None, until: float | None = None,
         params.append(batch)
         with _db_lock:
             rows = list(_db.execute(
-                "SELECT rowid, ts, device_id, name, properties, event_id "
+                "SELECT rowid, ts, device_id, name, properties, event_id, "
+                "received_at, ingest_source "
                 "FROM events WHERE " + " AND ".join(clauses)
                 + " ORDER BY rowid LIMIT ?",
                 params,
             ))
         if not rows:
             return
-        for rowid, ts, device, name, raw_properties, event_id in rows:
+        for (
+            rowid, ts, device, name, raw_properties, event_id,
+            received_at, ingest_source,
+        ) in rows:
             last_rowid = rowid
             try:
                 properties = json.loads(raw_properties or "{}")
@@ -583,6 +613,8 @@ def _iter_events(since: float | None = None, until: float | None = None,
                 "name": name,
                 "properties": properties if isinstance(properties, dict) else {},
                 "event_id": event_id or "",
+                "received_at": float(received_at or 0),
+                "ingest_source": ingest_source or "unknown",
             }
 
 
@@ -693,6 +725,27 @@ def _is_first_open(event: dict) -> bool:
     )
 
 
+def _is_human_activity(event: dict) -> bool:
+    return _is_first_open(event) or event["name"] in {
+        "dictation", "dictation_finished",
+    }
+
+
+def _is_app_running_activity(event: dict) -> bool:
+    return _is_human_activity(event) or event["name"] in {
+        "app_open", "app_opened",
+    }
+
+
+def _materialized_events():
+    for event in _iter_events():
+        active = _is_human_activity(event)
+        yield FactEvent(
+            event["ts"], event["device_id"], event["name"], event["event_id"],
+            True, active, active,
+        )
+
+
 def _event_version(event: dict) -> str:
     return str(event["properties"].get("app_version") or "unknown")
 
@@ -729,13 +782,26 @@ def _compute_product_payload(days: float, now: float) -> dict:
     window_records = [record for record in records if record["ts"] >= since]
     successes = [record for record in records if record["success"]]
     window_successes = [record for record in window_records if record["success"]]
-    all_devices = {event["device_id"] for event in all_events if event["device_id"]}
+    human_events = [event for event in all_events if _is_human_activity(event)]
+    window_human_events = [event for event in human_events if event["ts"] >= since]
+    seen_devices = {event["device_id"] for event in all_events if event["device_id"]}
+    all_devices = {event["device_id"] for event in human_events if event["device_id"]}
     overview_starts = _overview_period_starts(now)
     active_by_period = {
         period: {
             event["device_id"]
-            for event in all_events
+            for event in human_events
             if event["device_id"] and event["ts"] >= period_start
+        }
+        for period, period_start in overview_starts.items()
+    }
+    app_running_by_period = {
+        period: {
+            event["device_id"]
+            for event in all_events
+            if event["device_id"]
+            and event["ts"] >= period_start
+            and _is_app_running_activity(event)
         }
         for period, period_start in overview_starts.items()
     }
@@ -748,7 +814,7 @@ def _compute_product_payload(days: float, now: float) -> dict:
     # defined as successful dictations, so the two cards now diverge.
     day_events = sorted(
         (event["device_id"], event["ts"])
-        for event in all_events
+        for event in human_events
         if event["device_id"] and event["ts"] >= overview_starts["dau"]
     )
     sessions_today = 0
@@ -763,7 +829,13 @@ def _compute_product_payload(days: float, now: float) -> dict:
         record for record in window_records if record["denominator_ready"] and record["eligible"]
     ]
     quality_successes = [record for record in quality_eligible if record["success"]]
-    active_devices = {event["device_id"] for event in window_events if event["device_id"]}
+    active_devices = {
+        event["device_id"] for event in window_human_events if event["device_id"]
+    }
+    app_running_devices = {
+        event["device_id"] for event in window_events
+        if event["device_id"] and _is_app_running_activity(event)
+    }
     active_dictators = {record["device_id"] for record in window_successes if record["device_id"]}
     success_days = defaultdict(set)
     for record in window_successes:
@@ -850,6 +922,7 @@ def _compute_product_payload(days: float, now: float) -> dict:
         "updated_at": datetime.fromtimestamp(now, timezone.utc).isoformat(timespec="seconds"),
         "window_days": window_days,
         "installs": len(all_devices),
+        "telemetry_seen_devices": len(seen_devices),
         "overview": {
             "ever_used": len(all_devices),
             "dau": dau,
@@ -858,7 +931,15 @@ def _compute_product_payload(days: float, now: float) -> dict:
             "sessions_per_dau": sessions_per_dau,
             "tools_per_dau": tools_per_dau,
         },
+        "app_running_overview": {
+            period: len(devices) for period, devices in app_running_by_period.items()
+        },
+        "startup_only_today": len(
+            app_running_by_period["dau"] - active_by_period["dau"]
+        ),
         "active_devices": len(active_devices),
+        "app_running_devices": len(app_running_devices),
+        "startup_only_devices": len(app_running_devices - active_devices),
         "active_dictators": len(active_dictators),
         "repeat_dictators": sum(len(days_used) >= 2 for days_used in success_days.values()),
         "successful_dictations": len(window_successes),
@@ -938,6 +1019,13 @@ def _compute_product_payload(days: float, now: float) -> dict:
                 if window_events
                 else None
             ),
+            "ingest_sources": dict(Counter(
+                event.get("ingest_source") or "unknown" for event in window_events
+            )),
+            "latest_received_at": max(
+                (event.get("received_at") or 0 for event in window_events),
+                default=0,
+            ) or None,
         },
     }
 
@@ -1104,12 +1192,17 @@ def _compute_timeseries(days: float) -> dict:
                 "words": 0,
                 "errors": 0,
                 "devices": set(),
+                "app_running_devices": set(),
                 "dictators": set(),
                 "latencies": [],
+                "activity_times": defaultdict(list),
             },
         )
-        if event["device_id"]:
+        if event["device_id"] and _is_human_activity(event):
             b["devices"].add(event["device_id"])
+            b["activity_times"][event["device_id"]].append(event["ts"])
+        if event["device_id"] and _is_app_running_activity(event):
+            b["app_running_devices"].add(event["device_id"])
         if event["name"] in ERROR_EVENTS:
             b["errors"] += 1
         record = _dictation_record(event)
@@ -1148,9 +1241,21 @@ def _compute_timeseries(days: float) -> dict:
                 "words": 0,
                 "errors": 0,
                 "devices": set(),
+                "app_running_devices": set(),
                 "dictators": set(),
                 "latencies": [],
+                "activity_times": defaultdict(list),
             },
+        )
+        sessions = sum(
+            1 + sum(
+                current - previous > SESSION_GAP_SECONDS
+                for previous, current in zip(
+                    sorted(timestamps), sorted(timestamps)[1:]
+                )
+            )
+            for timestamps in bucket["activity_times"].values()
+            if timestamps
         )
         series.append(
             {
@@ -1160,6 +1265,7 @@ def _compute_timeseries(days: float) -> dict:
                 "words": bucket["words"],
                 "errors": bucket["errors"],
                 "devices": len(bucket["devices"]),
+                "app_running": len(bucket["app_running_devices"]),
                 "dictators": len(bucket["dictators"]),
                 "success_rate": (
                     bucket["canonical_successes"] / bucket["attempts"]
@@ -1168,7 +1274,7 @@ def _compute_timeseries(days: float) -> dict:
                 ),
                 "latency_p50_ms": _percentile(bucket["latencies"], 0.5),
                 "sessions_per_dau": (
-                    bucket["dictations"] / len(bucket["devices"])
+                    sessions / len(bucket["devices"])
                     if bucket["devices"]
                     else None
                 ),
@@ -1197,16 +1303,22 @@ def _compute_retention(now: float | None = None) -> dict:
     - weekly cohort table — cohort = Moscow ISO week of first appearance,
       distinct returners per week offset (concierge reference).
 
-    Activity = any event on a Moscow date. Cohorts start at the first event
-    ever recorded, so young modules simply show short tables.
+    Activity = a product-declared human event on a Moscow date; background
+    startup and readiness telemetry do not create cohorts or returns.
     """
     now = now or time.time()
     rows = _db.execute(
-        "SELECT device_id, ts FROM events WHERE device_id != ''",
+        "SELECT device_id, ts, name, properties FROM events WHERE device_id != ''",
     ).fetchall()
     to_day = lambda ts: datetime.fromtimestamp(ts, REPORTING_TZ).date().toordinal()
     active_days: dict[str, set[int]] = {}
-    for actor, ts in rows:
+    for actor, ts, name, raw_properties in rows:
+        try:
+            properties = json.loads(raw_properties or "{}")
+        except json.JSONDecodeError:
+            properties = {}
+        if not _is_human_activity({"name": name, "properties": properties}):
+            continue
         active_days.setdefault(actor, set()).add(to_day(ts))
     today = to_day(now)
     first = {actor: min(days) for actor, days in active_days.items()}
@@ -1267,7 +1379,7 @@ def _retention_cards(retention: dict | None = None) -> list[dict]:
 # model_ready, — а тихо завышенные сессии хуже отсутствующих. Пустой
 # список = карточек сессий у модуля нет, и это честнее выдумки.
 #
-# У Тайпа человеческое действие ровно одно — диктовка; плюс самый первый
+# У Тайпа человеческое действие — диктовка; плюс самый первый
 # запуск после установки. app_opened сюда НЕ входит: startApp() в
 # openwhispr/main.js зовёт ensureAutoStartEnabledByDefault(), которая на
 # упакованных сборках ставит openAtLogin + openAsHidden по умолчанию, так
@@ -1275,7 +1387,6 @@ def _retention_cards(retention: dict | None = None) -> list[dict]:
 # молча стартует в фоне и человек его не видел. requirements_ready и
 # model_ready — сигналы готовности, error_occurred и renderer_process_gone
 # — аварии; всё это машинное.
-HUMAN_EVENT_NAMES: tuple[str, ...] = ("first_app_opened", "dictation_finished")
 # Машинные события перечисляются так же явно, а не как «всё остальное»:
 # дополнение к человеческому списку засасывает нейтральное (обновления,
 # версии, технические маркеры) и выдаёт его за работу агента. Пустой

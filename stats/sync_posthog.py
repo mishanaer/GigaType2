@@ -27,6 +27,7 @@ def send_batch(url: str, token: str, rows: list[dict]) -> dict:
         headers={
             "Content-Type": "application/json",
             "X-Ingest-Token": token,
+            "X-Stats-Source": "posthog",
             "User-Agent": "gigatype-posthog-bridge/1",
         },
         method="POST",
@@ -42,6 +43,18 @@ def send_batch(url: str, token: str, rows: list[dict]) -> dict:
             f"Traction receiver accepted {accepted}/{len(rows)} and rejected {rejected}"
         )
     return payload
+
+
+def fetch_page_with_retry(*args):
+    last_error = None
+    for attempt in range(3):
+        try:
+            return fetch_page(*args)
+        except (urllib.error.URLError, TimeoutError) as error:
+            last_error = error
+            if attempt < 2:
+                time.sleep(2**attempt)
+    raise last_error  # type: ignore[misc]
 
 
 def main() -> int:
@@ -74,7 +87,7 @@ def main() -> int:
     cursor = None
     try:
         while True:
-            rows, next_cursor, result_count = fetch_page(
+            rows, next_cursor, result_count = fetch_page_with_retry(
                 base_url, project_id, api_key, since, until, page_size, cursor
             )
             fetched += len(rows)
