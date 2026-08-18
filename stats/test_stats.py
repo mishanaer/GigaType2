@@ -81,6 +81,50 @@ class ProductMetricsTest(unittest.TestCase):
             "tools_per_dau": None,
         })
 
+    def test_summary_batch_matches_cached_single_windows(self):
+        self.seed()
+        self.assertIn("summary_batch_v1", server.health()["capabilities"])
+        batch = json.loads(server.summary_batch("1,3,7,30").body)
+        self.assertEqual(set(batch["summaries"]), {"1", "3", "7", "30"})
+        for days in (1, 3, 7, 30):
+            single = json.loads(server.summary(days).body)
+            candidate = batch["summaries"][str(days)]
+            for key in (
+                "window_days", "installs", "dau", "events", "errors", "overview",
+            ):
+                self.assertEqual(candidate[key], single[key])
+
+    def test_materialized_period_snapshot_and_duplicate_replay(self):
+        self.seed()
+        server._materialized.rebuild(
+            server.sqlite_events(server.DB_PATH),
+            error_names=frozenset(server.ERROR_EVENTS),
+            code_revision="test",
+        )
+        server._materialized_ready.set()
+        snapshot = json.loads(server.period_snapshot().body)
+        self.assertEqual(
+            set(snapshot["periods"]),
+            {"today", "yesterday", "last_3_dates", "last_7_dates",
+             "last_30_dates", "all_time"},
+        )
+        before = snapshot["periods"]["all_time"]["events"]
+        row = {
+            "ts": server.time.time(), "device_id": "dup",
+            "name": "app_opened", "event_id": "duplicate-id",
+        }
+        self.assertEqual(server._materialized.record_events([
+            (row["ts"], row["device_id"], row["name"], row["event_id"]),
+        ]), 1)
+        self.assertEqual(server._materialized.record_events([
+            (row["ts"], row["device_id"], row["name"], row["event_id"]),
+        ]), 0)
+        server._materialized.refresh(now=server.time.time())
+        self.assertEqual(
+            server._materialized.snapshot()["periods"]["all_time"]["events"],
+            before + 1,
+        )
+
     def test_overview_uses_moscow_day_and_rolling_7_and_30_dates(self):
         calendar_now = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc).timestamp()
         rows = [

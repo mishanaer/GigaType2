@@ -41,14 +41,20 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 
 from storage import connect, insert_events
+from materialized import MaterializedStats, sqlite_events
 
 HERE = Path(__file__).resolve().parent
 PORT = int(os.environ.get("STATS_PORT", "9902"))
 DB_PATH = Path(os.environ.get("STATS_DB", HERE / "data" / "events.db"))
+METRICS_DB_PATH = Path(
+    os.environ.get("STATS_METRICS_DB", DB_PATH.with_name("metrics.db"))
+)
 INGEST_TOKEN = os.environ.get("STATS_INGEST_TOKEN", "")
 VERSION_FILE = HERE / "VERSION"
 VERSION = VERSION_FILE.read_text().strip() if VERSION_FILE.exists() else "dev"
 REPORTING_TZ = ZoneInfo("Europe/Moscow")
+SUMMARY_BATCH_CAPABILITY = "summary_batch_v1"
+PERIOD_SNAPSHOT_CAPABILITY = "period_snapshot_v1"
 
 
 @contextlib.asynccontextmanager
@@ -61,6 +67,8 @@ app = FastAPI(lifespan=_lifespan)
 
 _db = connect(DB_PATH, check_same_thread=False)
 _db_lock = threading.RLock()
+_materialized = MaterializedStats(METRICS_DB_PATH)
+_materialized_ready = threading.Event()
 
 # Ответы считаются НЕ в запросе. Хаб опрашивает /health + /summary?days=1/7/30
 # раз в минуту с таймаутом 5 с, обсерверному прокси на /product отведено 15 с,
@@ -75,7 +83,7 @@ REFRESH_TICK_SECONDS = float(os.environ.get("STATS_REFRESH_TICK", "15"))
 # Страховка на случай, если фоновый поток умер: настолько протухшее значение
 # запрос пересчитывает сам, пусть и ценой таймаута у одного поллинга.
 CACHE_HARD_LIMIT_SECONDS = 10 * CACHE_TTL_SECONDS
-WARM_WINDOWS = (1.0, 7.0, 30.0)
+WARM_WINDOWS = (1.0, 3.0, 7.0, 30.0)
 _cache: dict[str, tuple[float, object]] = {}
 _cache_lock = threading.Lock()
 _refresh_jobs: dict[str, tuple[object, float]] = {}
@@ -145,12 +153,15 @@ def _warm() -> None:
 
 def _refresh_loop() -> None:
     try:
+        _ensure_materialized()
         _warm()
     except Exception:  # noqa: BLE001
         traceback.print_exc()
     while True:
         time.sleep(REFRESH_TICK_SECONDS)
         try:
+            if _materialized_ready.is_set() and _materialized.telemetry()["dirty_dates"]:
+                _materialized.refresh(code_revision=VERSION)
             _refresh_due()
         except Exception:  # noqa: BLE001
             traceback.print_exc()
@@ -164,6 +175,33 @@ def _start_refresher() -> None:
         target=_refresh_loop, name="stats-refresher", daemon=True
     )
     _refresher.start()
+
+
+def _ensure_materialized() -> None:
+    """Backfill once in the background, then keep ingest updates incremental."""
+    try:
+        with _db_lock:
+            raw_count, raw_watermark = _db.execute(
+                "SELECT COUNT(*),MAX(ts) FROM events"
+            ).fetchone()
+        telemetry = _materialized.telemetry()
+        derived_count = int(telemetry.get("processed_events") or 0)
+        derived = telemetry.get("source_watermark")
+        derived_ts = datetime.fromisoformat(derived).timestamp() if derived else None
+        if int(raw_count) != derived_count or (
+            raw_watermark is not None and
+            (derived_ts is None or derived_ts + 1 <= float(raw_watermark))
+        ):
+            _materialized.rebuild(
+                sqlite_events(DB_PATH),
+                error_names=frozenset(ERROR_EVENTS),
+                code_revision=VERSION,
+            )
+        elif derived is None:
+            _materialized.refresh(kind="bootstrap", code_revision=VERSION)
+        _materialized_ready.set()
+    except Exception:  # noqa: BLE001 — legacy summary remains available
+        traceback.print_exc()
 
 
 def _reset_caches() -> None:
@@ -304,12 +342,17 @@ DIRECT_EVENT_PROPERTIES = {
 
 @app.get("/health")
 def health() -> dict:
+    capabilities = [SUMMARY_BATCH_CAPABILITY]
+    if _materialized_ready.is_set():
+        capabilities.append(PERIOD_SNAPSHOT_CAPABILITY)
     return {
         "ok": True,
         "version": VERSION,
         "ingest_enabled": True,
         "ingest_authenticated": bool(INGEST_TOKEN),
         "contract_version": 2,
+        "capabilities": capabilities,
+        "stats": _materialized.telemetry(),
     }
 
 
@@ -409,6 +452,15 @@ async def ingest(request: Request) -> JSONResponse:
         )
     with _db_lock:
         inserted = insert_events(_db, rows)
+    if rows and _materialized_ready.is_set():
+        _materialized.record_events(
+            [
+                (row["ts"], row.get("device_id") or "", row["name"],
+                 row.get("event_id") or "")
+                for row in rows
+            ],
+            error_names=frozenset(ERROR_EVENTS),
+        )
     # Инвалидации здесь намеренно нет. Пока она была, каждая пачка событий
     # обнуляла кэши, а при нынешнем потоке (DAU ~800) это значит «кэша нет
     # вообще»: любой опрос хаба считал витрину с нуля и ловил таймаут.
@@ -923,6 +975,53 @@ def summary(days: float = 1.0) -> JSONResponse:
     payload = _cached(f"summary:{window_days:g}", lambda: _compute_summary(days))
     # no-store обязателен: закэшированный 200 маскирует мёртвый модуль.
     return JSONResponse(payload, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/summary-batch")
+def summary_batch(days: str = "1,3,7,30") -> JSONResponse:
+    try:
+        windows = sorted({
+            float(max(1, min(math.ceil(float(item.strip())), 365)))
+            for item in days.split(",") if item.strip()
+        })
+    except ValueError:
+        return JSONResponse(
+            {"error": "days must be comma-separated numbers"}, status_code=400
+        )
+    if not windows or len(windows) > 10:
+        return JSONResponse({"error": "expected 1 to 10 windows"}, status_code=400)
+    summaries = {
+        f"{window:g}": _cached(
+            f"summary:{window:g}", lambda window=window: _compute_summary(window)
+        )
+        for window in windows
+    }
+    return JSONResponse(
+        {
+            "schema_version": 1,
+            "updated_at": max(item["updated_at"] for item in summaries.values()),
+            "summaries": summaries,
+        },
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/period-snapshot")
+def period_snapshot() -> JSONResponse:
+    if not _materialized_ready.is_set():
+        return JSONResponse({"error": "materialized backfill is not ready"}, status_code=503)
+    return JSONResponse(
+        _materialized.snapshot(), headers={"Cache-Control": "no-store"}
+    )
+
+
+@app.get("/stats-telemetry")
+def stats_telemetry() -> JSONResponse:
+    return JSONResponse(
+        {"schema_version": 1, "ready": _materialized_ready.is_set(),
+         **_materialized.telemetry()},
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 def _compute_summary(days: float) -> dict:
