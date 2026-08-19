@@ -1,6 +1,7 @@
 //! Dev probe: full macOS protected ASR path from a packed fp16 container —
 //! verify signature, decrypt with the release-secret CEK, load the RNN-T model
-//! (encoder on the ANE from memory, decoder/joiner on ONNX), transcribe a WAV.
+//! (compiled encoder on the ANE via a private volume, decoder/joiner on ONNX),
+//! transcribe a WAV.
 //! No gateway involved. Usage: full_probe <container> <release-secret.json> <wav>
 //! Env: TYPE_MODEL_MANIFEST_PUBLIC_KEY (debug pin), TYPE_ANE_ENCODER_PATH.
 #[cfg(target_os = "macos")]
@@ -25,8 +26,11 @@ fn main() -> anyhow::Result<()> {
     let cek = protected::ContentKey::from_base64(secret["content_key_b64"].as_str().unwrap())?;
 
     let files = [
-        "v3_e2e_rnnt_encoder.mlmodel",
+        "v3_e2e_rnnt_encoder.mil",
         "v3_e2e_rnnt_encoder.weight.bin",
+        "v3_e2e_rnnt_encoder.coremldata.bin",
+        "v3_e2e_rnnt_encoder.metadata.json",
+        "v3_e2e_rnnt_encoder.analytics.coremldata.bin",
         "v3_e2e_rnnt_decoder.onnx",
         "v3_e2e_rnnt_joint.onnx",
     ];

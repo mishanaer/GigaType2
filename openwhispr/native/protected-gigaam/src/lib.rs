@@ -5,5 +5,7 @@ pub mod gateway_identity;
 pub mod model;
 pub mod model_gateway;
 pub mod model_identity;
+#[cfg(target_os = "macos")]
+pub mod model_volume;
 pub mod protected;
 pub mod rnnt;

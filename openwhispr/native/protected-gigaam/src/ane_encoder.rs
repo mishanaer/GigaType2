@@ -1,17 +1,21 @@
 //! Drives the CoreML encoder helper (`macos-gigaam-encoder --from-memory`) over
 //! its GENM/GENQ/GENR stdio protocol.
 //!
-//! The fp16 ML Program is decrypted into memory by the sidecar and streamed to
-//! the helper as a spec + weight blob; the helper builds an `MLModelAsset` from
-//! those buffers and runs the encoder on the Apple Neural Engine. No plaintext
-//! model is ever written to disk. The prediction network and joiner stay on
-//! ONNX Runtime — only the expensive encoder moves to the ANE.
+//! Two shapes of release are supported. A release carrying the model *spec* plus
+//! its weight blob is streamed to the helper over stdin and never leaves memory.
+//! A release carrying an already-compiled `.mlmodelc` is materialised on a
+//! [`ModelVolume`] — a RAM disk where available — because CoreML can only open a
+//! compiled model through a filesystem path; the volume is torn down with the
+//! encoder. The prediction network and joiner stay on ONNX Runtime — only the
+//! expensive encoder moves to the ANE.
 
 use std::io::{BufReader, Read, Write};
 use std::path::Path;
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 
 use anyhow::{anyhow, bail, Context, Result};
+
+use crate::model_volume::ModelVolume;
 
 const GENM: u32 = 0x4745_4e4d; // in-memory model header (sidecar → helper)
 const GENH: u32 = 0x4745_4e48; // hello (helper → sidecar)
@@ -26,6 +30,9 @@ pub const WINDOW_FRAMES: usize = 3360;
 /// log-mel → encoder-output requests. Dropping it closes the pipe and the child exits.
 pub struct AneEncoder {
     child: Child,
+    /// Dropped after the child is reaped, releasing the compiled model's backing
+    /// store. `None` when the model was streamed in memory.
+    _volume: Option<ModelVolume>,
     stdin: ChildStdin,
     stdout: BufReader<ChildStdout>,
     enc_dim: usize,
@@ -49,8 +56,25 @@ fn parse_enc_dim(json: &[u8]) -> Option<usize> {
 }
 
 impl AneEncoder {
+    /// Spawn the helper against an already-compiled `.mlmodelc` directory. The
+    /// `volume` backing that directory is held for the encoder's lifetime.
+    pub fn spawn_from_dir(helper: &Path, model: &Path, volume: ModelVolume) -> Result<Self> {
+        let child = Command::new(helper)
+            .arg(model)
+            .args(["--compute-units", "all"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .with_context(|| format!("spawn ANE encoder helper {}", helper.display()))?;
+        Self::handshake(child, Some(volume))
+    }
+
     /// Spawn the helper and hand it the decrypted spec + weight blob. Blocks
     /// through the helper's first-run ANE specialization (its warmup pass).
+    /// Used by releases that carry the model spec; kept alongside
+    /// [`Self::spawn_from_dir`] so either release shape can be loaded.
+    #[allow(dead_code)]
     pub fn spawn(helper: &Path, spec: &[u8], weights: &[u8]) -> Result<Self> {
         let mut child = Command::new(helper)
             .arg("--from-memory")
@@ -60,16 +84,10 @@ impl AneEncoder {
             .stderr(Stdio::inherit())
             .spawn()
             .with_context(|| format!("spawn ANE encoder helper {}", helper.display()))?;
-        let mut stdin = child
+        let stdin = child
             .stdin
-            .take()
+            .as_mut()
             .ok_or_else(|| anyhow!("ANE encoder helper has no stdin"))?;
-        let mut stdout = BufReader::new(
-            child
-                .stdout
-                .take()
-                .ok_or_else(|| anyhow!("ANE encoder helper has no stdout"))?,
-        );
 
         let mut header = Vec::with_capacity(12);
         header.extend_from_slice(&GENM.to_le_bytes());
@@ -79,6 +97,21 @@ impl AneEncoder {
         stdin.write_all(spec).context("send model spec")?;
         stdin.write_all(weights).context("send model weights")?;
         stdin.flush().context("flush model to helper")?;
+        Self::handshake(child, None)
+    }
+
+    /// Read the helper's GENH hello and capture the encoder geometry it reports.
+    fn handshake(mut child: Child, volume: Option<ModelVolume>) -> Result<Self> {
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| anyhow!("ANE encoder helper has no stdin"))?;
+        let mut stdout = BufReader::new(
+            child
+                .stdout
+                .take()
+                .ok_or_else(|| anyhow!("ANE encoder helper has no stdout"))?,
+        );
 
         let magic = read_u32(&mut stdout)?;
         if magic != GENH {
@@ -94,6 +127,7 @@ impl AneEncoder {
 
         Ok(Self {
             child,
+            _volume: volume,
             stdin,
             stdout,
             enc_dim,

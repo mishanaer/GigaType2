@@ -11,14 +11,18 @@ use type_protected_gigaam::{model_gateway, protected, rnnt::RnntModel};
 
 const MODEL_ID: &str = "gigaam-v3-e2e-rnnt-en-ru";
 const VOCAB: &str = "v3_e2e_rnnt_vocab.txt";
-// macOS runs the encoder as an fp16 CoreML ML Program on the ANE, carried as a
-// spec + weight blob (order: spec, weights, decoder, joiner). Other platforms
-// keep the fp32 ONNX encoder (order: encoder, decoder, joiner). The order here
-// is the contract with `RnntModel::load_from_source`.
+// macOS runs the encoder as an fp16 CoreML ML Program on the ANE, carried already
+// compiled: the five files of a `.mlmodelc` flattened into single-component asset
+// names (the container format allows no path separators), then the decoder and
+// joiner. Other platforms keep the fp32 ONNX encoder (order: encoder, decoder,
+// joiner). The order here is the contract with `RnntModel::load_from_source`.
 #[cfg(target_os = "macos")]
-const MODEL_FILES: [&str; 4] = [
-    "v3_e2e_rnnt_encoder.mlmodel",
+const MODEL_FILES: [&str; 7] = [
+    "v3_e2e_rnnt_encoder.mil",
     "v3_e2e_rnnt_encoder.weight.bin",
+    "v3_e2e_rnnt_encoder.coremldata.bin",
+    "v3_e2e_rnnt_encoder.metadata.json",
+    "v3_e2e_rnnt_encoder.analytics.coremldata.bin",
     "v3_e2e_rnnt_decoder.onnx",
     "v3_e2e_rnnt_joint.onnx",
 ];
