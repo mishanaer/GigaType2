@@ -130,7 +130,7 @@ class ProductMetricsTest(unittest.TestCase):
         server._materialized.rebuild(
             server._materialized_events(),
             error_names=frozenset(server.ERROR_EVENTS),
-            code_revision=server.STATS_LOGIC_REVISION,
+            code_revision=f"old-deploy:{server.STATS_LOGIC_REVISION}",
         )
         tail = event(
             0, "tail", "dictation_finished", "tail-event",

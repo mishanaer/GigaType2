@@ -53,10 +53,20 @@ METRICS_DB_PATH = Path(
 INGEST_TOKEN = os.environ.get("STATS_INGEST_TOKEN", "")
 VERSION_FILE = HERE / "VERSION"
 VERSION = VERSION_FILE.read_text().strip() if VERSION_FILE.exists() else "dev"
-STATS_LOGIC_REVISION = f"{VERSION}:human-activity-v2"
+# Deployment identity changes on every release; metric semantics do not.
+# Coupling the two made every deploy look like a schema migration and forced a
+# destructive all-history rebuild.  Bump this value only when definitions or
+# derived-fact semantics actually change.
+STATS_LOGIC_REVISION = "human-activity-v2"
 REPORTING_TZ = ZoneInfo("Europe/Moscow")
 SUMMARY_BATCH_CAPABILITY = "summary_batch_v1"
 PERIOD_SNAPSHOT_CAPABILITY = "period_snapshot_v1"
+
+
+def _is_current_logic_revision(revision: str | None) -> bool:
+    return revision == STATS_LOGIC_REVISION or bool(
+        revision and revision.endswith(f":{STATS_LOGIC_REVISION}")
+    )
 
 
 @contextlib.asynccontextmanager
@@ -202,7 +212,7 @@ def _ensure_materialized() -> None:
         derived = telemetry.get("source_watermark")
         last_revision = (telemetry.get("last_run") or {}).get("code_revision")
         derived_ts = datetime.fromisoformat(derived).timestamp() if derived else None
-        if last_revision != STATS_LOGIC_REVISION:
+        if not _is_current_logic_revision(last_revision):
             _materialized.rebuild(
                 _materialized_events(),
                 error_names=frozenset(ERROR_EVENTS),
@@ -1235,7 +1245,7 @@ def _compute_summary_legacy(days: float) -> dict:
 def _compute_summary(days: float) -> dict:
     telemetry = _materialized.telemetry()
     last_revision = (telemetry.get("last_run") or {}).get("code_revision")
-    if last_revision == STATS_LOGIC_REVISION:
+    if _is_current_logic_revision(last_revision):
         return _compute_materialized_summary(days)
 
     # Compatibility fallback for a first boot and deterministic unit tests.
