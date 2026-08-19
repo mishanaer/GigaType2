@@ -28,6 +28,7 @@ import hashlib
 import json
 import math
 import os
+import sqlite3
 import threading
 import time
 import traceback
@@ -52,10 +53,20 @@ METRICS_DB_PATH = Path(
 INGEST_TOKEN = os.environ.get("STATS_INGEST_TOKEN", "")
 VERSION_FILE = HERE / "VERSION"
 VERSION = VERSION_FILE.read_text().strip() if VERSION_FILE.exists() else "dev"
-STATS_LOGIC_REVISION = f"{VERSION}:human-activity-v2"
+# Deployment identity changes on every release; metric semantics do not.
+# Coupling the two made every deploy look like a schema migration and forced a
+# destructive all-history rebuild.  Bump this value only when definitions or
+# derived-fact semantics actually change.
+STATS_LOGIC_REVISION = "human-activity-v2"
 REPORTING_TZ = ZoneInfo("Europe/Moscow")
 SUMMARY_BATCH_CAPABILITY = "summary_batch_v1"
 PERIOD_SNAPSHOT_CAPABILITY = "period_snapshot_v1"
+
+
+def _is_current_logic_revision(revision: str | None) -> bool:
+    return revision == STATS_LOGIC_REVISION or bool(
+        revision and revision.endswith(f":{STATS_LOGIC_REVISION}")
+    )
 
 
 @contextlib.asynccontextmanager
@@ -146,10 +157,15 @@ def _refresh_due() -> None:
 
 
 def _warm() -> None:
-    """Прогреть ровно то, что опрашивает хаб, плюс графики дашборда."""
+    """Warm only the lightweight hub contract.
+
+    Product and timeseries payloads are intentionally lazy.  Both decode
+    product-specific event properties and their cost grows with the selected
+    history; eagerly building every window made a restart compete with the
+    materialized catch-up for the unit's memory limit.
+    """
     for days in WARM_WINDOWS:
         summary(days)
-        timeseries(days)
 
 
 def _refresh_loop() -> None:
@@ -179,7 +195,13 @@ def _start_refresher() -> None:
 
 
 def _ensure_materialized() -> None:
-    """Backfill once in the background, then keep ingest updates incremental."""
+    """Backfill a new logic revision, otherwise resume the existing journal.
+
+    Raw ingest may advance while the service is restarting.  A row-count
+    mismatch therefore means "catch up", not "delete and rebuild".  Replaying
+    the source is idempotent because ``stats_processed_events.event_id`` is the
+    deduplication key, and batching keeps memory bounded.
+    """
     try:
         with _db_lock:
             raw_count, raw_watermark = _db.execute(
@@ -190,14 +212,30 @@ def _ensure_materialized() -> None:
         derived = telemetry.get("source_watermark")
         last_revision = (telemetry.get("last_run") or {}).get("code_revision")
         derived_ts = datetime.fromisoformat(derived).timestamp() if derived else None
-        if last_revision != STATS_LOGIC_REVISION or int(raw_count) != derived_count or (
-            raw_watermark is not None and
-            (derived_ts is None or derived_ts + 1 <= float(raw_watermark))
-        ):
+        if not _is_current_logic_revision(last_revision):
             _materialized.rebuild(
                 _materialized_events(),
                 error_names=frozenset(ERROR_EVENTS),
                 code_revision=STATS_LOGIC_REVISION,
+            )
+        elif int(raw_count) != derived_count or (
+            raw_watermark is not None and
+            (derived_ts is None or derived_ts + 1 <= float(raw_watermark))
+        ):
+            batch: list[FactEvent] = []
+            for fact in _materialized_events(_iter_unmaterialized_events()):
+                batch.append(fact)
+                if len(batch) >= 5000:
+                    _materialized.record_events(
+                        batch, error_names=frozenset(ERROR_EVENTS)
+                    )
+                    batch.clear()
+            if batch:
+                _materialized.record_events(
+                    batch, error_names=frozenset(ERROR_EVENTS)
+                )
+            _materialized.refresh(
+                kind="catchup", code_revision=STATS_LOGIC_REVISION
             )
         elif derived is None:
             _materialized.refresh(
@@ -618,6 +656,53 @@ def _iter_events(since: float | None = None, until: float | None = None,
             }
 
 
+def _iter_unmaterialized_events(batch: int = 5000):
+    """Stream only raw rows absent from the durable processed-event journal."""
+    last_rowid = 0
+    while True:
+        # Close the attached read transaction before yielding a page.  Keeping
+        # it open while MaterializedStats writes would pin the metrics WAL and
+        # turn a small catch-up into gigabytes of checkpoint I/O.
+        connection = sqlite3.connect(
+            f"file:{DB_PATH}?mode=ro", uri=True, timeout=30
+        )
+        try:
+            connection.execute(
+                "ATTACH DATABASE ? AS materialized",
+                (f"file:{METRICS_DB_PATH}?mode=ro",),
+            )
+            rows = connection.execute(
+                "SELECT e.rowid,e.ts,e.device_id,e.name,e.properties,e.event_id,"
+                "e.received_at,e.ingest_source FROM events AS e "
+                "WHERE e.rowid>? AND NOT EXISTS (SELECT 1 FROM "
+                "materialized.stats_processed_events AS p "
+                "WHERE p.event_id=e.event_id) ORDER BY e.rowid LIMIT ?",
+                (last_rowid, batch),
+            ).fetchall()
+        finally:
+            connection.close()
+        if not rows:
+            return
+        for (
+            rowid, ts, device, name, raw_properties, event_id,
+            received_at, ingest_source,
+        ) in rows:
+            last_rowid = rowid
+            try:
+                properties = json.loads(raw_properties or "{}")
+            except json.JSONDecodeError:
+                properties = {}
+            yield {
+                "ts": float(ts),
+                "device_id": device or "",
+                "name": name,
+                "properties": properties if isinstance(properties, dict) else {},
+                "event_id": event_id or "",
+                "received_at": float(received_at or 0),
+                "ingest_source": ingest_source or "unknown",
+            }
+
+
 def _read_events(since: float | None = None, until: float | None = None) -> list[dict]:
     """Read events, sharing one parsed all-history snapshot across 1/7/30.
 
@@ -737,8 +822,8 @@ def _is_app_running_activity(event: dict) -> bool:
     }
 
 
-def _materialized_events():
-    for event in _iter_events():
+def _materialized_events(events=None):
+    for event in _iter_events() if events is None else events:
         active = _is_human_activity(event)
         yield FactEvent(
             event["ts"], event["device_id"], event["name"], event["event_id"],
@@ -1112,7 +1197,7 @@ def stats_telemetry() -> JSONResponse:
     )
 
 
-def _compute_summary(days: float) -> dict:
+def _compute_summary_legacy(days: float) -> dict:
     product = _product_payload(days)
     window_days = product["window_days"]
     product_now = datetime.fromisoformat(product["updated_at"]).timestamp()
@@ -1154,6 +1239,88 @@ def _compute_summary(days: float) -> dict:
             },
             {"label": "Eligible success rate", "value": f"{rate * 100:.1f}%" if rate is not None else "—"},
         ] + _retention_cards(retention) + _canonical_cards(product_now, retention),
+    }
+
+
+def _compute_summary(days: float) -> dict:
+    telemetry = _materialized.telemetry()
+    last_revision = (telemetry.get("last_run") or {}).get("code_revision")
+    if _is_current_logic_revision(last_revision):
+        return _compute_materialized_summary(days)
+
+    # Compatibility fallback for a first boot and deterministic unit tests.
+    # Production reaches this path only until the background materializer has
+    # published its first complete snapshot.
+    return _compute_summary_legacy(days)
+
+
+def _compute_materialized_summary(days: float) -> dict:
+    """Build the fleet summary without decoding the full raw event history."""
+    window_days, _ = _window(days)
+    period_id = {
+        1.0: "today",
+        3.0: "last_3_dates",
+        7.0: "last_7_dates",
+        30.0: "last_30_dates",
+    }.get(window_days)
+    if period_id is None:
+        # Materialized v1 publishes the fleet's standard periods only.
+        return _compute_summary_legacy(days)
+
+    snapshot = _materialized.snapshot()
+    period = snapshot["periods"][period_id]
+    overview = dict(snapshot["overview"])
+    now = time.time()
+    current = datetime.fromtimestamp(now, REPORTING_TZ)
+    day_start = current.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+    activity_times: dict[str, list[float]] = defaultdict(list)
+    records: list[dict] = []
+    for event in _iter_events(since=day_start, until=now):
+        actor = event["device_id"]
+        if actor and _is_human_activity(event):
+            activity_times[actor].append(event["ts"])
+        record = _dictation_record(event)
+        if record is not None:
+            records.append(record)
+    successful_dictations = sum(
+        record["success"] for record in _dedupe_legacy_dictations(records)
+    )
+    sessions = sum(
+        1 + sum(
+            current_ts - previous_ts > SESSION_GAP_SECONDS
+            for previous_ts, current_ts in zip(
+                sorted(timestamps), sorted(timestamps)[1:]
+            )
+        )
+        for timestamps in activity_times.values() if timestamps
+    )
+    dau = int(overview.get("dau") or 0)
+    overview["sessions_per_dau"] = sessions / dau if dau else None
+    overview["tools_per_dau"] = successful_dictations / dau if dau else None
+    return {
+        "updated_at": snapshot["computed_at"],
+        "window_days": window_days,
+        "installs": int(snapshot["periods"]["all_time"]["installs"]),
+        "dau": int(period["active_actors"]),
+        "events": int(period["events"]),
+        "errors": int(period["errors"]),
+        "overview": overview,
+        "metrics": [
+            {
+                "label": "Sessions / DAU today MSK",
+                "value": (
+                    f"{overview['sessions_per_dau']:.2f}"
+                    if overview["sessions_per_dau"] is not None else "—"
+                ),
+            },
+            {
+                "label": "Tools / DAU today MSK",
+                "value": (
+                    f"{overview['tools_per_dau']:.2f}"
+                    if overview["tools_per_dau"] is not None else "—"
+                ),
+            },
+        ],
     }
 
 

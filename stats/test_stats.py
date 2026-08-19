@@ -125,6 +125,79 @@ class ProductMetricsTest(unittest.TestCase):
             before + 1,
         )
 
+    def test_materialized_restart_catches_up_without_destructive_rebuild(self):
+        self.seed()
+        server._materialized.rebuild(
+            server._materialized_events(),
+            error_names=frozenset(server.ERROR_EVENTS),
+            code_revision=f"old-deploy:{server.STATS_LOGIC_REVISION}",
+        )
+        tail = event(
+            0, "tail", "dictation_finished", "tail-event",
+            outcome="succeeded", audio_duration_ms=2000,
+        )
+        self.assertEqual(insert_events(server._db, [tail]), 1)
+
+        with patch.object(
+            server._materialized, "rebuild",
+            wraps=server._materialized.rebuild,
+        ) as rebuild, patch.object(
+            server._materialized, "record_events",
+            wraps=server._materialized.record_events,
+        ) as record_events:
+            server._ensure_materialized()
+
+        rebuild.assert_not_called()
+        self.assertEqual(
+            sum(len(call.args[0]) for call in record_events.call_args_list), 1
+        )
+        raw_count = server._db.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+        self.assertEqual(
+            server._materialized.telemetry()["processed_events"], raw_count
+        )
+
+    def test_materialized_summary_does_not_decode_full_product_history(self):
+        self.seed()
+        server._materialized.rebuild(
+            server._materialized_events(),
+            error_names=frozenset(server.ERROR_EVENTS),
+            code_revision=server.STATS_LOGIC_REVISION,
+        )
+        server._materialized_ready.set()
+
+        with patch("server.time.time", return_value=NOW), patch.object(
+            server, "_compute_product_payload",
+            side_effect=AssertionError("full product history must stay lazy"),
+        ), patch.object(
+            server, "compute_retention",
+            side_effect=AssertionError("retention must stay lazy"),
+        ):
+            payload = server._compute_summary(7)
+
+        self.assertEqual(payload["overview"]["ever_used"], 3)
+        self.assertEqual(
+            payload["dau"],
+            server._materialized.snapshot()["periods"]["last_7_dates"][
+                "active_actors"
+            ],
+        )
+        self.assertEqual(
+            {metric["label"] for metric in payload["metrics"]},
+            {"Sessions / DAU today MSK", "Tools / DAU today MSK"},
+        )
+
+    def test_startup_warms_only_lightweight_summaries(self):
+        with patch.object(server, "summary") as summary_call, patch.object(
+            server, "timeseries"
+        ) as timeseries_call:
+            server._warm()
+
+        self.assertEqual(
+            [call.args[0] for call in summary_call.call_args_list],
+            list(server.WARM_WINDOWS),
+        )
+        timeseries_call.assert_not_called()
+
     def test_overview_uses_moscow_day_and_rolling_7_and_30_dates(self):
         calendar_now = datetime(2026, 7, 8, 12, 0, tzinfo=timezone.utc).timestamp()
         rows = [
