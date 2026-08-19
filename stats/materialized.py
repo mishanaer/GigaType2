@@ -779,7 +779,8 @@ class MaterializedStats:
         with self._connect() as connection:
             latest = connection.execute(
                 """SELECT * FROM stats_metric_runs
-                   WHERE status != 'running' ORDER BY finished_at DESC LIMIT 1"""
+                   WHERE status != 'running'
+                   ORDER BY finished_at DESC, rowid DESC LIMIT 1"""
             ).fetchone()
             dirty = connection.execute(
                 "SELECT COUNT(*),MIN(day),MAX(day) FROM stats_dirty_dates"
