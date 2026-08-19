@@ -1137,6 +1137,19 @@ class WindowManager {
     }
   }
 
+  prepareForSystemSessionInactive() {
+    this.resetWindowsPushState();
+
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      return;
+    }
+
+    this.mainWindow.hide();
+    if (!this.mainWindow.webContents.isDestroyed()) {
+      this.mainWindow.webContents.send("system-session-inactive");
+    }
+  }
+
   recoverAfterSystemResume() {
     this.resetWindowsPushState();
     this.recoverControlPanelLayout();

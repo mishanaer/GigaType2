@@ -74,6 +74,7 @@ function encodeWAVFromChunks(chunks, inputSampleRate = 48000, outputSampleRate =
 const GIGATYPE_ASR_MODEL = "gigaam-v3-e2e-rnnt";
 const MIN_TRANSCRIBABLE_AUDIO_BYTES = 512;
 const MIN_TRANSCRIBABLE_DURATION_SECONDS = 0.2;
+const WINDOWS_SESSION_AUDIO_SETTLE_MS = 1500;
 
 // All browser audio processing disabled to avoid OS-level side-effects.
 // AGC off: Chromium's AGC on Windows mutates the system mic volume via WASAPI (#476).
@@ -133,6 +134,14 @@ class AudioManager {
     this._silenceInterval = null;
     this._silenceCtx = null;
     this._silenceAnalyser = null;
+    this._micStream = null;
+    this._recordCtx = null;
+    this._recordSource = null;
+    this._scriptProcessor = null;
+    this._pcmChunks = [];
+    this._pcmNativeRate = null;
+    this._inputRecoveryNotBefore = 0;
+    this._forceSystemDefaultMicOnce = false;
   }
 
   getWorkletBlobUrl() {
@@ -228,6 +237,27 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
     const noProcessing = { ...NO_PROCESSING_AUDIO_CONSTRAINTS };
 
+    // Fast User Switching redirects Windows audio endpoints between sessions.
+    // Chromium can keep the old endpoint alive but silent immediately after
+    // unlock, so let the redirect settle and reopen through the current system
+    // default once before considering a saved/cached device id again.
+    const recoveryDelayMs = Math.max(0, this._inputRecoveryNotBefore - Date.now());
+    if (recoveryDelayMs > 0) {
+      logger.info(
+        "Waiting for Windows audio endpoint recovery",
+        { delayMs: recoveryDelayMs },
+        "audio"
+      );
+      await new Promise((resolve) => setTimeout(resolve, recoveryDelayMs));
+    }
+    this._inputRecoveryNotBefore = 0;
+
+    if (this._forceSystemDefaultMicOnce) {
+      this._forceSystemDefaultMicOnce = false;
+      logger.info("Reopening the system default microphone after session change", {}, "audio");
+      return { audio: noProcessing };
+    }
+
     if (preferBuiltIn) {
       if (this.cachedMicDeviceId && !this._failedMicDeviceIds.has(this.cachedMicDeviceId)) {
         logger.debug(
@@ -270,6 +300,87 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
     logger.debug("Using default microphone", {}, "audio");
     return { audio: noProcessing };
+  }
+
+  invalidateInputDeviceCache(reason = "device-change") {
+    this.cachedMicDeviceId = null;
+    this._failedMicDeviceIds.clear();
+    logger.info("Microphone device cache invalidated", { reason }, "audio");
+  }
+
+  /**
+   * Tear down capture resources that belong to a Windows interactive session.
+   * Fast User Switching preserves the renderer process while Windows redirects
+   * the audio endpoint; reusing that graph can produce a live-but-silent stream.
+   */
+  resetInputAfterSessionChange({
+    phase = "active",
+    settleMs = WINDOWS_SESSION_AUDIO_SETTLE_MS,
+  } = {}) {
+    const hadActiveCapture = Boolean(
+      this.isRecording ||
+      this.isStreaming ||
+      this.streamingStartInProgress ||
+      this._micStream ||
+      this.streamingStream
+    );
+
+    logger.info(
+      "Resetting microphone capture after Windows session change",
+      { phase, hadActiveCapture, settleMs },
+      "audio"
+    );
+
+    this.stopRequestedDuringStreamingStart = true;
+    this.cleanupStreamingAudio();
+    this.cleanupStreamingListeners();
+
+    try {
+      this._scriptProcessor?.disconnect();
+    } catch {
+      // The old Windows audio graph may already be detached.
+    }
+    this._scriptProcessor = null;
+    try {
+      this._recordSource?.disconnect();
+    } catch {
+      // The old Windows audio graph may already be detached.
+    }
+    this._recordSource = null;
+
+    this._micStream?.getTracks?.().forEach((track) => track.stop());
+    this._micStream = null;
+    this.stopAudioLevelMonitoring();
+    this._recordCtx?.close?.().catch(() => {});
+    this._recordCtx = null;
+    this._pcmChunks = [];
+    this._pcmNativeRate = null;
+    this._localSpeechGateState = null;
+    this.recordingStartTime = null;
+
+    if (this._previewProcessor || this._previewSource || this._previewAudioContext) {
+      this.cleanupPreview({ dismiss: true });
+    }
+
+    if (this.persistentAudioContext && this.persistentAudioContext.state !== "closed") {
+      this.persistentAudioContext.close().catch(() => {});
+    }
+    this.persistentAudioContext = null;
+    this.workletModuleLoaded = false;
+
+    this.isRecording = false;
+    this.isStreaming = false;
+    this.streamingStartInProgress = false;
+    this.invalidateInputDeviceCache(`windows-session-${phase}`);
+    this._forceSystemDefaultMicOnce = true;
+    this._inputRecoveryNotBefore = phase === "active" ? Date.now() + Math.max(0, settleMs) : 0;
+
+    if (hadActiveCapture) {
+      this.isProcessing = false;
+      this.onStateChange?.({ isRecording: false, isProcessing: false, isStreaming: false });
+    }
+
+    return { hadActiveCapture };
   }
 
   async cacheMicrophoneDeviceId() {
@@ -1352,6 +1463,9 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       this.streamingSource = null;
     }
 
+    if (this.streamingAudioContext && this.streamingAudioContext.state !== "closed") {
+      this.streamingAudioContext.close().catch(() => {});
+    }
     this.streamingAudioContext = null;
 
     if (this.streamingStream) {
