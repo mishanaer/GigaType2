@@ -30,6 +30,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onToggleDictation: registerListener("toggle-dictation", (callback) => () => callback()),
   onStartDictation: registerListener("start-dictation", (callback) => () => callback()),
   onStopDictation: registerListener("stop-dictation", (callback) => () => callback()),
+  onSystemSessionInactive: registerListener(
+    "system-session-inactive",
+    (callback) => () => callback()
+  ),
   onSystemResumed: registerListener("system-resumed", (callback) => () => callback()),
 
   // Database functions

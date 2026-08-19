@@ -360,6 +360,7 @@ declare global {
       onStartDictation?: (callback: () => void) => () => void;
       onStopDictation?: (callback: () => void) => () => void;
       onSystemResumed?: (callback: () => void) => () => void;
+      onSystemSessionInactive?: (callback: () => void) => () => void;
 
       // Database operations
       saveTranscription: (

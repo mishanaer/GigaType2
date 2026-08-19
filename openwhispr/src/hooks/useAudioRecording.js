@@ -576,12 +576,58 @@ export const useAudioRecording = (toast, options = {}) => {
 
     const disposeNoAudio = window.electronAPI.onNoAudioDetected?.(handleNoAudioDetected);
 
+    const resetWindowsSessionAudio = (phase) => {
+      if (getPlatform() !== "win32" || !audioManagerRef.current) return;
+
+      // If getUserMedia is still pending, its shouldCancelStart callback will
+      // stop the late stream instead of attaching it to the reactivated session.
+      if (startLockRef.current) {
+        pendingStopRef.current = true;
+      }
+
+      const { hadActiveCapture } = audioManagerRef.current.resetInputAfterSessionChange({
+        phase,
+        settleMs: phase === "active" ? 1500 : 0,
+      });
+
+      if (hadActiveCapture) {
+        window.electronAPI?.unregisterCancelHotkey?.();
+        window.electronAPI?.hideDictationPreview?.();
+        if (getSettings().pauseMediaOnDictation) {
+          window.electronAPI?.resumeMediaPlayback?.();
+        }
+        finishDictationSession("interrupted", {
+          status: "interrupted",
+          stop_reason: `windows_session_${phase}`,
+          transcribed: false,
+          output_attempted: false,
+        });
+      }
+    };
+
+    const disposeSessionInactive = window.electronAPI.onSystemSessionInactive?.(() => {
+      resetWindowsSessionAudio("inactive");
+    });
+    const disposeSystemResumed = window.electronAPI.onSystemResumed?.(() => {
+      resetWindowsSessionAudio("active");
+    });
+
+    const handleAudioDeviceChange = () => {
+      if (getPlatform() === "win32") {
+        audioManagerRef.current?.invalidateInputDeviceCache("media-device-change");
+      }
+    };
+    navigator.mediaDevices?.addEventListener?.("devicechange", handleAudioDeviceChange);
+
     // Cleanup
     return () => {
       disposeToggle?.();
       disposeStart?.();
       disposeStop?.();
       disposeNoAudio?.();
+      disposeSessionInactive?.();
+      disposeSystemResumed?.();
+      navigator.mediaDevices?.removeEventListener?.("devicechange", handleAudioDeviceChange);
       if (audioManagerRef.current) {
         audioManagerRef.current.cleanup();
       }

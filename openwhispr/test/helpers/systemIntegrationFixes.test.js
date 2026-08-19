@@ -147,7 +147,11 @@ test("capsule visibility has one renderer owner and Windows resume restores the 
   assert.match(mainSource, /const recoverWindowsAfterResume[\s\S]*recoverAfterSystemResume/);
   assert.match(mainSource, /powerMonitor\.on\("resume"[\s\S]*recoverWindowsAfterResume/);
   assert.match(mainSource, /powerMonitor\.on\("unlock-screen", recoverWindowsAfterResume\)/);
+  assert.match(mainSource, /powerMonitor\.on\("lock-screen"[\s\S]*prepareForSystemSessionInactive/);
   assert.match(mainSource, /windowsKeyManager\.restart\(currentHotkey\)/);
+  assert.match(windowManagerSource, /prepareForSystemSessionInactive\(\)/);
+  assert.match(windowManagerSource, /webContents\.send\("system-session-inactive"\)/);
+  assert.match(appSource, /useAudioRecording\(\)/);
   assert.match(windowManagerSource, /this\.recoverControlPanelLayout\(\)/);
   assert.match(windowManagerSource, /display-metrics-changed/);
 });

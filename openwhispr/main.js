@@ -659,6 +659,11 @@ async function startApp() {
 
   const { powerMonitor } = require("electron");
   let windowsResumeRecoveryTimer = null;
+  powerMonitor.on("lock-screen", () => {
+    if (process.platform === "win32") {
+      windowManager?.prepareForSystemSessionInactive?.();
+    }
+  });
   const recoverWindowsAfterResume = () => {
     windowManager?.recoverAfterSystemResume?.();
 
