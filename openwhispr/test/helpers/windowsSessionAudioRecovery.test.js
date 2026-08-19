@@ -7,7 +7,7 @@ const ts = require("typescript");
 
 const repoRoot = path.join(__dirname, "..", "..");
 
-function loadAudioManager() {
+function loadAudioManager(settings = { preferBuiltInMic: true, selectedMicDeviceId: "" }) {
   const filePath = path.join(repoRoot, "src/helpers/audioManager.js");
   const source = ts.transpileModule(fs.readFileSync(filePath, "utf8"), {
     compilerOptions: {
@@ -29,7 +29,7 @@ function loadAudioManager() {
       };
     }
     if (request.endsWith("/settingsStore")) {
-      return { getSettings: () => ({ preferBuiltInMic: true, selectedMicDeviceId: "" }) };
+      return { getSettings: () => ({ ...settings }) };
     }
     if (request.endsWith("/SyncService.js")) return { syncService: {} };
     if (request.endsWith("/localSpeechGate")) {
@@ -141,6 +141,34 @@ test("first capture after session recovery bypasses stale device ids once", asyn
       const second = await manager.getAudioConstraints();
       assert.equal(enumerations, 1);
       assert.deepEqual(second.audio.deviceId, { exact: "fresh-endpoint" });
+    }
+  );
+});
+
+test("session recovery keeps an explicitly selected microphone", async () => {
+  const AudioManager = loadAudioManager({
+    preferBuiltInMic: false,
+    selectedMicDeviceId: "usb-mic",
+  });
+  const manager = new AudioManager();
+
+  manager.cachedMicDeviceId = "stale-endpoint";
+  manager.resetInputAfterSessionChange({ phase: "active", settleMs: 0 });
+
+  await withNavigator(
+    {
+      mediaDevices: {
+        enumerateDevices: async () => {
+          throw new Error("should not enumerate for an explicit selection");
+        },
+      },
+    },
+    async () => {
+      const constraints = await manager.getAudioConstraints();
+      assert.deepEqual(constraints.audio.deviceId, { exact: "usb-mic" });
+
+      const second = await manager.getAudioConstraints();
+      assert.deepEqual(second.audio.deviceId, { exact: "usb-mic" });
     }
   );
 });

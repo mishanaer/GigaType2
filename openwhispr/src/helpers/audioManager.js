@@ -254,6 +254,17 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
     if (this._forceSystemDefaultMicOnce) {
       this._forceSystemDefaultMicOnce = false;
+      // An explicit user selection survives the session change: the stale
+      // graph and endpoint cache are already gone, and startRecording falls
+      // back to the system default if this device cannot start.
+      if (!preferBuiltIn && selectedDeviceId && !this._failedMicDeviceIds.has(selectedDeviceId)) {
+        logger.info(
+          "Reopening the selected microphone after session change",
+          { deviceId: selectedDeviceId },
+          "audio"
+        );
+        return { audio: { deviceId: { exact: selectedDeviceId }, ...noProcessing } };
+      }
       logger.info("Reopening the system default microphone after session change", {}, "audio");
       return { audio: noProcessing };
     }
