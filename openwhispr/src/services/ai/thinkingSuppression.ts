@@ -1,5 +1,5 @@
 import type { ReasoningConfig } from "../BaseReasoningService";
-import { getCloudModel, getLocalModel } from "../../models/ModelRegistry";
+import { getLocalModel } from "../../models/ModelRegistry";
 
 // Strict OpenAI-compatible servers (Groq, LM Studio, vLLM, LocalAI) reject
 // unknown fields like `think` with "property 'think' is unsupported". Only
@@ -30,18 +30,11 @@ export function applyThinkingSuppression(
   config: ReasoningConfig
 ): void {
   const providerKey = provider.toLowerCase();
-  const cloudModel = getCloudModel(model);
-
-  if (cloudModel?.disableThinking && providerKey === "groq") {
-    suppressThinking(requestBody, providerKey);
-    return;
-  }
 
   if (config.disableThinking !== true) return;
 
   const localModel = getLocalModel(model);
-  const knownModel = cloudModel || localModel;
-  if (knownModel && !knownModel.supportsThinking) return;
+  if (localModel && !localModel.supportsThinking) return;
 
   suppressThinking(requestBody, providerKey);
 }

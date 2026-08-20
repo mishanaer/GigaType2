@@ -7,7 +7,6 @@ const { app } = require("electron");
 const debugLogger = require("./debugLogger");
 const { findAvailablePort, resolveBinaryPath } = require("../utils/serverUtils");
 const onnxWorkerClient = require("./onnxWorkerClient");
-const { downloadFile } = require("./downloadUtils");
 const {
   ProtectedGigaamSidecar,
   resolveProtectedGigaamConfig,
@@ -22,7 +21,6 @@ const HOST = "127.0.0.1";
 const PORT_RANGE_START = 8765;
 const PORT_RANGE_END = 8775;
 const MODEL_NAME = "gigaam-v3-e2e-rnnt";
-const HF_BASE = "https://huggingface.co/istupakov/gigaam-v3-onnx/resolve/main";
 const MODEL_CACHE_REPO_DIR = "models--istupakov--gigaam-v3-onnx";
 const ENCODER_FILE = { name: "v3_e2e_rnnt_encoder.onnx", bytes: 885_084_534 };
 const DECODER_FILES = [
@@ -337,10 +335,18 @@ class GigaamLocalAsrManager extends EventEmitter {
   // offline without the ~851 MB first-run download. Returns null when running
   // unpackaged (dev) or when the bundle omits the model.
   _getBundledModelDir() {
-    if (!process.resourcesPath) return null;
-    const dir = path.join(process.resourcesPath, "gigaam-model");
-    if (this._requiredModelFiles().every((f) => fs.existsSync(path.join(dir, f.name)))) {
-      return dir;
+    const candidates = [];
+    if (process.resourcesPath) {
+      candidates.push(path.join(process.resourcesPath, "gigaam-model"));
+    }
+    // Unpackaged (dev) runs read the same files straight out of the repo, where
+    // `npm run download:gigaam-model` puts them at build time.
+    candidates.push(path.join(__dirname, "..", "..", "resources", "gigaam-model"));
+
+    for (const dir of candidates) {
+      if (this._requiredModelFiles().every((f) => fs.existsSync(path.join(dir, f.name)))) {
+        return dir;
+      }
     }
     return null;
   }
@@ -483,6 +489,10 @@ class GigaamLocalAsrManager extends EventEmitter {
     }
   }
 
+  // The model ships with the app (electron-builder extraResources) or sits in
+  // an existing on-disk cache. Nothing is ever fetched at runtime, so a missing
+  // model is a packaging problem and fails loudly instead of silently going
+  // online.
   async _ensureModelFiles() {
     const existing = this._resolveModelBaseDir();
     if (existing) {
@@ -490,36 +500,10 @@ class GigaamLocalAsrManager extends EventEmitter {
       return existing;
     }
 
-    const dir = this.getModelDir();
-    fs.mkdirSync(dir, { recursive: true });
-
-    this.modelStage = "downloading";
-    this._emitStatus();
-
-    let completedBytes = 0;
-    for (const file of this._requiredModelFiles()) {
-      const dest = path.join(dir, file.name);
-      if (fs.existsSync(dest)) {
-        completedBytes += file.bytes;
-        continue;
-      }
-      debugLogger.info("Downloading GigaAM model file", { file: file.name });
-      await downloadFile(`${HF_BASE}/${file.name}`, dest, {
-        expectedSize: file.bytes,
-        onProgress: (downloaded) => {
-          this.modelDownloadedBytes = Math.min(completedBytes + downloaded, this.modelTotalBytes);
-          this.modelProgress = Math.min(
-            99,
-            Math.floor((this.modelDownloadedBytes / this.modelTotalBytes) * 100)
-          );
-          this._emitStatusThrottled();
-        },
-      });
-      completedBytes += file.bytes;
-    }
-
-    this.modelDownloadedBytes = this.modelTotalBytes;
-    return dir;
+    throw new Error(
+      `GigaAM model files are missing. Expected them in the app bundle ` +
+        `(Resources/gigaam-model) or in ${this.getModelDir()}.`
+    );
   }
 
   async _startProtectedModel() {

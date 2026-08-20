@@ -1,22 +1,15 @@
 import type { InferenceProvider } from "./types";
-import { anthropicProvider } from "./anthropic";
-import { geminiProvider } from "./gemini";
-import { groqProvider } from "./groq";
 import { localProvider } from "./local";
-import { enterpriseProvider } from "./enterprise";
 import { lanProvider } from "./lan";
 import { openaiProvider } from "./openai";
 
+// Only engines that stay on this machine or on an endpoint the user points at
+// themselves. `openai` here is the OpenAI-compatible client used for
+// self-hosted servers (llama.cpp, Ollama, vLLM…) — no hosted cloud provider is
+// registered.
 export const PROVIDER_REGISTRY: Readonly<Record<string, InferenceProvider>> = Object.freeze({
-  openai: openaiProvider,
   custom: openaiProvider,
-  anthropic: anthropicProvider,
-  gemini: geminiProvider,
-  groq: groqProvider,
   local: localProvider,
-  bedrock: enterpriseProvider,
-  azure: enterpriseProvider,
-  vertex: enterpriseProvider,
   lan: lanProvider,
 });
 

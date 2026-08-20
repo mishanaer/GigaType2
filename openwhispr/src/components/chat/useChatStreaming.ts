@@ -96,24 +96,17 @@ export function useChatStreaming({
       const settings = getSettings();
       const chatAgentMode = settings.chatAgentMode || "local";
       const isLanAgent = chatAgentMode === "self-hosted" && !!settings.chatAgentRemoteUrl;
-      const isLocalProvider = !["openai", "groq", "custom", "anthropic", "gemini"].includes(
-        settings.chatAgentProvider
-      );
+      const isLocalProvider = settings.chatAgentProvider !== "custom";
       const localModelCanUseTool =
         isLocalProvider && estimateModelSizeB(settings.chatAgentModel) >= LOCAL_TOOL_MIN_PARAMS_B;
       const supportsTools = !isLocalProvider || localModelCanUseTool;
 
       let registry: ToolRegistry | null = null;
       if (supportsTools) {
-        const cacheKey = `${settings.gcalConnected}`;
-        if (toolRegistryRef.current?.key === cacheKey) {
-          registry = toolRegistryRef.current.registry;
-        } else {
-          registry = createToolRegistry({
-            gcalConnected: settings.gcalConnected,
-          });
-          toolRegistryRef.current = { key: cacheKey, registry };
+        if (!toolRegistryRef.current) {
+          toolRegistryRef.current = { key: "default", registry: createToolRegistry() };
         }
+        registry = toolRegistryRef.current.registry;
       }
 
       const ragContext = await buildRAGContext(userText);

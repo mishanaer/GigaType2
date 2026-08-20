@@ -7,7 +7,6 @@ import { modelRegistry } from "../models/ModelRegistry";
 import { inferenceConfig } from "../config/InferenceConfig";
 import { MODEL_CONSTRAINTS } from "../config/constants";
 import { parseLlamaCppOutput } from "../utils/llamaOutputParser";
-const { downloadFile: runtimeDownloadFile } = require("./downloadUtils");
 
 // Error types
 export class ModelError extends Error {
@@ -63,60 +62,6 @@ class ModelManager {
       return stats.size > MODEL_CONSTRAINTS.MIN_FILE_SIZE;
     } catch {
       return false;
-    }
-  }
-
-  async downloadModel(
-    modelId: string,
-    onProgress?: (progress: number, downloaded: number, total: number) => void
-  ): Promise<string> {
-    if (this.activeDownloads.has(modelId)) {
-      throw new ModelError("Download already in progress", "DOWNLOAD_IN_PROGRESS", { modelId });
-    }
-
-    await this.ensureModelsDir();
-
-    const modelInfo = modelRegistry.getModel(modelId);
-    if (!modelInfo) {
-      throw new ModelNotFoundError(modelId);
-    }
-
-    const { model, provider } = modelInfo;
-    const modelPath = path.join(this.modelsDir, model.fileName);
-
-    if (await this.isModelDownloaded(modelId)) {
-      return modelPath;
-    }
-
-    const downloadUrl = provider.getDownloadUrl(model);
-    this.activeDownloads.set(modelId, true);
-
-    try {
-      await runtimeDownloadFile(downloadUrl, modelPath, {
-        onProgress: (downloadedSize: number, totalSize: number) => {
-          const progress = totalSize > 0 ? (downloadedSize / totalSize) * 100 : 0;
-          this.downloadProgress.set(modelId, {
-            modelId,
-            progress,
-            downloadedSize,
-            totalSize,
-          });
-          onProgress?.(progress, downloadedSize, totalSize);
-        },
-      });
-
-      const stats = await fsPromises.stat(modelPath);
-      if (stats.size < MODEL_CONSTRAINTS.MIN_FILE_SIZE) {
-        await fsPromises.unlink(modelPath).catch(() => {});
-        throw new ModelError("Downloaded file appears to be corrupted", "DOWNLOAD_CORRUPTED", {
-          size: stats.size,
-        });
-      }
-
-      return modelPath;
-    } finally {
-      this.downloadProgress.delete(modelId);
-      this.activeDownloads.delete(modelId);
     }
   }
 

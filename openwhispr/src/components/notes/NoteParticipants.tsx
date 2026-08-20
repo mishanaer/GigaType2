@@ -21,29 +21,9 @@ function getInitialColor(email: string): string {
 interface ParticipantAvatarProps {
   email: string;
   displayName: string | null;
-  gravatarHash?: string;
-  failed: boolean;
-  onImageError: () => void;
 }
 
-function ParticipantAvatar({
-  email,
-  displayName,
-  gravatarHash,
-  failed,
-  onImageError,
-}: ParticipantAvatarProps) {
-  if (gravatarHash && !failed) {
-    return (
-      <img
-        src={`https://www.gravatar.com/avatar/${gravatarHash}?d=404&s=64`}
-        alt=""
-        loading="lazy"
-        className="shrink-0 w-6 h-6 rounded-full object-cover"
-        onError={onImageError}
-      />
-    );
-  }
+function ParticipantAvatar({ email, displayName }: ParticipantAvatarProps) {
   return (
     <span
       className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-medium text-white"
@@ -66,32 +46,11 @@ export default function NoteParticipants({ noteId, participants }: NoteParticipa
   const [suggestions, setSuggestions] = useState<
     Array<{ email: string; display_name: string | null }>
   >([]);
-  const [gravatarHashes, setGravatarHashes] = useState<Record<string, string>>({});
-  const [failedGravatars, setFailedGravatars] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
     setLocalParticipants(participants);
   }, [participants]);
-
-  useEffect(() => {
-    const emails = localParticipants.map((p) => p.email);
-    const missing = emails.filter((e) => !gravatarHashes[e]);
-    if (missing.length === 0) return;
-
-    Promise.all(
-      missing.map(async (email) => {
-        const hash = await window.electronAPI.getMD5Hash(email);
-        return { email, hash };
-      })
-    ).then((results) => {
-      setGravatarHashes((prev) => {
-        const next = { ...prev };
-        for (const { email, hash } of results) next[email] = hash;
-        return next;
-      });
-    });
-  }, [localParticipants, gravatarHashes]);
 
   useEffect(() => {
     if (!open) return;
@@ -198,12 +157,7 @@ export default function NoteParticipants({ noteId, participants }: NoteParticipa
                   onClick={() => addParticipant(contact.email, contact.display_name)}
                   className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs text-foreground/70 hover:bg-foreground/5 transition-colors cursor-pointer"
                 >
-                  <ParticipantAvatar
-                    email={contact.email}
-                    displayName={contact.display_name}
-                    failed={false}
-                    onImageError={() => {}}
-                  />
+                  <ParticipantAvatar email={contact.email} displayName={contact.display_name} />
                   <span className="truncate">{contact.display_name || contact.email}</span>
                 </button>
               ))}
@@ -226,13 +180,7 @@ export default function NoteParticipants({ noteId, participants }: NoteParticipa
                   key={p.email}
                   className="group flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-foreground/5 transition-colors"
                 >
-                  <ParticipantAvatar
-                    email={p.email}
-                    displayName={p.displayName}
-                    gravatarHash={gravatarHashes[p.email]}
-                    failed={failedGravatars.has(p.email)}
-                    onImageError={() => setFailedGravatars((prev) => new Set(prev).add(p.email))}
-                  />
+                  <ParticipantAvatar email={p.email} displayName={p.displayName} />
 
                   <span className="flex-1 min-w-0 truncate text-xs text-foreground/70">
                     {p.displayName || p.email.split("@")[0]}

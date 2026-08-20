@@ -33,10 +33,6 @@ type ProviderConfig = {
 };
 
 const PROVIDER_CONFIG: Record<string, ProviderConfig> = {
-  openai: { label: "OpenAI" },
-  anthropic: { label: "Anthropic" },
-  gemini: { label: "Gemini" },
-  groq: { label: "Groq" },
   custom: {
     label: "Custom endpoint",
     requiresBaseUrl: true,

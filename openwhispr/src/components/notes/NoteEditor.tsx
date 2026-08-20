@@ -8,7 +8,6 @@ import {
   AlignLeft,
   MessageSquareText,
   Calendar,
-  LinkIcon,
   FolderOpen,
   Search,
   Plus,
@@ -99,7 +98,6 @@ interface NoteEditorProps {
   onSetSessionDiarizationEnabled?: (enabled: boolean) => void;
   onSetSessionExpectedCount?: (count: number) => void;
   folderName?: string | null;
-  calendarEventName?: string | null;
   folders?: FolderItem[];
   onMoveToFolder?: (noteId: number, folderId: number) => void;
   onCreateFolderAndMove?: (noteId: number, folderName: string) => void;
@@ -135,7 +133,6 @@ export default function NoteEditor({
   onSetSessionDiarizationEnabled,
   onSetSessionExpectedCount,
   folderName,
-  calendarEventName,
   folders,
   onMoveToFolder,
   onCreateFolderAndMove,
@@ -599,12 +596,6 @@ export default function NoteEditor({
               >
                 <Calendar size={11} className="shrink-0" />
                 {shortDate}
-              </span>
-            )}
-            {calendarEventName && (
-              <span className="inline-flex items-center gap-1.5 text-[11px] text-foreground/50 dark:text-foreground/35">
-                <LinkIcon size={11} className="shrink-0" />
-                <span className="truncate max-w-40">{calendarEventName}</span>
               </span>
             )}
             <NoteParticipants noteId={note.id} participants={parsedParticipants} />

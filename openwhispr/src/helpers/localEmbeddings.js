@@ -84,33 +84,6 @@ class LocalEmbeddings {
   static noteEmbedText(title, content, enhancedContent) {
     return `${title}\n${enhancedContent || content}`.slice(0, 1500);
   }
-
-  async downloadModel() {
-    if (this.isAvailable()) return;
-
-    const { downloadFile } = require("./downloadUtils");
-    const files = [
-      {
-        name: "model.onnx",
-        url: "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/onnx/model.onnx",
-      },
-      {
-        name: "tokenizer.json",
-        url: "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/resolve/main/tokenizer.json",
-      },
-    ];
-
-    fs.mkdirSync(this.modelDir, { recursive: true });
-
-    for (const file of files) {
-      const dest = path.join(this.modelDir, file.name);
-      if (fs.existsSync(dest)) continue;
-      debugLogger.debug("local-embeddings downloading", { file: file.name });
-      await downloadFile(file.url, dest);
-    }
-
-    debugLogger.info("local-embeddings model downloaded", { modelDir: this.modelDir });
-  }
 }
 
 const instance = new LocalEmbeddings();

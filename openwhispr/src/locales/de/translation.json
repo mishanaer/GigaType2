@@ -235,21 +235,6 @@
     }
   },
   "controlPanel": {
-    "update": {
-      "readyTitle": "Update bereit zur Installation",
-      "readyDescription": "Klicken Sie auf 'Update installieren', um mit der neuesten Version neu zu starten.",
-      "problemTitle": "Beim Update ist ein Problem aufgetreten",
-      "problemDescription": "Das Update konnte nicht abgeschlossen werden. Bitte versuchen Sie es später erneut.",
-      "installTitle": "Update installieren",
-      "installDescription": "Type startet neu, um das Update anzuwenden. Laufende Arbeit wird gespeichert.",
-      "couldNotInstallTitle": "Update konnte nicht installiert werden",
-      "couldNotInstallDescription": "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
-      "couldNotDownloadTitle": "Update konnte nicht heruntergeladen werden",
-      "couldNotDownloadDescription": "Prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.",
-      "installing": "Wird installiert...",
-      "installButton": "Update installieren",
-      "availableButton": "Update verfügbar"
-    },
     "limit": {
       "weeklyTitle": "Wochenlimit erreicht",
       "weeklyDescription": "Ihr Limit setzt sich rollierend zurück. Upgraden Sie auf Pro oder nutzen Sie Ihren eigenen API-Schlüssel für unbegrenzte Nutzung."
@@ -366,41 +351,7 @@
     },
     "enterprise": {
       "title": "Enterprise-Anbieter",
-      "description": "Verbinden Sie sich mit Cloud-Anbietern über die Zugangsdaten Ihrer Organisation.",
-      "testConnection": "Verbindung testen",
-      "testing": "Wird getestet…",
-      "testSuccess": "Verbunden",
-      "testFailed": "Verbindung fehlgeschlagen",
-      "authMode": "Authentifizierung",
-      "ssoProfile": "SSO-Profil",
-      "accessKeys": "Zugriffsschlüssel",
-      "adc": "Application Default Credentials",
-      "apiKeyMode": "API-Schlüssel",
-      "region": "Region",
-      "profile": "Profilname",
-      "accessKeyId": "Access Key ID",
-      "secretAccessKey": "Secret Access Key",
-      "sessionToken": "Session Token (optional)",
-      "endpoint": "Endpoint-URL",
-      "deploymentName": "Deployment-Name",
-      "apiVersion": "API-Version",
-      "projectId": "Projekt-ID",
-      "location": "Standort",
-      "customModelId": "Eigene Modell-ID",
-      "customModelPlaceholder": "Modell-ID oder Deployment-Name eingeben",
-      "suggestedModels": "Empfohlene Modelle",
-      "bedrock": {
-        "ssoHelp": "Verwendet Ihre AWS-CLI-SSO-Konfiguration. Stellen Sie sicher, dass Sie 'aws sso login' ausgeführt haben.",
-        "keysHelp": "Geben Sie Ihre AWS-IAM-Zugriffsschlüssel ein."
-      },
-      "azure": {
-        "endpointHelp": "Endpoint-URL Ihrer Azure-OpenAI-Ressource (z. B. https://myresource.openai.azure.com).",
-        "deploymentHelp": "Name Ihres Modell-Deployments in Azure OpenAI."
-      },
-      "vertex": {
-        "adcHelp": "Verwendet Application Default Credentials. Führen Sie aus: gcloud auth application-default login",
-        "apikeyHelp": "API-Schlüssel für Vertex AI Express Mode aus Google AI Studio."
-      }
+      "description": "Verbinden Sie sich mit Cloud-Anbietern über die Zugangsdaten Ihrer Organisation."
     }
   },
   "hooks": {
@@ -451,13 +402,6 @@
     "modelDownload": {
       "errors": {
         "timeout": "Download-Zeitüberschreitung. Prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.",
-        "notFound": "Download-Server konnte nicht erreicht werden. Prüfen Sie Ihre Internetverbindung.",
-        "corrupted": "Download war unvollständig oder beschädigt. Bitte versuchen Sie es erneut.",
-        "rateLimited": "Download-Server begrenzt Anfragen. Bitte warten Sie einige Minuten und versuchen Sie es erneut.",
-        "server": "Serverfehler ({{error}}). Bitte versuchen Sie es später erneut.",
-        "generic": "Download fehlgeschlagen: {{error}}",
-        "extractionFailed": "Modell heruntergeladen, aber Installation fehlgeschlagen. Klicken Sie auf „Herunterladen“, um die Installation ohne erneuten Download zu wiederholen.",
-        "tlsError": "Zertifikatsfehler — Ihr Netzwerk verwendet möglicherweise SSL-Inspektion, die Downloads blockiert. Versuchen Sie es über ein anderes Netzwerk.",
         "unknown": "Unbekannter Fehler"
       },
       "downloadFailed": {
@@ -1617,7 +1561,6 @@
     }
   },
   "models": {
-    "learnMore": "Mehr erfahren",
     "descriptions": {
       "transcription": {
         "gigaam_v3_e2e_rnnt": "GigaAM speech recognition"
@@ -2087,9 +2030,6 @@
     "addButton": "Hinzufügen"
   },
   "gpu": {
-    "transcriptionBanner": "Transkription mit GPU beschleunigen",
-    "reasoningBanner": "KI-Verarbeitung mit GPU beschleunigen",
-    "enableButton": "GPU aktivieren",
     "active": "GPU-Beschleunigung aktiv",
     "ready": "GPU-Beschleunigung bereit",
     "activating": "GPU wird aktiviert...",
@@ -2230,20 +2170,7 @@
     "description": "Verbinde Dienste, um deinen Workflow zu verbessern",
     "googleCalendar": {
       "title": "Google Calendar",
-      "optional": "Optional",
-      "description": "Meeting-Titel und Teilnehmer automatisch aus deinem Kalender übernehmen.",
-      "connect": "Google Calendar verbinden",
-      "connecting": "Verbinde...",
-      "connected": "Verbunden",
-      "addAnother": "Weiteren Kalender hinzufügen",
-      "primaryOnly": "Nur Hauptkalender synchronisieren",
-      "primaryOnlyDescription": "Termine aus mit dir geteilten Kalendern ignorieren.",
-      "disconnect": "Trennen",
-      "disconnectConfirm": "{{email}} trennen?",
-      "disconnectDescription": "Besprechungsnotizen werden von diesem Kalender nicht mehr aufgezeichnet.",
-      "systemAudioRequired": "Systemaudio-Berechtigung erforderlich",
-      "systemAudioDescription": "Zum Transkribieren von Meetings benötigt Type die Systemaudio-Berechtigung, um den Ton anderer Teilnehmer aufzunehmen. Wir nehmen Ihren Bildschirm nie auf. Sie werden zu den Systemeinstellungen weitergeleitet, um diese zu aktivieren.",
-      "openSettings": "Systemeinstellungen öffnen"
+      "description": "Meeting-Titel und Teilnehmer automatisch aus deinem Kalender übernehmen."
     },
     "sections": {
       "calendar": "Kalender",

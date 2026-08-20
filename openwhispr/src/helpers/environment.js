@@ -223,52 +223,6 @@ class EnvironmentManager {
     return { success: true };
   }
 
-  // Enterprise providers — AWS Bedrock
-  getBedrockRegion() {
-    return this._getKey("BEDROCK_REGION");
-  }
-  saveBedrockRegion(value) {
-    return this._saveKey("BEDROCK_REGION", value);
-  }
-  getBedrockProfile() {
-    return this._getKey("BEDROCK_PROFILE");
-  }
-  saveBedrockProfile(value) {
-    return this._saveKey("BEDROCK_PROFILE", value);
-  }
-  // Enterprise providers — Azure OpenAI
-  getAzureEndpoint() {
-    return this._getKey("AZURE_OPENAI_ENDPOINT");
-  }
-  saveAzureEndpoint(value) {
-    return this._saveKey("AZURE_OPENAI_ENDPOINT", value);
-  }
-  getAzureDeployment() {
-    return this._getKey("AZURE_OPENAI_DEPLOYMENT");
-  }
-  saveAzureDeployment(value) {
-    return this._saveKey("AZURE_OPENAI_DEPLOYMENT", value);
-  }
-  getAzureApiVersion() {
-    return this._getKey("AZURE_OPENAI_API_VERSION");
-  }
-  saveAzureApiVersion(value) {
-    return this._saveKey("AZURE_OPENAI_API_VERSION", value);
-  }
-
-  // Enterprise providers — GCP Vertex AI
-  getVertexProject() {
-    return this._getKey("VERTEX_PROJECT");
-  }
-  saveVertexProject(value) {
-    return this._saveKey("VERTEX_PROJECT", value);
-  }
-  getVertexLocation() {
-    return this._getKey("VERTEX_LOCATION");
-  }
-  saveVertexLocation(value) {
-    return this._saveKey("VERTEX_LOCATION", value);
-  }
   getDictationKey() {
     return this._getKey("DICTATION_KEY");
   }

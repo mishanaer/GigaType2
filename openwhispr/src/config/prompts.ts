@@ -27,8 +27,6 @@ const TOOL_INSTRUCTIONS: Record<string, string> = {
     "Use web_search for questions about current events, facts you're unsure about, or anything requiring up-to-date information.",
   copy_to_clipboard:
     "Use copy_to_clipboard when the user asks you to copy something to their clipboard.",
-  get_calendar_events:
-    "Use get_calendar_events to check the user's schedule, upcoming meetings, or calendar events.",
 };
 
 export function getAgentSystemPrompt(availableTools?: string[], noteContext?: string): string {

@@ -241,21 +241,6 @@
     }
   },
   "controlPanel": {
-    "update": {
-      "readyTitle": "Update ready to install",
-      "readyDescription": "Click 'Install Update' to restart with the latest version.",
-      "problemTitle": "Update ran into a problem",
-      "problemDescription": "We couldn't complete the update. Please try again later.",
-      "installTitle": "Install Update",
-      "installDescription": "Type will restart to apply the update. Any in-progress work will be saved.",
-      "couldNotInstallTitle": "Couldn't install update",
-      "couldNotInstallDescription": "Something went wrong. Please try again.",
-      "couldNotDownloadTitle": "Couldn't download update",
-      "couldNotDownloadDescription": "Check your internet connection and try again.",
-      "installing": "Installing...",
-      "installButton": "Install Update",
-      "availableButton": "Update Available"
-    },
     "limit": {
       "weeklyTitle": "Weekly limit reached",
       "weeklyDescription": "Your limit resets on a rolling basis. Upgrade to Pro or use your own API key for unlimited use."
@@ -372,41 +357,7 @@
     },
     "enterprise": {
       "title": "Enterprise Providers",
-      "description": "Connect to cloud providers using your organization's credentials.",
-      "testConnection": "Test Connection",
-      "testing": "Testing...",
-      "testSuccess": "Connected",
-      "testFailed": "Connection failed",
-      "authMode": "Authentication",
-      "ssoProfile": "SSO Profile",
-      "accessKeys": "Access Keys",
-      "adc": "Application Default Credentials",
-      "apiKeyMode": "API Key",
-      "region": "Region",
-      "profile": "Profile Name",
-      "accessKeyId": "Access Key ID",
-      "secretAccessKey": "Secret Access Key",
-      "sessionToken": "Session Token (optional)",
-      "endpoint": "Endpoint URL",
-      "deploymentName": "Deployment Name",
-      "apiVersion": "API Version",
-      "projectId": "Project ID",
-      "location": "Location",
-      "customModelId": "Custom Model ID",
-      "customModelPlaceholder": "Enter model ID or deployment name",
-      "suggestedModels": "Suggested Models",
-      "bedrock": {
-        "ssoHelp": "Uses your AWS CLI SSO configuration. Ensure you have run 'aws sso login'.",
-        "keysHelp": "Enter your AWS IAM access keys."
-      },
-      "azure": {
-        "endpointHelp": "Your Azure OpenAI resource endpoint (e.g., https://myresource.openai.azure.com).",
-        "deploymentHelp": "The name of your model deployment in Azure OpenAI."
-      },
-      "vertex": {
-        "adcHelp": "Uses Application Default Credentials. Run: gcloud auth application-default login",
-        "apikeyHelp": "Vertex AI Express Mode API key from Google AI Studio."
-      }
+      "description": "Connect to cloud providers using your organization's credentials."
     }
   },
   "hooks": {
@@ -457,13 +408,6 @@
     "modelDownload": {
       "errors": {
         "timeout": "Download timed out. Check your internet connection and try again.",
-        "notFound": "Could not reach the download server. Check your internet connection.",
-        "corrupted": "Download was incomplete or corrupted. Please try again.",
-        "rateLimited": "Download server is rate limiting. Please wait a few minutes and try again.",
-        "server": "Server error ({{error}}). Please try again later.",
-        "generic": "Download failed: {{error}}",
-        "extractionFailed": "Model downloaded but installation failed. Click download to retry installation without re-downloading.",
-        "tlsError": "Certificate error — your network may use SSL inspection that blocks downloads. Try downloading from a different network.",
         "unknown": "Unknown error"
       },
       "downloadFailed": {
@@ -1710,7 +1654,6 @@
     }
   },
   "models": {
-    "learnMore": "Learn more",
     "descriptions": {
       "diarization": {
         "segmentation": "Speech boundary detection for speaker diarization",
@@ -2228,9 +2171,6 @@
     "addButton": "add"
   },
   "gpu": {
-    "transcriptionBanner": "Speed up transcription with GPU acceleration",
-    "reasoningBanner": "Speed up AI processing with GPU acceleration",
-    "enableButton": "Enable GPU",
     "active": "GPU acceleration active",
     "ready": "GPU acceleration ready",
     "activating": "Activating GPU...",
@@ -2371,20 +2311,7 @@
     "description": "Connect services to supercharge your workflow",
     "googleCalendar": {
       "title": "Google Calendar",
-      "optional": "Optional",
-      "description": "Auto-fill meeting titles and attendees from your calendar.",
-      "connect": "Connect Google Calendar",
-      "connecting": "Connecting...",
-      "connected": "Connected",
-      "addAnother": "Add another calendar",
-      "primaryOnly": "Sync primary calendar only",
-      "primaryOnlyDescription": "Ignore events from calendars shared with you.",
-      "disconnect": "Disconnect",
-      "disconnectConfirm": "Disconnect {{email}}?",
-      "disconnectDescription": "Meeting notes will no longer be recorded from this calendar.",
-      "systemAudioRequired": "System Audio Permission Required",
-      "systemAudioDescription": "To transcribe meetings, Type needs the System Audio permission to capture other participants' audio. We never record your screen. You'll be taken to System Settings to enable it.",
-      "openSettings": "Open System Settings"
+      "description": "Auto-fill meeting titles and attendees from your calendar."
     },
     "sections": {
       "calendar": "Calendar",

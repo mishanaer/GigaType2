@@ -3,7 +3,6 @@ const fsPromises = require("fs").promises;
 const path = require("path");
 const { spawn } = require("child_process");
 const debugLogger = require("./debugLogger");
-const { downloadFile, createDownloadSignal, checkDiskSpace } = require("./downloadUtils");
 const { resolveBinaryPath, gracefulStopProcess } = require("../utils/serverUtils");
 const { getModelsDirForService } = require("./modelDirUtils");
 const { convertToWav } = require("./ffmpegUtils");
@@ -46,13 +45,6 @@ const dedupeMicAgainstSystem = (segments) => {
   });
 };
 
-const SEGMENTATION_MODEL_URL =
-  "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2";
-const EMBEDDING_MODEL_URL =
-  "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx";
-const SILERO_VAD_MODEL_URL =
-  "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx";
-
 const SEGMENTATION_DIR = "sherpa-onnx-pyannote-segmentation-3-0";
 const SEGMENTATION_ONNX = path.join(SEGMENTATION_DIR, "model.onnx");
 const EMBEDDING_ONNX = "3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx";
@@ -61,7 +53,6 @@ const SILERO_VAD_ONNX = "silero_vad.onnx";
 class DiarizationManager {
   constructor() {
     this._process = null;
-    this.currentDownloadProcess = null;
     this.cachedBinaryPath = null;
   }
 
@@ -119,188 +110,6 @@ class DiarizationManager {
 
   isVadModelDownloaded() {
     return fs.existsSync(this.getVadModelPath());
-  }
-
-  async downloadModels(progressCallback = null) {
-    const modelsDir = this.getModelsDir();
-    await fsPromises.mkdir(modelsDir, { recursive: true });
-
-    const modelsReady = this.isModelDownloaded();
-    const vadReady = this.isVadModelDownloaded();
-
-    if (modelsReady && vadReady) {
-      return { success: true, path: modelsDir };
-    }
-
-    const requiredBytes = modelsReady ? 2 * 1_000_000 : 37 * 1_000_000;
-    const spaceCheck = await checkDiskSpace(modelsDir, requiredBytes * 2.5);
-    if (!spaceCheck.ok) {
-      throw new Error(
-        `Not enough disk space. Need ~${Math.round((requiredBytes * 2.5) / 1_000_000)}MB, ` +
-          `only ${Math.round(spaceCheck.availableBytes / 1_000_000)}MB available.`
-      );
-    }
-
-    const { signal, abort } = createDownloadSignal();
-    this.currentDownloadProcess = { abort };
-
-    try {
-      // Download segmentation model (tar.bz2)
-      const segArchivePath = path.join(modelsDir, `${SEGMENTATION_DIR}.tar.bz2`);
-      const segModelPath = path.join(modelsDir, SEGMENTATION_ONNX);
-
-      if (!fs.existsSync(segModelPath)) {
-        await downloadFile(SEGMENTATION_MODEL_URL, segArchivePath, {
-          timeout: 600000,
-          signal,
-          onProgress: (downloadedBytes, totalBytes) => {
-            if (progressCallback) {
-              progressCallback({
-                type: "progress",
-                stage: "segmentation",
-                downloaded_bytes: downloadedBytes,
-                total_bytes: totalBytes,
-                percentage: totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0,
-              });
-            }
-          },
-        });
-
-        // Extract tar.bz2
-        if (progressCallback) {
-          progressCallback({ type: "progress", stage: "extracting", percentage: 100 });
-        }
-
-        await this._extractTarBz2(segArchivePath, modelsDir);
-        await fsPromises.unlink(segArchivePath).catch(() => {});
-
-        if (!fs.existsSync(segModelPath)) {
-          throw new Error("Segmentation model extraction failed: model.onnx not found");
-        }
-      }
-
-      // Download embedding model (.onnx directly)
-      const embModelPath = path.join(modelsDir, EMBEDDING_ONNX);
-
-      if (!fs.existsSync(embModelPath)) {
-        await downloadFile(EMBEDDING_MODEL_URL, embModelPath, {
-          timeout: 600000,
-          signal,
-          onProgress: (downloadedBytes, totalBytes) => {
-            if (progressCallback) {
-              progressCallback({
-                type: "progress",
-                stage: "embedding",
-                downloaded_bytes: downloadedBytes,
-                total_bytes: totalBytes,
-                percentage: totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0,
-              });
-            }
-          },
-        });
-      }
-
-      if (!this.isVadModelDownloaded()) {
-        try {
-          await downloadFile(SILERO_VAD_MODEL_URL, this.getVadModelPath(), {
-            timeout: 600000,
-            signal,
-            onProgress: (downloadedBytes, totalBytes) => {
-              if (progressCallback) {
-                progressCallback({
-                  type: "progress",
-                  stage: "vad",
-                  downloaded_bytes: downloadedBytes,
-                  total_bytes: totalBytes,
-                  percentage: totalBytes > 0 ? Math.round((downloadedBytes / totalBytes) * 100) : 0,
-                });
-              }
-            },
-          });
-        } catch (error) {
-          if (error.isAbort) {
-            throw new Error("Download interrupted by user");
-          }
-          debugLogger.warn("Silero VAD model download failed", {
-            error: error.message,
-            modelsDir,
-          });
-        }
-      }
-
-      if (progressCallback) {
-        progressCallback({ type: "complete", percentage: 100 });
-      }
-
-      debugLogger.info("Diarization models downloaded", { modelsDir });
-      return { success: true, path: modelsDir };
-    } catch (error) {
-      if (error.isAbort) {
-        throw new Error("Download interrupted by user");
-      }
-      if (progressCallback) {
-        progressCallback({ type: "error", error: error.message });
-      }
-      throw error;
-    } finally {
-      this.currentDownloadProcess = null;
-    }
-  }
-
-  async _extractTarBz2(archivePath, destDir) {
-    try {
-      await this._runSystemTar(archivePath, destDir);
-      return;
-    } catch (err) {
-      debugLogger.debug("System tar failed, falling back to JS extraction", {
-        error: err.message,
-      });
-    }
-
-    const unbzip2 = require("unbzip2-stream");
-    const tar = require("tar");
-    const { pipeline } = require("stream/promises");
-    await pipeline(fs.createReadStream(archivePath), unbzip2(), tar.x({ cwd: destDir }));
-  }
-
-  _runSystemTar(archivePath, destDir) {
-    return new Promise((resolve, reject) => {
-      // Use relative paths from archive dir as cwd so neither -f nor -C args
-      // contain Windows drive letter colons (GNU tar treats C: as remote host)
-      const cwd = path.dirname(archivePath);
-      const tarProcess = spawn(
-        "tar",
-        ["-xjf", path.basename(archivePath), "-C", path.relative(cwd, destDir)],
-        { stdio: ["ignore", "pipe", "pipe"], cwd }
-      );
-
-      let stderr = "";
-
-      tarProcess.stderr.on("data", (data) => {
-        stderr += data.toString();
-      });
-
-      tarProcess.on("close", (code) => {
-        if (code === 0) {
-          resolve();
-        } else {
-          reject(new Error(`tar extraction failed with code ${code}: ${stderr}`));
-        }
-      });
-
-      tarProcess.on("error", (err) => {
-        reject(new Error(`Failed to start tar process: ${err.message}`));
-      });
-    });
-  }
-
-  async cancelDownload() {
-    if (this.currentDownloadProcess) {
-      this.currentDownloadProcess.abort();
-      this.currentDownloadProcess = null;
-      return { success: true, message: "Download cancelled" };
-    }
-    return { success: false, error: "No active download to cancel" };
   }
 
   async diarize(wavPath, options = {}) {

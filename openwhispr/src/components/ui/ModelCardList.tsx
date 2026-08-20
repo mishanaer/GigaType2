@@ -1,14 +1,12 @@
-import { Globe, Download, Trash2, X, ExternalLink } from "lucide-react";
+import { Globe, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "./button";
 import type { ColorScheme } from "../../utils/modelPickerStyles";
-import { createExternalLinkHandler } from "../../utils/externalLinks";
 
 export interface ModelCardOption {
   value: string;
   label: string;
   description?: string;
-  specUrl?: string;
   icon?: string;
   invertInDark?: boolean;
   // Local model properties (optional)
@@ -23,11 +21,9 @@ interface ModelCardListProps {
   onModelSelect: (modelId: string) => void;
   colorScheme?: ColorScheme;
   className?: string;
-  // Local model actions (optional - when provided, enables local model UI)
-  onDownload?: (modelId: string) => void;
+  // Local model UI: gates selection on the model actually being on disk.
+  localMode?: boolean;
   onDelete?: (modelId: string) => void;
-  onCancelDownload?: () => void;
-  isCancelling?: boolean;
 }
 
 const COLOR_CONFIG: Record<
@@ -57,14 +53,12 @@ export default function ModelCardList({
   onModelSelect,
   colorScheme = "purple",
   className = "",
-  onDownload,
+  localMode = false,
   onDelete,
-  onCancelDownload,
-  isCancelling = false,
 }: ModelCardListProps) {
   const { t } = useTranslation();
   const styles = COLOR_CONFIG[colorScheme];
-  const isLocalMode = Boolean(onDownload);
+  const isLocalMode = localMode;
 
   if (models.length === 0) {
     return (
@@ -151,17 +145,6 @@ export default function ModelCardList({
                   {model.description}
                 </span>
               )}
-              {model.specUrl && (
-                <a
-                  href={model.specUrl}
-                  onClick={createExternalLinkHandler(model.specUrl)}
-                  className="inline-flex items-center gap-0.5 text-xs text-primary/60 hover:text-primary transition-colors shrink-0"
-                >
-                  {t("models.learnMore")}
-                  <ExternalLink size={9} />
-                </a>
-              )}
-
               {/* Recommended badge */}
               {model.recommended && (
                 <span className="text-xs font-medium text-primary px-1.5 py-0.5 bg-primary/10 rounded-sm shrink-0">
@@ -179,52 +162,19 @@ export default function ModelCardList({
                 )}
 
                 {/* Local model action buttons */}
-                {isLocalMode && (
-                  <>
-                    {isDownloaded ? (
-                      onDelete ? (
-                        <Button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onDelete(model.value);
-                          }}
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0 text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition-[color,opacity,transform] active:scale-95"
-                        >
-                          <Trash2 size={12} />
-                        </Button>
-                      ) : null
-                    ) : isDownloading ? (
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onCancelDownload?.();
-                        }}
-                        disabled={isCancelling}
-                        size="sm"
-                        variant="outline"
-                        className="h-6 px-2.5 text-xs text-destructive border-destructive/25 hover:bg-destructive/8"
-                      >
-                        <X size={11} className="mr-0.5" />
-                        {isCancelling ? "..." : "Cancel"}
-                      </Button>
-                    ) : (
-                      <Button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDownload?.(model.value);
-                        }}
-                        size="sm"
-                        variant="default"
-                        className="h-6 px-2.5 text-xs"
-                      >
-                        <Download size={11} className="mr-1" />
-                        Download
-                      </Button>
-                    )}
-                  </>
-                )}
+                {isLocalMode && isDownloaded && onDelete ? (
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(model.value);
+                    }}
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 w-6 p-0 text-muted-foreground/40 hover:text-destructive opacity-0 group-hover:opacity-100 transition-[color,opacity,transform] active:scale-95"
+                  >
+                    <Trash2 size={12} />
+                  </Button>
+                ) : null}
               </div>
             </div>
           </div>

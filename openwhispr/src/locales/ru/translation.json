@@ -241,21 +241,6 @@
     }
   },
   "controlPanel": {
-    "update": {
-      "readyTitle": "Обновление готово к установке",
-      "readyDescription": "Нажмите «Установить обновление», чтобы перезапустить приложение с новой версией.",
-      "problemTitle": "Проблема с обновлением",
-      "problemDescription": "Не удалось завершить обновление. Попробуйте позже.",
-      "installTitle": "Установить обновление",
-      "installDescription": "Type перезапустится для применения обновления. Текущая работа будет сохранена.",
-      "couldNotInstallTitle": "Не удалось установить обновление",
-      "couldNotInstallDescription": "Что-то пошло не так. Попробуйте ещё раз.",
-      "couldNotDownloadTitle": "Не удалось скачать обновление",
-      "couldNotDownloadDescription": "Проверьте подключение к интернету и попробуйте снова.",
-      "installing": "Установка...",
-      "installButton": "Установить обновление",
-      "availableButton": "Доступно обновление"
-    },
     "limit": {
       "weeklyTitle": "Недельный лимит достигнут",
       "weeklyDescription": "Ваш лимит обновляется на скользящей основе. Перейдите на Pro или используйте свой API-ключ для безлимитного использования."
@@ -372,41 +357,7 @@
     },
     "enterprise": {
       "title": "Корпоративные провайдеры",
-      "description": "Подключайтесь к облачным провайдерам с учётными данными вашей организации.",
-      "testConnection": "Проверить соединение",
-      "testing": "Проверка…",
-      "testSuccess": "Подключено",
-      "testFailed": "Ошибка подключения",
-      "authMode": "Аутентификация",
-      "ssoProfile": "Профиль SSO",
-      "accessKeys": "Ключи доступа",
-      "adc": "Application Default Credentials",
-      "apiKeyMode": "API-ключ",
-      "region": "Регион",
-      "profile": "Имя профиля",
-      "accessKeyId": "Access Key ID",
-      "secretAccessKey": "Secret Access Key",
-      "sessionToken": "Session Token (необязательно)",
-      "endpoint": "Endpoint URL",
-      "deploymentName": "Имя развёртывания",
-      "apiVersion": "Версия API",
-      "projectId": "ID проекта",
-      "location": "Расположение",
-      "customModelId": "Пользовательский ID модели",
-      "customModelPlaceholder": "Введите ID модели или имя развёртывания",
-      "suggestedModels": "Рекомендуемые модели",
-      "bedrock": {
-        "ssoHelp": "Использует настройки SSO из AWS CLI. Убедитесь, что выполнили 'aws sso login'.",
-        "keysHelp": "Введите ключи доступа AWS IAM."
-      },
-      "azure": {
-        "endpointHelp": "Endpoint вашего ресурса Azure OpenAI (например, https://myresource.openai.azure.com).",
-        "deploymentHelp": "Имя развёртывания модели в Azure OpenAI."
-      },
-      "vertex": {
-        "adcHelp": "Использует Application Default Credentials. Выполните: gcloud auth application-default login",
-        "apikeyHelp": "API-ключ Vertex AI Express Mode из Google AI Studio."
-      }
+      "description": "Подключайтесь к облачным провайдерам с учётными данными вашей организации."
     }
   },
   "hooks": {
@@ -457,13 +408,6 @@
     "modelDownload": {
       "errors": {
         "timeout": "Превышено время ожидания загрузки. Проверьте подключение к интернету и попробуйте снова.",
-        "notFound": "Не удалось подключиться к серверу загрузки. Проверьте подключение к интернету.",
-        "corrupted": "Загрузка не завершена или файл повреждён. Попробуйте ещё раз.",
-        "rateLimited": "Сервер загрузки ограничивает количество запросов. Подождите несколько минут и попробуйте снова.",
-        "server": "Ошибка сервера ({{error}}). Попробуйте позже.",
-        "generic": "Ошибка загрузки: {{error}}",
-        "extractionFailed": "Модель скачана, но установка не удалась. Нажмите «Скачать» для повторной установки без повторной загрузки.",
-        "tlsError": "Ошибка сертификата — ваша сеть может использовать SSL-инспекцию, блокирующую загрузки. Попробуйте скачать из другой сети.",
         "unknown": "Неизвестная ошибка"
       },
       "downloadFailed": {
@@ -1615,7 +1559,6 @@
     }
   },
   "models": {
-    "learnMore": "Подробнее",
     "descriptions": {
       "transcription": {
         "gigaam_v3_e2e_rnnt": "GigaAM speech recognition"
@@ -2087,9 +2030,6 @@
     "addButton": "Добавить ключ"
   },
   "gpu": {
-    "transcriptionBanner": "Ускорьте транскрипцию с помощью GPU",
-    "reasoningBanner": "Ускорьте обработку ИИ с помощью GPU",
-    "enableButton": "Включить GPU",
     "active": "Ускорение GPU активно",
     "ready": "Ускорение GPU готово",
     "activating": "Активация GPU...",
@@ -2230,20 +2170,7 @@
     "description": "Подключите сервисы для улучшения рабочего процесса",
     "googleCalendar": {
       "title": "Google Calendar",
-      "optional": "Необязательно",
-      "description": "Автоматически подставляйте названия встреч и участников из вашего календаря.",
-      "connect": "Подключить Google Calendar",
-      "connecting": "Подключение...",
-      "connected": "Подключено",
-      "addAnother": "Добавить ещё один календарь",
-      "primaryOnly": "Синхронизировать только основной календарь",
-      "primaryOnlyDescription": "Игнорировать события из календарей, к которым вам открыли доступ.",
-      "disconnect": "Отключить",
-      "disconnectConfirm": "Отключить {{email}}?",
-      "disconnectDescription": "Заметки встреч больше не будут записываться из этого календаря.",
-      "systemAudioRequired": "Требуется разрешение «Системное аудио»",
-      "systemAudioDescription": "Для транскрипции встреч Type нужно разрешение «Системное аудио» для записи звука других участников. Мы никогда не записываем ваш экран. Вы будете перенаправлены в Системные настройки для включения.",
-      "openSettings": "Открыть Системные настройки"
+      "description": "Автоматически подставляйте названия встреч и участников из вашего календаря."
     },
     "sections": {
       "calendar": "Календарь",

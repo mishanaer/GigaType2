@@ -205,22 +205,11 @@ export default function PersonalNotesView({
 
   const activeNote = notes.find((n) => n.id === activeNoteId) ?? null;
 
-  // Derive folder name and calendar event name for the metadata chips
+  // Derive folder name for the metadata chips
   const activeFolderName = useMemo(() => {
     if (!activeNote?.folder_id) return null;
     return folders.find((f) => f.id === activeNote.folder_id)?.name ?? null;
   }, [activeNote?.folder_id, folders]);
-
-  const [calendarEventName, setCalendarEventName] = useState<string | null>(null);
-  useEffect(() => {
-    if (!activeNote?.calendar_event_id) {
-      setCalendarEventName(null);
-      return;
-    }
-    window.electronAPI.gcalGetEvent?.(activeNote.calendar_event_id).then((result) => {
-      setCalendarEventName(result?.success && result.event?.summary ? result.event.summary : null);
-    });
-  }, [activeNote?.calendar_event_id]);
 
   const startRecording = useCallback(async () => {
     const noteId = activeNoteRef.current;
@@ -961,7 +950,6 @@ export default function PersonalNotesView({
               onSetSessionDiarizationEnabled={setSessionDiarizationEnabled}
               onSetSessionExpectedCount={setSessionExpectedCount}
               folderName={activeFolderName}
-              calendarEventName={calendarEventName}
               folders={folders}
               onMoveToFolder={handleMoveToFolder}
               onCreateFolderAndMove={handleCreateFolderAndMove}

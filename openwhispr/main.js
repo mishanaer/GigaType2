@@ -196,7 +196,6 @@ const GlobeKeyManager = require("./src/helpers/globeKeyManager");
 const WindowsKeyManager = require("./src/helpers/windowsKeyManager");
 const LinuxKeyManager = require("./src/helpers/linuxKeyManager");
 const TextEditMonitor = require("./src/helpers/textEditMonitor");
-const GoogleCalendarManager = require("./src/helpers/googleCalendarManager");
 const MeetingProcessDetector = require("./src/helpers/meetingProcessDetector");
 const AudioActivityDetector = require("./src/helpers/audioActivityDetector");
 const AudioTapManager = require("./src/helpers/audioTapManager");
@@ -222,7 +221,6 @@ let globeKeyManager = null;
 let windowsKeyManager = null;
 let linuxKeyManager = null;
 let textEditMonitor = null;
-let googleCalendarManager = null;
 let meetingDetectionEngine = null;
 let audioTapManager = null;
 let linuxPortalAudioManager = null;
@@ -270,9 +268,7 @@ function initializeCoreManagers() {
   databaseManager = new DatabaseManager();
   clipboardManager = new ClipboardManager();
   diarizationManager = new DiarizationManager();
-  googleCalendarManager = new GoogleCalendarManager(databaseManager, windowManager);
   meetingDetectionEngine = new MeetingDetectionEngine(
-    googleCalendarManager,
     new MeetingProcessDetector(),
     new AudioActivityDetector(),
     windowManager,
@@ -297,7 +293,6 @@ function initializeCoreManagers() {
     windowsKeyManager,
     linuxKeyManager,
     textEditMonitor,
-    googleCalendarManager,
     meetingDetectionEngine,
     audioTapManager,
     linuxPortalAudioManager,
@@ -477,7 +472,6 @@ async function initializeDeferredManagers() {
     });
   }
 
-  googleCalendarManager.start();
 }
 
 app.on("open-url", (event, _url) => {
@@ -554,7 +548,6 @@ async function startApp() {
   await initializeDeferredManagers();
 
   app.on("browser-window-focus", () => {
-    if (googleCalendarManager) googleCalendarManager.syncOnFocus();
   });
 
   const { powerMonitor } = require("electron");
@@ -580,25 +573,8 @@ async function startApp() {
     }, 750);
   };
 
-  powerMonitor.on("resume", () => {
-    if (googleCalendarManager) {
-      googleCalendarManager.onWakeFromSleep();
-    }
-    recoverWindowsAfterResume();
-  });
+  powerMonitor.on("resume", recoverWindowsAfterResume);
   powerMonitor.on("unlock-screen", recoverWindowsAfterResume);
-
-  // Auto-download diarization models if binary is available
-  if (
-    diarizationManager.getBinaryPath() &&
-    (!diarizationManager.isModelDownloaded() || !diarizationManager.isVadModelDownloaded())
-  ) {
-    diarizationManager.downloadModels().catch((err) => {
-      debugLogger.debug("Diarization model auto-download error (non-fatal)", {
-        error: err.message,
-      });
-    });
-  }
 
   const QdrantManager = require("./src/helpers/qdrantManager");
   qdrantManager = new QdrantManager();
@@ -1282,7 +1258,6 @@ function performSyncTeardown() {
   if (windowsKeyManager) windowsKeyManager.stop();
   if (linuxKeyManager) linuxKeyManager.stop();
   if (meetingDetectionEngine) meetingDetectionEngine.stop();
-  if (googleCalendarManager) googleCalendarManager.stop();
   if (audioTapManager) audioTapManager.stop().catch(() => {});
   if (linuxPortalAudioManager) linuxPortalAudioManager.stop().catch(() => {});
   if (ipcHandlers) ipcHandlers._cleanupTextEditMonitor();

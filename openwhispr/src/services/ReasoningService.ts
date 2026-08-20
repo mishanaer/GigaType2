@@ -1,9 +1,4 @@
-import {
-  getModelProvider,
-  getCloudModel,
-  getOpenAiApiConfig,
-  isEnterpriseProvider,
-} from "../models/ModelRegistry";
+import { getModelProvider, getOpenAiApiConfig } from "../models/ModelRegistry";
 import { BaseReasoningService, ReasoningConfig } from "./BaseReasoningService";
 import { withRetry, createApiRetryStrategy } from "../utils/retry";
 import { API_ENDPOINTS, TOKEN_LIMITS, buildApiUrl, ensureV1Suffix } from "../config/constants";
@@ -246,8 +241,8 @@ class ReasoningService extends BaseReasoningService {
     provider: string,
     config: ReasoningConfig & { systemPrompt: string }
   ): AsyncGenerator<string, void, unknown> {
-    const cloudProviders = ["openai", "groq", "gemini", "anthropic", "custom"];
-    const isLocalProvider = !cloudProviders.includes(provider);
+    // Everything except the user's own self-hosted endpoint runs in-process.
+    const isLocalProvider = provider !== "custom";
 
     const settings = getSettings();
     const lanOverride = config.lanUrl?.trim();
@@ -266,19 +261,15 @@ class ReasoningService extends BaseReasoningService {
       }
       endpoint = `http://127.0.0.1:${serverResult.port}/v1/chat/completions`;
     } else {
-      const providerKey = provider as "openai" | "groq" | "gemini" | "anthropic" | "custom";
-      if (providerKey !== "custom") {
-        throw new Error(`${providerKey} cloud reasoning is disabled`);
+      const base = config.baseUrl?.trim() || getConfiguredOpenAIBase();
+      if (!base) {
+        throw new Error("No self-hosted endpoint configured");
       }
-
-      endpoint = buildApiUrl(
-        config.baseUrl?.trim() || getConfiguredOpenAIBase(),
-        "/chat/completions"
-      );
+      endpoint = buildApiUrl(base, "/chat/completions");
     }
 
     const apiConfig = getOpenAiApiConfig(model);
-    const useOldTokenParam = isLocalProvider || isLanCleanup || provider === "groq";
+    const useOldTokenParam = isLocalProvider || isLanCleanup;
 
     const requestBody: Record<string, unknown> = {
       model,
@@ -425,15 +416,7 @@ class ReasoningService extends BaseReasoningService {
     config: ReasoningConfig & { systemPrompt: string },
     tools?: Record<string, import("ai").Tool>
   ): AsyncGenerator<AgentStreamChunk, void, unknown> {
-    if (isEnterpriseProvider(provider)) {
-      throw new Error(
-        "Agent Mode is not yet supported with enterprise providers (Bedrock/Azure/Vertex). " +
-          "Switch to self-hosted or local mode for Agent Mode, or use this provider for text cleanup only."
-      );
-    }
-
-    const cloudProviders = ["openai", "groq", "gemini", "anthropic", "custom"];
-    const isLocalProvider = !cloudProviders.includes(provider);
+    const isLocalProvider = provider !== "custom";
 
     const settings = getSettings();
     const lanOverride = config.lanUrl?.trim();
@@ -460,22 +443,15 @@ class ReasoningService extends BaseReasoningService {
       }
       baseURL = `http://127.0.0.1:${serverResult.port}/v1`;
     } else {
-      const providerKey = provider as "openai" | "groq" | "gemini" | "anthropic" | "custom";
-      if (providerKey !== "custom") {
-        throw new Error(`${providerKey} cloud reasoning is disabled`);
+      baseURL = config.baseUrl?.trim() || getConfiguredOpenAIBase();
+      if (!baseURL) {
+        throw new Error("No self-hosted endpoint configured");
       }
-      baseURL =
-        provider === "custom" ? config.baseUrl?.trim() || getConfiguredOpenAIBase() : undefined;
     }
     const apiConfig = getOpenAiApiConfig(model);
 
     const aiProvider = isLocalProvider || isLanCleanup ? "local" : provider;
     const aiModel = getAIModel(aiProvider, model, baseURL);
-
-    const modelDef = getCloudModel(model);
-    const userSuppressesThinking = config.disableThinking === true && !!modelDef?.supportsThinking;
-    const needsDisableThinking =
-      provider === "groq" && (modelDef?.disableThinking || userSuppressesThinking);
 
     logger.logReasoning("AGENT_AI_SDK_STREAM_REQUEST", {
       model,
@@ -497,7 +473,6 @@ class ReasoningService extends BaseReasoningService {
       stopWhen: stepCountIs(tools ? ReasoningService.MAX_TOOL_STEPS : 1),
       ...(useTemperature ? { temperature: config.temperature ?? 0.3 } : {}),
       maxOutputTokens: config.maxTokens || 4096,
-      ...(needsDisableThinking ? { providerOptions: { groq: { reasoningEffort: "none" } } } : {}),
     });
 
     for await (const chunk of result.fullStream) {

@@ -2,12 +2,6 @@ const path = require("path");
 const fs = require("fs");
 const { promises: fsPromises } = require("fs");
 const { app } = require("electron");
-const {
-  downloadFile: sharedDownloadFile,
-  createDownloadSignal,
-  cleanupStaleDownloads,
-  checkDiskSpace,
-} = require("./downloadUtils");
 
 const modelRegistryData = require("../models/modelRegistryData.json");
 const LlamaServerManager = require("./llamaServer");
@@ -37,9 +31,6 @@ class ModelNotFoundError extends ModelError {
 class ModelManager {
   constructor() {
     this.modelsDir = null;
-    this.downloadProgress = new Map();
-    this.activeDownloads = new Map();
-    this.activeRequests = new Map(); // Track HTTP requests for cancellation
     this.serverManager = new LlamaServerManager();
     this.currentServerModelId = null;
     this._initialized = false;
@@ -68,7 +59,6 @@ class ModelManager {
     this._initialized = true;
     // Don't await - let this run in background
     this.ensureModelsDirExists();
-    cleanupStaleDownloads(this.modelsDir);
   }
 
   getModelsDir() {
@@ -165,114 +155,6 @@ class ModelManager {
       }
     }
     return null;
-  }
-
-  async downloadModel(modelId, onProgress) {
-    this.ensureInitialized();
-    const modelInfo = this.findModelById(modelId);
-    if (!modelInfo) {
-      throw new ModelNotFoundError(modelId);
-    }
-
-    const { model, provider } = modelInfo;
-    const modelPath = path.join(this.modelsDir, model.fileName);
-
-    if (await this.checkModelValid(modelPath)) {
-      return modelPath;
-    }
-
-    if (this.activeDownloads.get(modelId)) {
-      throw new ModelError("Model is already being downloaded", "DOWNLOAD_IN_PROGRESS", {
-        modelId,
-      });
-    }
-
-    this.activeDownloads.set(modelId, true);
-    const { signal, abort } = createDownloadSignal();
-    this.activeRequests.set(modelId, { abort });
-
-    try {
-      await this.ensureModelsDirExists();
-
-      const requiredBytes = model.sizeBytes || model.sizeMb * 1_000_000 || 0;
-      if (requiredBytes > 0) {
-        const spaceCheck = await checkDiskSpace(this.modelsDir, requiredBytes * 1.2);
-        if (!spaceCheck.ok) {
-          throw new ModelError(
-            `Not enough disk space. Need ~${Math.round((requiredBytes * 1.2) / 1_000_000)}MB, ` +
-              `only ${Math.round(spaceCheck.availableBytes / 1_000_000)}MB available.`,
-            "INSUFFICIENT_DISK_SPACE",
-            { required: requiredBytes, available: spaceCheck.availableBytes }
-          );
-        }
-      }
-
-      const downloadUrl = this.getDownloadUrl(provider, model);
-
-      await sharedDownloadFile(downloadUrl, modelPath, {
-        signal,
-        onProgress: (downloadedBytes, totalBytes) => {
-          const progress = totalBytes > 0 ? (downloadedBytes / totalBytes) * 100 : 0;
-          this.downloadProgress.set(modelId, {
-            modelId,
-            progress,
-            downloadedSize: downloadedBytes,
-            totalSize: totalBytes,
-          });
-          if (onProgress) {
-            onProgress(progress, downloadedBytes, totalBytes);
-          }
-        },
-      });
-
-      const stats = await fsPromises.stat(modelPath);
-      if (stats.size < MIN_FILE_SIZE) {
-        await fsPromises.unlink(modelPath).catch(() => {});
-        throw new ModelError(
-          "Downloaded file appears to be corrupted or incomplete",
-          "DOWNLOAD_CORRUPTED",
-          { size: stats.size, minSize: MIN_FILE_SIZE }
-        );
-      }
-
-      return modelPath;
-    } catch (error) {
-      if (error.isAbort) {
-        throw new ModelError("Download cancelled by user", "DOWNLOAD_CANCELLED", { modelId });
-      }
-      if (error.isHttpError) {
-        throw new ModelError(`Download failed with status ${error.statusCode}`, "DOWNLOAD_FAILED", {
-          statusCode: error.statusCode,
-        });
-      }
-      if (!(error instanceof ModelError)) {
-        throw new ModelError(`Network error: ${error.message}`, "NETWORK_ERROR", {
-          error: error.message,
-        });
-      }
-      throw error;
-    } finally {
-      this.activeDownloads.delete(modelId);
-      this.activeRequests.delete(modelId);
-      this.downloadProgress.delete(modelId);
-    }
-  }
-
-  getDownloadUrl(provider, model) {
-    const baseUrl = provider.baseUrl || "https://huggingface.co";
-    return `${baseUrl}/${model.hfRepo}/resolve/main/${model.fileName}`;
-  }
-
-  cancelDownload(modelId) {
-    const entry = this.activeRequests.get(modelId);
-    if (entry) {
-      this.activeDownloads.delete(modelId);
-      this.activeRequests.delete(modelId);
-      this.downloadProgress.delete(modelId);
-      entry.abort();
-      return true;
-    }
-    return false;
   }
 
   async deleteModel(modelId) {

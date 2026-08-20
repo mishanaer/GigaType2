@@ -285,7 +285,6 @@ class IPCHandlers {
     this.linuxKeyManager = managers.linuxKeyManager;
     this.textEditMonitor = managers.textEditMonitor;
     this.getTrayManager = managers.getTrayManager;
-    this.googleCalendarManager = managers.googleCalendarManager;
     this.meetingDetectionEngine = managers.meetingDetectionEngine;
     this.audioTapManager = managers.audioTapManager;
     this.linuxPortalAudioManager = managers.linuxPortalAudioManager;
@@ -1442,31 +1441,6 @@ class IPCHandlers {
       return this.clipboardManager.checkPasteTools();
     });
 
-    // Diarization model management
-    handle("download-diarization-models", async (event) => {
-      try {
-        const result = await this.diarizationManager.downloadModels((progressData) => {
-          if (!event.sender.isDestroyed()) {
-            event.sender.send("diarization-download-progress", progressData);
-          }
-        });
-        return result;
-      } catch (error) {
-        if (!event.sender.isDestroyed()) {
-          event.sender.send("diarization-download-progress", {
-            type: "error",
-            error: error.message,
-            code: error.code || "DOWNLOAD_FAILED",
-          });
-        }
-        return {
-          success: false,
-          error: error.message,
-          code: error.code || "DOWNLOAD_FAILED",
-        };
-      }
-    });
-
     handle("get-diarization-model-status", async () => {
       return {
         available: this.diarizationManager?.isAvailable() ?? false,
@@ -1486,29 +1460,11 @@ class IPCHandlers {
       }
     });
 
-    handle("cancel-diarization-download", async () => {
-      return this.diarizationManager.cancelDownload();
-    });
-
     handle("cleanup-app", async (event) => {
       const fs = require("fs");
       const os = require("os");
       const errors = [];
       const mainWindow = this.windowManager.mainWindow;
-
-      // Stop services before deleting files they hold open
-      try {
-        this.googleCalendarManager?.stop();
-      } catch (e) {
-        errors.push(`GCal stop: ${e.message}`);
-      }
-
-      // Revoke Google OAuth tokens before DB is closed
-      try {
-        await this.googleCalendarManager?.revokeAllTokens();
-      } catch (e) {
-        errors.push(`GCal revoke: ${e.message}`);
-      }
 
       // Close DB connection before deleting the file
       try {
@@ -1929,46 +1885,6 @@ class IPCHandlers {
       return modelManager.isModelDownloaded(modelId);
     });
 
-    handle("model-download", async (event, modelId) => {
-      try {
-        const modelManager = require("./modelManagerBridge").default;
-        const result = await modelManager.downloadModel(
-          modelId,
-          (progress, downloadedSize, totalSize) => {
-            if (!event.sender.isDestroyed()) {
-              event.sender.send("model-download-progress", {
-                modelId,
-                progress,
-                downloadedSize,
-                totalSize,
-              });
-            }
-          }
-        );
-        return { success: true, path: result };
-      } catch (error) {
-        return {
-          success: false,
-          error: error.message,
-          code: error.code,
-          details: error.details,
-        };
-      }
-    });
-
-    handle("model-cancel-download", async (event, modelId) => {
-      try {
-        const modelManager = require("./modelManagerBridge").default;
-        const cancelled = modelManager.cancelDownload(modelId);
-        return { success: cancelled };
-      } catch (error) {
-        return {
-          success: false,
-          error: error.message,
-        };
-      }
-    });
-
     handle("model-check-runtime", async (event) => {
       try {
         const modelManager = require("./modelManagerBridge").default;
@@ -1984,231 +1900,6 @@ class IPCHandlers {
       }
     });
 
-    // Enterprise provider configuration handlers
-    handle("get-bedrock-region", async () => {
-      return this.environmentManager.getBedrockRegion();
-    });
-    handle("save-bedrock-region", async (event, value) => {
-      return this.environmentManager.saveBedrockRegion(value);
-    });
-    handle("get-bedrock-profile", async () => {
-      return this.environmentManager.getBedrockProfile();
-    });
-    handle("save-bedrock-profile", async (event, value) => {
-      return this.environmentManager.saveBedrockProfile(value);
-    });
-    handle("get-azure-endpoint", async () => {
-      return this.environmentManager.getAzureEndpoint();
-    });
-    handle("save-azure-endpoint", async (event, value) => {
-      return this.environmentManager.saveAzureEndpoint(value);
-    });
-    handle("get-azure-deployment", async () => {
-      return this.environmentManager.getAzureDeployment();
-    });
-    handle("save-azure-deployment", async (event, value) => {
-      return this.environmentManager.saveAzureDeployment(value);
-    });
-    handle("get-azure-api-version", async () => {
-      return this.environmentManager.getAzureApiVersion();
-    });
-    handle("save-azure-api-version", async (event, value) => {
-      return this.environmentManager.saveAzureApiVersion(value);
-    });
-    handle("get-vertex-project", async () => {
-      return this.environmentManager.getVertexProject();
-    });
-    handle("save-vertex-project", async (event, value) => {
-      return this.environmentManager.saveVertexProject(value);
-    });
-    handle("get-vertex-location", async () => {
-      return this.environmentManager.getVertexLocation();
-    });
-    handle("save-vertex-location", async (event, value) => {
-      return this.environmentManager.saveVertexLocation(value);
-    });
-
-    // Enterprise provider test connection
-    handle("test-enterprise-connection", async (event, provider, config) => {
-      const {
-        mapEnterpriseError,
-        pickEnterpriseConfig,
-        validateEnterpriseEndpoint,
-      } = require("./enterpriseProviderErrors");
-      try {
-        validateEnterpriseEndpoint(config.azureEndpoint);
-
-        const { generateText } = require("ai");
-        const { getEnterpriseAIModel } = require("./enterpriseAiProviders");
-
-        const model = getEnterpriseAIModel(
-          provider,
-          config.model || "test",
-          pickEnterpriseConfig(config)
-        );
-
-        await generateText({
-          model,
-          prompt: "Say hello in one word.",
-          maxOutputTokens: 10,
-        });
-
-        return { success: true };
-      } catch (err) {
-        const mapped = mapEnterpriseError(provider, err, config);
-        return {
-          success: false,
-          error: mapped.message,
-          action: mapped.action,
-          copyCommand: mapped.copyCommand,
-          retryable: mapped.retryable,
-        };
-      }
-    });
-
-    handle("process-enterprise-reasoning", async (event, text, modelId, _agentName, config) => {
-      const {
-        isEnterpriseProvider,
-        mapEnterpriseError,
-        pickEnterpriseConfig,
-        validateEnterpriseEndpoint,
-      } = require("./enterpriseProviderErrors");
-      const provider = config?.provider;
-      try {
-        if (!isEnterpriseProvider(provider)) {
-          throw new Error(`Unsupported enterprise provider: ${provider}`);
-        }
-        if (!modelId) {
-          throw new Error("No model specified for enterprise reasoning");
-        }
-
-        validateEnterpriseEndpoint(config?.azureEndpoint);
-
-        const { generateText } = require("ai");
-        const { getEnterpriseAIModel } = require("./enterpriseAiProviders");
-
-        const model = getEnterpriseAIModel(provider, modelId, pickEnterpriseConfig(config));
-
-        const timeoutMs = config?.timeoutMs || 60000;
-        // Opus 4.7 / GPT-5 / o-series dropped `temperature`; renderer
-        // derives support from the model registry and we honor that here.
-        const useTemperature = config?.supportsTemperature !== false;
-        const { text: generated } = await generateText({
-          model,
-          system: config?.systemPrompt || "",
-          prompt: text,
-          maxOutputTokens: config?.maxTokens || 4096,
-          ...(useTemperature ? { temperature: config?.temperature ?? 0.3 } : {}),
-          abortSignal: AbortSignal.timeout(timeoutMs),
-        });
-
-        return { success: true, text: (generated || "").trim() };
-      } catch (err) {
-        debugLogger.error("Enterprise reasoning error:", err);
-        const mapped = mapEnterpriseError(provider, err, config || {});
-        return { success: false, error: mapped.message, retryable: mapped.retryable };
-      }
-    });
-
-    handle("get-dictation-key", async () => {
-      return this.environmentManager.getDictationKey();
-    });
-
-    handle("save-dictation-key", async (event, key) => {
-      return this.environmentManager.saveDictationKey(key);
-    });
-
-    handle("get-active-dictation-key", async () => {
-      return this.windowManager?.hotkeyManager?.currentHotkey ?? null;
-    });
-
-    handle("get-effective-default-hotkey", async () => {
-      return this.windowManager?.hotkeyManager?.getEffectiveDefaultHotkey() ?? null;
-    });
-
-    handle("is-fn-hotkey-available", async () => {
-      return this.windowManager?.hotkeyManager?.isFnHotkeyAvailable() ?? false;
-    });
-
-    handle("get-show-dock-icon", async () => {
-      return this.environmentManager.getShowDockIcon();
-    });
-
-    handle("set-show-dock-icon", async (_event, enabled) => {
-      const visible = Boolean(enabled);
-      this.environmentManager.saveShowDockIcon(visible);
-      await this.windowManager.setShowDockIcon(visible);
-      return { success: true, visible };
-    });
-
-    handle("get-activation-mode", async () => {
-      return this.environmentManager.getActivationMode();
-    });
-
-    handle("save-activation-mode", async (event, mode) => {
-      return this.environmentManager.saveActivationMode(mode);
-    });
-
-    handle("get-ui-language", async () => {
-      return this.environmentManager.getUiLanguage();
-    });
-
-    handle("save-ui-language", async (event, language) => {
-      return this.environmentManager.saveUiLanguage(language);
-    });
-
-    handle("get-app-version", async () => {
-      return { version: app.getVersion() };
-    });
-
-    handle("get-post-migration-state", async () => ({
-      justMigrated: postMigrationDetector.isReturningFromOldBundle(),
-    }));
-
-    handle("mark-bundle-migrated", async () => {
-      postMigrationDetector.markBundleMigrated();
-    });
-
-    handle("mark-bundle-migration-dismissed", async () => {
-      postMigrationDetector.markBundleMigrationDismissed();
-    });
-
-    handle("set-ui-language", async (event, language) => {
-      const result = this.environmentManager.saveUiLanguage(language);
-      process.env.UI_LANGUAGE = result.language;
-      changeLanguage(result.language);
-      this.windowManager?.refreshLocalizedUi?.();
-      this.getTrayManager?.()?.updateTrayMenu?.();
-      return { success: true, language: result.language };
-    });
-
-    handle("save-runtime-config-to-env", async () => {
-      return this.environmentManager.saveRuntimeConfigToEnvFile();
-    });
-
-    handle("sync-startup-preferences", async (_event, _prefs) => {
-      const setVars = {};
-      const clearVars = ["LOCAL_TRANSCRIPTION_PROVIDER", "PARAKEET_MODEL", "LOCAL_WHISPER_MODEL"];
-
-      clearVars.push(
-        "CLEANUP_PROVIDER",
-        "LOCAL_CLEANUP_MODEL",
-        "REASONING_PROVIDER",
-        "LOCAL_REASONING_MODEL",
-        "DICTATION_AGENT_PROVIDER",
-        "LOCAL_DICTATION_AGENT_MODEL"
-      );
-
-      const modelManager = require("./modelManagerBridge").default;
-      modelManager.stopServer().catch((err) => {
-        debugLogger.error("Failed to stop llama-server after disabling dictation-agent", {
-          error: err.message,
-        });
-      });
-
-      this._syncStartupEnv(setVars, clearVars);
-    });
-
     handle("process-local-reasoning", async (event, text, modelId, _agentName, config) => {
       try {
         const LocalReasoningService = require("../services/localReasoningBridge").default;
@@ -2217,10 +1908,6 @@ class IPCHandlers {
       } catch (error) {
         return { success: false, error: error.message };
       }
-    });
-
-    handle("process-anthropic-reasoning", async (_event, _text, _modelId, _agentName, _config) => {
-      return { success: false, error: "Cloud reasoning providers are disabled" };
     });
 
     handle("check-local-reasoning-available", async () => {
@@ -2240,16 +1927,6 @@ class IPCHandlers {
         return { isInstalled, version };
       } catch (error) {
         return { isInstalled: false, error: error.message };
-      }
-    });
-
-    handle("llama-cpp-install", async () => {
-      try {
-        const llamaCppInstaller = require("./llamaCppInstaller").default;
-        const result = await llamaCppInstaller.install();
-        return result;
-      } catch (error) {
-        return { success: false, error: error.message };
       }
     });
 
@@ -2340,59 +2017,6 @@ class IPCHandlers {
       } catch (error) {
         return { supported: false, downloaded: false, error: error.message };
       }
-    });
-
-    handle("download-llama-vulkan-binary", async (event) => {
-      try {
-        if (!this._llamaVulkanManager) {
-          const LlamaVulkanManager = require("./llamaVulkanManager");
-          this._llamaVulkanManager = new LlamaVulkanManager();
-        }
-
-        // Stop Vulkan server before downloading to release file locks on DLLs (Windows EBUSY)
-        const modelManager = require("./modelManagerBridge").default;
-        if (modelManager.serverManager.activeBackend === "vulkan") {
-          await modelManager.stopServer().catch((err) => {
-            debugLogger.warn("Failed to stop Vulkan server before download", {
-              error: err.message,
-            });
-          });
-        }
-
-        const result = await this._llamaVulkanManager.download((downloaded, total) => {
-          if (!event.sender.isDestroyed()) {
-            event.sender.send("llama-vulkan-download-progress", {
-              downloaded,
-              total,
-              percentage: total > 0 ? Math.round((downloaded / total) * 100) : 0,
-            });
-          }
-        });
-
-        if (result.success) {
-          process.env.LLAMA_VULKAN_ENABLED = "true";
-          delete process.env.LLAMA_GPU_BACKEND;
-          modelManager.serverManager.cachedServerBinaryPaths = null;
-          await this.environmentManager.saveRuntimeConfigToEnvFile().catch(() => {});
-          // Stop server so next inference picks up the new Vulkan binary
-          await modelManager.stopServer().catch(() => {});
-        }
-
-        return result;
-      } catch (error) {
-        debugLogger.error("Vulkan binary download failed", {
-          error: error.message,
-          stack: error.stack,
-        });
-        return { success: false, error: error.message };
-      }
-    });
-
-    handle("cancel-llama-vulkan-download", async () => {
-      if (this._llamaVulkanManager) {
-        return { success: this._llamaVulkanManager.cancelDownload() };
-      }
-      return { success: false };
     });
 
     handle("delete-llama-vulkan-binary", async () => {
@@ -3987,93 +3611,6 @@ class IPCHandlers {
       return { success: true };
     });
 
-    // Google Calendar
-    handle("gcal-start-oauth", async () => {
-      try {
-        return await this.googleCalendarManager.startOAuth();
-      } catch (error) {
-        debugLogger.error("Google Calendar OAuth failed", { error: error.message }, "calendar");
-        return { success: false, error: error.message };
-      }
-    });
-
-    handle("gcal-disconnect", async () => {
-      try {
-        this.googleCalendarManager.disconnect();
-        return { success: true };
-      } catch (error) {
-        debugLogger.error(
-          "Google Calendar disconnect failed",
-          { error: error.message },
-          "calendar"
-        );
-        return { success: false, error: error.message };
-      }
-    });
-
-    handle("gcal-get-connection-status", async () => {
-      try {
-        return this.googleCalendarManager.getConnectionStatus();
-      } catch (error) {
-        return { connected: false, email: null };
-      }
-    });
-
-    handle("gcal-get-calendars", async () => {
-      try {
-        return { success: true, calendars: this.googleCalendarManager.getCalendars() };
-      } catch (error) {
-        return { success: false, calendars: [] };
-      }
-    });
-
-    handle("gcal-set-calendar-selection", async (_event, calendarId, isSelected) => {
-      try {
-        await this.googleCalendarManager.setCalendarSelection(calendarId, isSelected);
-        return { success: true };
-      } catch (error) {
-        return { success: false, error: error.message };
-      }
-    });
-
-    handle("gcal-set-primary-only", async (_event, value) => {
-      try {
-        await this.googleCalendarManager.setPrimaryOnly(value);
-        return { success: true };
-      } catch (error) {
-        return { success: false, error: error.message };
-      }
-    });
-
-    handle("gcal-sync-events", async () => {
-      try {
-        await this.googleCalendarManager.syncEvents();
-        return { success: true };
-      } catch (error) {
-        return { success: false, error: error.message };
-      }
-    });
-
-    handle("gcal-get-upcoming-events", async (_event, windowMinutes) => {
-      try {
-        return {
-          success: true,
-          events: await this.googleCalendarManager.getUpcomingEvents(windowMinutes),
-        };
-      } catch (error) {
-        return { success: false, events: [] };
-      }
-    });
-
-    handle("gcal-get-event", async (_event, eventId) => {
-      try {
-        const event = this.databaseManager.getCalendarEventById(eventId);
-        return { success: true, event };
-      } catch (error) {
-        return { success: false, event: null };
-      }
-    });
-
     handle("search-contacts", async (_event, query) => {
       try {
         const contacts = this.databaseManager.searchContacts(query);
@@ -4090,10 +3627,6 @@ class IPCHandlers {
       } catch (error) {
         return { success: false };
       }
-    });
-
-    handle("get-md5-hash", (_event, text) => {
-      return crypto.createHash("md5").update(text.toLowerCase().trim()).digest("hex");
     });
 
     handle("meeting-detection-get-preferences", async () => {
@@ -4116,7 +3649,6 @@ class IPCHandlers {
     const NOTIFICATION_PREF_KEYS = new Set([
       "notificationsEnabled",
       "notifyMeetingDetection",
-      "notifyCalendarReminders",
       "notifyUpdates",
     ]);
 
@@ -4182,15 +3714,6 @@ class IPCHandlers {
     handle("meeting-notification-respond", async (_event, detectionId, action) => {
       try {
         await this.meetingDetectionEngine.handleNotificationResponse(detectionId, action);
-        return { success: true };
-      } catch (error) {
-        return { success: false, error: error.message };
-      }
-    });
-
-    handle("join-calendar-meeting", async (_event, eventId) => {
-      try {
-        await this.meetingDetectionEngine.joinCalendarMeeting(eventId);
         return { success: true };
       } catch (error) {
         return { success: false, error: error.message };

@@ -29,7 +29,7 @@ export const normalizeBaseUrl = (value?: string | null): string => {
 };
 
 export const buildApiUrl = (base: string, path: string): string => {
-  const normalizedBase = normalizeBaseUrl(base) || "https://api.openai.com/v1";
+  const normalizedBase = normalizeBaseUrl(base);
   if (!path) {
     return normalizedBase;
   }
@@ -45,41 +45,16 @@ export const ensureV1Suffix = (base: string): string => {
 
 const env = (typeof import.meta !== "undefined" && (import.meta as any).env) || {};
 
-const computeBaseUrl = (candidates: Array<string | undefined>, fallback: string): string => {
-  for (const candidate of candidates) {
-    const normalized = normalizeBaseUrl(candidate);
-    if (normalized) {
-      return normalized;
-    }
-  }
-  return fallback;
-};
-
-const DEFAULT_OPENAI_BASE = computeBaseUrl(
-  [env.OPENWHISPR_OPENAI_BASE_URL as string | undefined, env.OPENAI_BASE_URL as string | undefined],
-  "https://api.openai.com/v1"
-);
-
-const DEFAULT_TRANSCRIPTION_BASE = computeBaseUrl(
-  [env.OPENWHISPR_TRANSCRIPTION_BASE_URL as string | undefined],
-  DEFAULT_OPENAI_BASE
-);
-
+// No hosted provider is built in: every endpoint below is either empty (and the
+// caller must refuse to run) or something the operator points at themselves.
+// The bundled GigaAM engine overwrites the transcription base at startup with
+// its own loopback address.
 export const API_ENDPOINTS = {
-  OPENAI_BASE: DEFAULT_OPENAI_BASE,
-  OPENAI: buildApiUrl(DEFAULT_OPENAI_BASE, "/responses"),
-  OPENAI_MODELS: buildApiUrl(DEFAULT_OPENAI_BASE, "/models"),
-  ANTHROPIC: "https://api.anthropic.com/v1/messages",
-  GEMINI: "https://generativelanguage.googleapis.com/v1beta",
-  GROQ_BASE: "https://api.groq.com/openai/v1",
-  MISTRAL_BASE: "https://api.mistral.ai/v1",
-  TRANSCRIPTION_BASE: DEFAULT_TRANSCRIPTION_BASE,
-  TRANSCRIPTION: buildApiUrl(DEFAULT_TRANSCRIPTION_BASE, "/audio/transcriptions"),
-} as const;
-
-export const API_VERSIONS = {
-  ANTHROPIC: "2023-06-01",
-  GEMINI: "v1beta",
+  OPENAI_BASE: normalizeBaseUrl(
+    (env.OPENWHISPR_OPENAI_BASE_URL as string | undefined) ||
+      (env.OPENAI_BASE_URL as string | undefined)
+  ),
+  TRANSCRIPTION_BASE: normalizeBaseUrl(env.OPENWHISPR_TRANSCRIPTION_BASE_URL as string | undefined),
 } as const;
 
 // Model Configuration
@@ -93,10 +68,6 @@ export const MODEL_CONSTRAINTS = {
 export const TOKEN_LIMITS = {
   MIN_TOKENS: 512,
   MAX_TOKENS: 2048,
-  MIN_TOKENS_ANTHROPIC: 100,
-  MAX_TOKENS_ANTHROPIC: 4096,
-  MIN_TOKENS_GEMINI: 100,
-  MAX_TOKENS_GEMINI: 8192,
   TOKEN_MULTIPLIER: 2, // text.length * multiplier
   REASONING_CONTEXT_SIZE: 4096,
 } as const;

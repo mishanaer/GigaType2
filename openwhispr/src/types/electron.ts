@@ -1,4 +1,4 @@
-export type InferenceMode = "providers" | "local" | "self-hosted" | "enterprise";
+export type InferenceMode = "providers" | "local" | "self-hosted";
 
 export type SelfHostedType = "openai-compatible" | "lan";
 
@@ -291,12 +291,6 @@ export interface LlamaVulkanStatus {
   error?: string;
 }
 
-export interface LlamaVulkanDownloadProgress {
-  downloaded: number;
-  total: number;
-  percentage: number;
-}
-
 export interface ConversationPreview {
   id: number;
   title: string;
@@ -548,21 +542,12 @@ declare global {
       // Local AI model management
       modelGetAll: () => Promise<any[]>;
       modelCheck: (modelId: string) => Promise<boolean>;
-      modelDownload: (modelId: string) => Promise<{
-        success: boolean;
-        path?: string;
-        error?: string;
-        code?: string;
-        details?: string;
-      }>;
       modelCheckRuntime: () => Promise<{
         available: boolean;
         error?: string;
         code?: string;
         details?: string;
       }>;
-      modelCancelDownload: (modelId: string) => Promise<{ success: boolean; error?: string }>;
-      onModelDownloadProgress: (callback: (event: any, data: any) => void) => () => void;
 
       // Local reasoning
       processLocalReasoning: (
@@ -573,25 +558,8 @@ declare global {
       ) => Promise<{ success: boolean; text?: string; error?: string }>;
       checkLocalReasoningAvailable: () => Promise<boolean>;
 
-      // Anthropic reasoning
-      processAnthropicReasoning: (
-        text: string,
-        modelId: string,
-        agentName: string | null,
-        config: any
-      ) => Promise<{ success: boolean; text?: string; error?: string }>;
-
-      // Enterprise reasoning (Bedrock, Azure, Vertex)
-      processEnterpriseReasoning: (
-        text: string,
-        modelId: string,
-        agentName: string | null,
-        config: any
-      ) => Promise<{ success: boolean; text?: string; error?: string; retryable?: boolean }>;
-
       // llama.cpp management
       llamaCppCheck: () => Promise<{ isInstalled: boolean; version?: string }>;
-      llamaCppInstall: () => Promise<{ success: boolean; error?: string }>;
       llamaCppUninstall: () => Promise<{ success: boolean; error?: string }>;
 
       // llama-server
@@ -603,21 +571,11 @@ declare global {
       llamaGpuReset: () => Promise<{ success: boolean; error?: string }>;
       detectVulkanGpu?: () => Promise<VulkanGpuResult>;
       getLlamaVulkanStatus?: () => Promise<LlamaVulkanStatus>;
-      downloadLlamaVulkanBinary?: () => Promise<{
-        success: boolean;
-        cancelled?: boolean;
-        error?: string;
-      }>;
-      cancelLlamaVulkanDownload?: () => Promise<{ success: boolean }>;
       deleteLlamaVulkanBinary?: () => Promise<{
         success: boolean;
         deletedCount?: number;
         error?: string;
       }>;
-      onLlamaVulkanDownloadProgress?: (
-        callback: (data: LlamaVulkanDownloadProgress) => void
-      ) => () => void;
-
       // Window control operations
       windowMinimize: () => Promise<void>;
       windowMaximize: () => Promise<void>;
@@ -696,26 +654,6 @@ declare global {
       // Accessibility permission events (macOS)
       onAccessibilityMissing?: (callback: () => void) => () => void;
       checkAccessibilityTrusted?: () => Promise<boolean>;
-
-      // Enterprise provider configuration
-      getBedrockRegion?: () => Promise<string | null>;
-      saveBedrockRegion?: (value: string) => Promise<void>;
-      getBedrockProfile?: () => Promise<string | null>;
-      saveBedrockProfile?: (value: string) => Promise<void>;
-      getAzureEndpoint?: () => Promise<string | null>;
-      saveAzureEndpoint?: (value: string) => Promise<void>;
-      getAzureDeployment?: () => Promise<string | null>;
-      saveAzureDeployment?: (value: string) => Promise<void>;
-      getAzureApiVersion?: () => Promise<string | null>;
-      saveAzureApiVersion?: (value: string) => Promise<void>;
-      getVertexProject?: () => Promise<string | null>;
-      saveVertexProject?: (value: string) => Promise<void>;
-      getVertexLocation?: () => Promise<string | null>;
-      saveVertexLocation?: (value: string) => Promise<void>;
-      testEnterpriseConnection?: (
-        provider: string,
-        config: Record<string, string>
-      ) => Promise<{ success: boolean; error?: string; action?: string; copyCommand?: string }>;
 
       // Dictation key persistence (file-based for reliable startup)
       getDictationKey?: () => Promise<string | null>;
@@ -879,36 +817,6 @@ declare global {
         limit?: number
       ) => Promise<ConversationPreview[]>;
 
-      // Google Calendar
-      gcalStartOAuth?: () => Promise<{ success: boolean; email?: string; error?: string }>;
-      gcalDisconnect?: (email?: string) => Promise<{ success: boolean; error?: string }>;
-      gcalGetConnectionStatus?: () => Promise<{
-        connected: boolean;
-        accounts: Array<{ email: string }>;
-        email: string | null;
-      }>;
-      gcalGetCalendars?: () => Promise<{ success: boolean; calendars: any[] }>;
-      gcalSetCalendarSelection?: (
-        calendarId: string,
-        isSelected: boolean
-      ) => Promise<{ success: boolean; error?: string }>;
-      gcalSetPrimaryOnly?: (value: boolean) => Promise<{ success: boolean; error?: string }>;
-      gcalSyncEvents?: () => Promise<{ success: boolean; error?: string }>;
-      gcalGetUpcomingEvents?: (
-        windowMinutes?: number
-      ) => Promise<{ success: boolean; events: any[] }>;
-      gcalGetEvent?: (eventId: string) => Promise<{
-        success: boolean;
-        event: {
-          id: string;
-          summary: string | null;
-          start_time: string;
-          end_time: string;
-          attendees_count: number;
-          attendees: string | null;
-        } | null;
-      }>;
-
       // Contacts
       searchContacts: (query: string) => Promise<{
         success: boolean;
@@ -918,7 +826,6 @@ declare global {
         email: string;
         displayName?: string | null;
       }) => Promise<{ success: boolean }>;
-      getMD5Hash: (text: string) => Promise<string>;
 
       // Meeting transcription (streaming, dual-channel)
       meetingTranscriptionPrepare?: (options: {
@@ -978,18 +885,11 @@ declare global {
       onMeetingTranscriptionError?: (callback: (error: string) => void) => () => void;
 
       // Speaker diarization
-      downloadDiarizationModels?: () => Promise<{ success: boolean; error?: string }>;
       getDiarizationModelStatus?: () => Promise<{
         available: boolean;
         modelsDownloaded: boolean;
       }>;
       deleteDiarizationModels?: () => Promise<{ success: boolean }>;
-      cancelDiarizationDownload?: () => Promise<{
-        success: boolean;
-        message?: string;
-        error?: string;
-      }>;
-      onDiarizationDownloadProgress?: (callback: (data: any) => void) => () => void;
       onMeetingDiarizationComplete?: (
         callback: (data: {
           sessionId?: string;
@@ -1057,11 +957,6 @@ declare global {
       ) => Promise<{ success: boolean }>;
 
       // Google Calendar event listeners
-      onGcalMeetingStarting?: (callback: (data: any) => void) => () => void;
-      onGcalMeetingEnded?: (callback: (data: any) => void) => () => void;
-      onGcalStartRecording?: (callback: (data: any) => void) => () => void;
-      onGcalConnectionChanged?: (callback: (data: any) => void) => () => void;
-      onGcalEventsSynced?: (callback: (data: any) => void) => () => void;
 
       meetingDetectionGetPreferences?: () => Promise<{ success: boolean; preferences?: any }>;
       meetingDetectionSetPreferences?: (
@@ -1112,7 +1007,6 @@ declare global {
         detectionId: string,
         action: string
       ) => Promise<{ success: boolean }>;
-      joinCalendarMeeting?: (eventId: string) => Promise<{ success: boolean }>;
       onPreviewText?: (callback: (text: string) => void) => () => void;
       onPreviewAppend?: (callback: (text: string) => void) => () => void;
       onPreviewHold?: (callback: (payload: { showCleanup: boolean }) => void) => () => void;

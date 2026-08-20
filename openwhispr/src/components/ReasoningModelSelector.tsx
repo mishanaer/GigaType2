@@ -1,12 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import type {
-  LlamaServerStatus,
-  LlamaVulkanStatus,
-  VulkanGpuResult,
-  LlamaVulkanDownloadProgress,
-  InferenceMode,
-} from "../types/electron";
+import type { LlamaServerStatus, LlamaVulkanStatus, InferenceMode } from "../types/electron";
 import { Button } from "./ui/button";
 import { Zap } from "lucide-react";
 import LocalModelPicker, { type LocalProvider } from "./LocalModelPicker";
@@ -26,15 +20,8 @@ function GpuStatusBadge() {
   const { t } = useTranslation();
   const [serverStatus, setServerStatus] = useState<LlamaServerStatus | null>(null);
   const [vulkanStatus, setVulkanStatus] = useState<LlamaVulkanStatus | null>(null);
-  const [gpuResult, setGpuResult] = useState<VulkanGpuResult | null>(null);
-  const [progress, setProgress] = useState<LlamaVulkanDownloadProgress | null>(null);
-  const [downloading, setDownloading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [activating, setActivating] = useState(false);
   const [activationFailed, setActivationFailed] = useState(false);
-  const [dismissed, setDismissed] = useState(
-    () => localStorage.getItem("llamaVulkanBannerDismissed") === "true"
-  );
   const platform = getCachedPlatform();
 
   useEffect(() => {
@@ -54,22 +41,6 @@ function GpuStatusBadge() {
     const id = setInterval(poll, 5000);
     return () => clearInterval(id);
   }, [platform]);
-
-  useEffect(() => {
-    if (platform !== "darwin") {
-      window.electronAPI
-        ?.detectVulkanGpu?.()
-        .then(setGpuResult)
-        .catch(() => {});
-    }
-  }, [platform]);
-
-  useEffect(() => {
-    const cleanup = window.electronAPI?.onLlamaVulkanDownloadProgress?.((data) => {
-      setProgress(data);
-    });
-    return () => cleanup?.();
-  }, []);
 
   useEffect(() => {
     if (!activating) return;
@@ -98,27 +69,6 @@ function GpuStatusBadge() {
     };
   }, [activating, serverStatus?.gpuAccelerated, vulkanStatus?.downloaded]);
 
-  const handleDownload = async () => {
-    setDownloading(true);
-    setError(null);
-    try {
-      const result = await window.electronAPI?.downloadLlamaVulkanBinary?.();
-      if (result?.success) {
-        setVulkanStatus((prev) => (prev ? { ...prev, downloaded: true } : prev));
-        await window.electronAPI?.llamaGpuReset?.();
-        setActivating(true);
-        setActivationFailed(false);
-      } else if (result && !result.cancelled) {
-        setError(result.error || t("gpu.activationFailed"));
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("gpu.activationFailed"));
-    } finally {
-      setDownloading(false);
-      setProgress(null);
-    }
-  };
-
   const handleDelete = async () => {
     await window.electronAPI?.deleteLlamaVulkanBinary?.();
     setVulkanStatus((prev) => (prev ? { ...prev, downloaded: false } : prev));
@@ -137,44 +87,6 @@ function GpuStatusBadge() {
       <div className="flex items-center gap-1.5 mt-2 px-1">
         <span className="inline-block w-1.5 h-1.5 rounded-full shrink-0 bg-success" />
         <span className="text-xs text-muted-foreground">{t("gpu.active")}</span>
-      </div>
-    );
-  }
-
-  // State 3: Downloading
-  if (downloading && progress) {
-    return (
-      <div className="flex items-center gap-2 mt-2 px-1">
-        <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
-          <div
-            className="h-full bg-primary transition-all"
-            style={{ width: `${progress.percentage}%` }}
-          />
-        </div>
-        <span className="text-xs text-muted-foreground tabular-nums">{progress.percentage}%</span>
-        <button
-          type="button"
-          onClick={() => window.electronAPI?.cancelLlamaVulkanDownload?.()}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {t("gpu.cancel")}
-        </button>
-      </div>
-    );
-  }
-
-  // State 3b: Error
-  if (error) {
-    return (
-      <div className="flex items-center gap-1.5 mt-2 px-1">
-        <span className="text-xs text-destructive">{error}</span>
-        <button
-          type="button"
-          onClick={() => setError(null)}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-1"
-        >
-          {t("gpu.dismiss")}
-        </button>
       </div>
     );
   }
@@ -237,39 +149,6 @@ function GpuStatusBadge() {
     );
   }
 
-  // State 7: GPU available, not downloaded — show banner
-  if (gpuResult?.available && !dismissed) {
-    return (
-      <div className="mt-2 rounded-md border border-primary/20 bg-primary/5 p-2.5">
-        <div className="flex items-start gap-2.5">
-          <Zap size={13} className="text-primary shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-foreground">{t("gpu.reasoningBanner")}</p>
-            <div className="flex items-center gap-2 mt-1.5">
-              <Button
-                onClick={handleDownload}
-                size="sm"
-                variant="default"
-                className="h-6 px-2.5 text-xs"
-              >
-                {t("gpu.enableButton")}
-              </Button>
-              <button
-                onClick={() => {
-                  localStorage.setItem("llamaVulkanBannerDismissed", "true");
-                  setDismissed(true);
-                }}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {t("gpu.dismiss")}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return null;
 }
 
@@ -293,7 +172,6 @@ export default function ReasoningModelSelector({
         sizeBytes: model.sizeBytes,
         description: model.description,
         descriptionKey: model.descriptionKey,
-        specUrl: model.hfRepo ? `https://huggingface.co/${model.hfRepo}` : undefined,
         recommended: model.recommended,
       })),
     }));
@@ -367,9 +245,7 @@ export default function ReasoningModelSelector({
         selectedProvider={selectedLocalProvider}
         onModelSelect={setReasoningModel}
         onProviderSelect={handleLocalProviderChange}
-        modelType="llm"
         colorScheme="purple"
-        onDownloadComplete={loadDownloadedModels}
       />
       <GpuStatusBadge />
     </div>

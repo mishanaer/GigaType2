@@ -85,7 +85,7 @@ export default function InferenceConfigEditor({ scope, onModeChange }: Inference
       }
       setResolvedLLMConfig(scope, patch);
 
-      if (mode === "self-hosted" || mode === "enterprise") {
+      if (mode === "self-hosted") {
         window.electronAPI?.llamaServerStop?.();
       }
 
@@ -144,7 +144,6 @@ export default function InferenceConfigEditor({ scope, onModeChange }: Inference
           <Toggle checked={config.disableThinking} onChange={setField("disableThinking")} />
         </div>
       )}
-
     </div>
   );
 }

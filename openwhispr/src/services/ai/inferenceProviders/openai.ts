@@ -1,5 +1,5 @@
 import type { InferenceProvider } from "./types";
-import { API_ENDPOINTS, TOKEN_LIMITS, buildApiUrl } from "../../../config/constants";
+import { TOKEN_LIMITS, buildApiUrl } from "../../../config/constants";
 import { getOpenAiApiConfig } from "../../../models/ModelRegistry";
 import { getSettings } from "../../../stores/settingsStore";
 import { withRetry, createApiRetryStrategy } from "../../../utils/retry";
@@ -118,21 +118,17 @@ async function detectServerType(base: string): Promise<void> {
   }
 }
 
+// OpenAI-compatible client for a self-hosted server. It sends no credentials
+// and has no built-in endpoint — the URL comes from the user's settings.
 export const openaiProvider: InferenceProvider = {
-  id: "openai",
+  id: "openai-compatible",
   async call({ text, model, agentName, config, ctx }) {
     const resolvedProvider = config.provider || getSettings().cleanupProvider || "";
-    const isCustomProvider = resolvedProvider === "custom";
-
-    logger.logReasoning("OPENAI_START", {
-      model,
-      agentName,
-      isCustomProvider,
-    });
-
-    if (!isCustomProvider) {
-      throw new Error("OpenAI cloud reasoning is disabled");
+    if (resolvedProvider !== "custom") {
+      throw new Error("Only self-hosted OpenAI-compatible endpoints are supported");
     }
+
+    logger.logReasoning("SELF_HOSTED_START", { model, agentName });
 
     const systemPrompt = config.systemPrompt || ctx.getSystemPrompt(agentName);
     const messages = [
@@ -141,24 +137,17 @@ export const openaiProvider: InferenceProvider = {
     ];
 
     const openAiBase = config.baseUrl?.trim() || getConfiguredOpenAIBase();
+    if (!openAiBase) {
+      throw new Error("No self-hosted endpoint configured");
+    }
     await detectServerType(openAiBase);
     const endpointCandidates = getEndpointCandidates(openAiBase);
-    const isCustomEndpoint = openAiBase !== API_ENDPOINTS.OPENAI_BASE;
 
-    logger.logReasoning("OPENAI_ENDPOINTS", {
+    logger.logReasoning("SELF_HOSTED_ENDPOINTS", {
       base: openAiBase,
-      isCustomEndpoint,
       candidates: endpointCandidates.map((candidate) => candidate.url),
       preference: readStoredPreference(openAiBase) || null,
     });
-
-    if (isCustomEndpoint) {
-      logger.logReasoning("CUSTOM_TEXT_CLEANUP_REQUEST", {
-        customBase: openAiBase,
-        model,
-        textLength: text.length,
-      });
-    }
 
     const response = await withRetry(async () => {
       let lastError: Error | null = null;
@@ -206,7 +195,9 @@ export const openaiProvider: InferenceProvider = {
           if (!res.ok) {
             const errorData = await res.json().catch(() => ({ error: res.statusText }));
             const errorMessage =
-              errorData.error?.message || errorData.message || `OpenAI API error: ${res.status}`;
+              errorData.error?.message ||
+              errorData.message ||
+              `Inference endpoint error: ${res.status}`;
 
             const isUnsupportedEndpoint =
               (res.status === 404 || res.status === 405) && type === "responses";
@@ -244,7 +235,7 @@ export const openaiProvider: InferenceProvider = {
         }
       }
 
-      throw lastError || new Error("No OpenAI endpoint responded");
+      throw lastError || new Error("No inference endpoint responded");
     }, createApiRetryStrategy());
 
     const isResponsesApi = Array.isArray(response?.output);

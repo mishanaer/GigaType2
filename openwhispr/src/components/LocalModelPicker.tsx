@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ProviderTabs } from "./ui/ProviderTabs";
-import { DownloadProgressBar } from "./ui/DownloadProgressBar";
 import ModelCardList, { type ModelCardOption } from "./ui/ModelCardList";
-import { useModelDownload, type ModelType } from "../hooks/useModelDownload";
 import { MODEL_PICKER_COLORS, type ColorScheme } from "../utils/modelPickerStyles";
 import { getProviderIcon, isMonochromeProvider } from "../utils/providerIcons";
 
@@ -14,7 +12,6 @@ export interface LocalModel {
   sizeBytes?: number;
   description: string;
   descriptionKey?: string;
-  specUrl?: string;
   isDownloaded?: boolean;
   downloaded?: boolean;
   recommended?: boolean;
@@ -32,10 +29,8 @@ interface LocalModelPickerProps {
   selectedProvider: string;
   onModelSelect: (modelId: string) => void;
   onProviderSelect: (providerId: string) => void;
-  modelType: ModelType;
   colorScheme?: Exclude<ColorScheme, "blue">;
   className?: string;
-  onDownloadComplete?: () => void;
 }
 
 export default function LocalModelPicker({
@@ -44,10 +39,8 @@ export default function LocalModelPicker({
   selectedProvider,
   onModelSelect,
   onProviderSelect,
-  modelType,
   colorScheme = "purple",
   className = "",
-  onDownloadComplete,
 }: LocalModelPickerProps) {
   const { t } = useTranslation();
   const [downloadedModels, setDownloadedModels] = useState<Set<string>>(new Set());
@@ -83,41 +76,8 @@ export default function LocalModelPicker({
     initAndValidate();
   }, [loadDownloadedModels, selectedModel, onModelSelect]);
 
-  const handleDownloadComplete = useCallback(() => {
-    loadDownloadedModels();
-    onDownloadComplete?.();
-  }, [loadDownloadedModels, onDownloadComplete]);
-
-  const {
-    downloadingModel,
-    downloadProgress,
-    downloadModel,
-    isDownloadingModel,
-    cancelDownload,
-    isCancelling,
-  } = useModelDownload({
-    modelType,
-    onDownloadComplete: handleDownloadComplete,
-    onModelsCleared: loadDownloadedModels,
-  });
-
-  const handleDownload = useCallback(
-    (modelId: string) => {
-      downloadModel(modelId, onModelSelect);
-    },
-    [downloadModel, onModelSelect]
-  );
-
   const currentProvider = providers.find((p) => p.id === selectedProvider);
   const models = useMemo(() => currentProvider?.models || [], [currentProvider?.models]);
-
-  const progressDisplay = useMemo(() => {
-    if (!downloadingModel) return null;
-
-    const modelName = models.find((m) => m.id === downloadingModel)?.name || downloadingModel;
-
-    return <DownloadProgressBar modelName={modelName} progress={downloadProgress} />;
-  }, [downloadingModel, downloadProgress, models]);
 
   return (
     <div className={className}>
@@ -129,8 +89,6 @@ export default function LocalModelPicker({
         scrollable
       />
 
-      {progressDisplay}
-
       <div className="mt-2">
         <h5 className={`${styles.header} mb-2`}>{t("common.availableModels")}</h5>
 
@@ -140,20 +98,16 @@ export default function LocalModelPicker({
               value: model.id,
               label: model.name,
               description: model.size,
-              specUrl: model.specUrl,
               icon: getProviderIcon(selectedProvider),
               invertInDark: isMonochromeProvider(selectedProvider),
               recommended: model.recommended,
               isDownloaded:
                 downloadedModels.has(model.id) || model.isDownloaded || model.downloaded,
-              isDownloading: isDownloadingModel(model.id),
             })
           )}
           selectedModel={selectedModel}
           onModelSelect={onModelSelect}
-          onDownload={handleDownload}
-          onCancelDownload={cancelDownload}
-          isCancelling={isCancelling}
+          localMode
           colorScheme={colorScheme}
         />
       </div>

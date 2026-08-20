@@ -29,7 +29,7 @@ export default function OpenAICompatiblePanel({
   model,
   setModel,
   defaultBaseUrl,
-  baseUrlPlaceholder = "https://api.openai.com/v1",
+  baseUrlPlaceholder = "http://127.0.0.1:8080/v1",
   helpExamples,
 }: OpenAICompatiblePanelProps) {
   const { t } = useTranslation();
@@ -238,8 +238,8 @@ export default function OpenAICompatiblePanel({
         {helpExamples ?? (
           <p className="text-xs text-muted-foreground">
             {t("reasoning.custom.endpointExamples")}{" "}
-            <code className="text-primary">https://openrouter.ai/api/v1</code> (OpenRouter),{" "}
-            <code className="text-primary">https://api.together.xyz/v1</code> (Together).
+            <code className="text-primary">http://127.0.0.1:8080/v1</code> (llama.cpp),{" "}
+            <code className="text-primary">http://127.0.0.1:11434/v1</code> (Ollama).
           </p>
         )}
       </div>

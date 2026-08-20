@@ -235,21 +235,6 @@
     }
   },
   "controlPanel": {
-    "update": {
-      "readyTitle": "更新已准备就绪",
-      "readyDescription": "点击“安装更新”以重启并安装最新版本。",
-      "problemTitle": "更新遇到问题",
-      "problemDescription": "无法完成更新，请稍后再试。",
-      "installTitle": "安装更新",
-      "installDescription": "Type 将重启以应用更新。当前进行中的工作将被保存。",
-      "couldNotInstallTitle": "无法安装更新",
-      "couldNotInstallDescription": "出了点问题，请重试。",
-      "couldNotDownloadTitle": "无法下载更新",
-      "couldNotDownloadDescription": "请检查网络连接后重试。",
-      "installing": "正在安装...",
-      "installButton": "安装更新",
-      "availableButton": "有可用更新"
-    },
     "limit": {
       "weeklyTitle": "已达到周限额",
       "weeklyDescription": "你的额度按滚动方式重置。升级到 Pro 或使用自己的 API Key 可不受限制。"
@@ -366,41 +351,7 @@
     },
     "enterprise": {
       "title": "企业级提供商",
-      "description": "使用你组织的凭据连接云端提供商。",
-      "testConnection": "测试连接",
-      "testing": "测试中…",
-      "testSuccess": "已连接",
-      "testFailed": "连接失败",
-      "authMode": "认证方式",
-      "ssoProfile": "SSO 配置文件",
-      "accessKeys": "访问密钥",
-      "adc": "Application Default Credentials",
-      "apiKeyMode": "API 密钥",
-      "region": "区域",
-      "profile": "配置文件名称",
-      "accessKeyId": "Access Key ID",
-      "secretAccessKey": "Secret Access Key",
-      "sessionToken": "Session Token（可选）",
-      "endpoint": "端点 URL",
-      "deploymentName": "部署名称",
-      "apiVersion": "API 版本",
-      "projectId": "项目 ID",
-      "location": "位置",
-      "customModelId": "自定义模型 ID",
-      "customModelPlaceholder": "输入模型 ID 或部署名称",
-      "suggestedModels": "推荐模型",
-      "bedrock": {
-        "ssoHelp": "使用你的 AWS CLI SSO 配置。请确保已运行 'aws sso login'。",
-        "keysHelp": "输入你的 AWS IAM 访问密钥。"
-      },
-      "azure": {
-        "endpointHelp": "你的 Azure OpenAI 资源端点（例如 https://myresource.openai.azure.com）。",
-        "deploymentHelp": "Azure OpenAI 中的模型部署名称。"
-      },
-      "vertex": {
-        "adcHelp": "使用 Application Default Credentials。请执行：gcloud auth application-default login",
-        "apikeyHelp": "从 Google AI Studio 获取的 Vertex AI Express Mode API 密钥。"
-      }
+      "description": "使用你组织的凭据连接云端提供商。"
     }
   },
   "hooks": {
@@ -451,13 +402,6 @@
     "modelDownload": {
       "errors": {
         "timeout": "下载超时，请检查网络连接后重试。",
-        "notFound": "无法连接到下载服务器，请检查网络连接。",
-        "corrupted": "下载不完整或已损坏，请重试。",
-        "rateLimited": "下载服务器正在限流，请等待几分钟后重试。",
-        "server": "服务器错误（{{error}}），请稍后重试。",
-        "generic": "下载失败：{{error}}",
-        "extractionFailed": "模型已下载但安装失败。点击下载以重新安装，无需重新下载。",
-        "tlsError": "证书错误 — 您的网络可能使用了阻止下载的SSL检查。请尝试从其他网络下载。",
         "unknown": "未知错误"
       },
       "downloadFailed": {
@@ -1612,7 +1556,6 @@
     }
   },
   "models": {
-    "learnMore": "了解更多",
     "descriptions": {
       "transcription": {
         "gigaam_v3_e2e_rnnt": "GigaAM speech recognition"
@@ -2082,9 +2025,6 @@
     "addButton": "添加密钥"
   },
   "gpu": {
-    "transcriptionBanner": "使用 GPU 加速转录",
-    "reasoningBanner": "使用 GPU 加速 AI 处理",
-    "enableButton": "启用 GPU",
     "active": "GPU 加速已启用",
     "ready": "GPU 加速已就绪",
     "activating": "正在激活 GPU...",
@@ -2225,20 +2165,7 @@
     "description": "连接服务以增强您的工作流程",
     "googleCalendar": {
       "title": "Google 日历",
-      "optional": "可选",
-      "description": "从日历自动填充会议名称和参与者。",
-      "connect": "连接 Google 日历",
-      "connecting": "连接中...",
-      "connected": "已连接",
-      "addAnother": "添加其他日历",
-      "primaryOnly": "仅同步主日历",
-      "primaryOnlyDescription": "忽略他人共享给你的日历事件。",
-      "disconnect": "断开",
-      "disconnectConfirm": "断开 {{email}}？",
-      "disconnectDescription": "将不再从此日历记录会议笔记。",
-      "systemAudioRequired": "需要系统音频权限",
-      "systemAudioDescription": "要转录会议，Type 需要系统音频权限来录制其他参与者的音频。我们绝不会录制您的屏幕。您将被引导至系统设置以启用此权限。",
-      "openSettings": "打开系统设置"
+      "description": "从日历自动填充会议名称和参与者。"
     },
     "sections": {
       "calendar": "日历",

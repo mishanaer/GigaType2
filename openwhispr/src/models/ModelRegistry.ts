@@ -30,28 +30,6 @@ export interface ModelProvider {
   baseUrl: string;
   models: ModelDefinition[];
   formatPrompt(text: string, systemPrompt: string): string;
-  getDownloadUrl(model: ModelDefinition): string;
-}
-
-export interface CloudModelDefinition {
-  id: string;
-  name: string;
-  description: string;
-  descriptionKey?: string;
-  disableThinking?: boolean;
-  supportsThinking?: boolean;
-  tokenParam?: "max_tokens" | "max_completion_tokens";
-  supportsTemperature?: boolean;
-}
-
-export interface CloudProviderData {
-  id: string;
-  name: string;
-  models: CloudModelDefinition[];
-}
-
-export interface EnterpriseProviderData extends CloudProviderData {
-  allowCustomModelId: boolean;
 }
 
 export interface TranscriptionModelDefinition {
@@ -71,8 +49,6 @@ export interface TranscriptionProviderData {
 
 interface ModelRegistryData {
   transcriptionProviders: TranscriptionProviderData[];
-  cloudProviders: CloudProviderData[];
-  enterpriseProviders: EnterpriseProviderData[];
   localProviders: LocalProviderData[];
 }
 
@@ -131,14 +107,6 @@ class ModelRegistry {
     return models;
   }
 
-  getCloudProviders(): CloudProviderData[] {
-    return modelData.cloudProviders;
-  }
-
-  getEnterpriseProviders(): EnterpriseProviderData[] {
-    return modelData.enterpriseProviders;
-  }
-
   getTranscriptionProviders(): TranscriptionProviderData[] {
     return modelData.transcriptionProviders;
   }
@@ -155,9 +123,6 @@ class ModelRegistry {
         baseUrl: providerData.baseUrl,
         models: providerData.models,
         formatPrompt,
-        getDownloadUrl(model: ModelDefinition): string {
-          return `${providerData.baseUrl}/${model.hfRepo}/resolve/main/${model.fileName}`;
-        },
       });
     }
   }
@@ -179,38 +144,8 @@ export interface ReasoningProvider {
 
 export type ReasoningProviders = Record<string, ReasoningProvider>;
 
-export type EnterpriseProvider = "bedrock" | "azure" | "vertex";
-export const ENTERPRISE_PROVIDERS: readonly EnterpriseProvider[] = ["bedrock", "azure", "vertex"];
-export function isEnterpriseProvider(value: unknown): value is EnterpriseProvider {
-  return typeof value === "string" && (ENTERPRISE_PROVIDERS as readonly string[]).includes(value);
-}
-
 function buildReasoningProviders(): ReasoningProviders {
   const providers: ReasoningProviders = {};
-
-  for (const cloudProvider of modelRegistry.getCloudProviders()) {
-    providers[cloudProvider.id] = {
-      name: cloudProvider.name,
-      models: cloudProvider.models.map((m) => ({
-        value: m.id,
-        label: m.name,
-        description: m.description,
-        descriptionKey: m.descriptionKey,
-      })),
-    };
-  }
-
-  for (const ep of modelRegistry.getEnterpriseProviders()) {
-    providers[ep.id] = {
-      name: ep.name,
-      models: ep.models.map((m) => ({
-        value: m.id,
-        label: m.name,
-        description: m.description,
-        descriptionKey: m.descriptionKey,
-      })),
-    };
-  }
 
   providers.local = {
     name: "Local AI",
@@ -248,43 +183,12 @@ export function getReasoningModelLabel(modelId: string): string {
 }
 
 export function getModelProvider(modelId: string): string {
-  const storedProvider = getSettings().cleanupProvider;
-
-  if (storedProvider === "custom") {
+  if (getSettings().cleanupProvider === "custom") {
     return "custom";
   }
 
-  if (isEnterpriseProvider(storedProvider)) {
-    return storedProvider;
-  }
-
   const model = getAllReasoningModels().find((m) => m.value === modelId);
-
-  if (!model) {
-    if (modelId.includes("claude")) return "anthropic";
-    if (modelId.includes("gemini") && !modelId.includes("gemma")) return "gemini";
-    if ((modelId.includes("gpt-4") || modelId.includes("gpt-5")) && !modelId.includes("gpt-oss"))
-      return "openai";
-    if (
-      modelId.includes("qwen/") ||
-      modelId.includes("openai/") ||
-      modelId.includes("llama-3.1-8b-instant") ||
-      modelId.includes("llama-3.3-") ||
-      modelId.includes("meta-llama/llama-4-") ||
-      modelId.includes("groq/compound") ||
-      modelId.includes("moonshotai/kimi-k2-")
-    )
-      return "groq";
-    if (
-      modelId.includes("qwen") ||
-      modelId.includes("llama") ||
-      modelId.includes("mistral") ||
-      modelId.includes("gpt-oss-20b-mxfp4")
-    )
-      return "local";
-  }
-
-  return model?.provider || "openai";
+  return model?.provider || "local";
 }
 
 export function getTranscriptionProviders(): TranscriptionProviderData[] {
@@ -314,18 +218,6 @@ export function getDefaultTranscriptionModel(providerId: string): string {
   return models[0]?.id || "gigaam-v3-e2e-rnnt";
 }
 
-export function getCloudModel(modelId: string): CloudModelDefinition | undefined {
-  for (const provider of modelData.cloudProviders) {
-    const model = provider.models.find((m) => m.id === modelId);
-    if (model) return model;
-  }
-  for (const provider of modelData.enterpriseProviders) {
-    const model = provider.models.find((m) => m.id === modelId);
-    if (model) return model;
-  }
-  return undefined;
-}
-
 export function getLocalModel(modelId: string): ModelDefinition | undefined {
   return modelRegistry.getModel(modelId)?.model;
 }
@@ -335,16 +227,9 @@ export interface OpenAiApiConfig {
   supportsTemperature: boolean;
 }
 
+// Self-hosted OpenAI-compatible servers accept arbitrary model ids, so this is
+// pure heuristics over the id.
 export function getOpenAiApiConfig(modelId: string): OpenAiApiConfig {
-  const model = getCloudModel(modelId);
-  if (model?.tokenParam) {
-    return {
-      tokenParam: model.tokenParam,
-      supportsTemperature: model.supportsTemperature ?? true,
-    };
-  }
-
-  // Fallback for models not in the registry (custom model IDs, etc.)
   const isLegacy =
     modelId.startsWith("gpt-3") ||
     modelId.startsWith("gpt-4o") ||

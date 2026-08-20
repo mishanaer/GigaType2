@@ -99,18 +99,6 @@ class MenuManager {
             { role: "window" },
           ],
         },
-        {
-          label: i18nMain.t("menu.help"),
-          submenu: [
-            {
-              label: i18nMain.t("menu.learnMore"),
-              click: async () => {
-                const { shell } = require("electron");
-                await shell.openExternal("https://github.com/Type/openwhispr");
-              },
-            },
-          ],
-        },
       ];
 
       const menu = Menu.buildFromTemplate(template);

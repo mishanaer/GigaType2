@@ -3,11 +3,7 @@ import { API_ENDPOINTS } from "../config/constants";
 import i18n from "../i18n";
 import logger from "../utils/logger";
 import speechVadConstants from "../constants/speechVad.json";
-import type {
-  InferenceMode,
-  GigaamSidecarStatus,
-} from "../types/electron";
-import type { GoogleCalendarAccount } from "../types/calendar";
+import type { InferenceMode, GigaamSidecarStatus } from "../types/electron";
 import { PROMPT_KIND_LIST, type PromptKind } from "../config/prompts/registry";
 import {
   INFERENCE_SCOPES,
@@ -46,7 +42,18 @@ const AUTH_BACKED_CLOUD_MODE_KEYS = new Set([
   "chatAgentCloudMode",
   "dictationAgentCloudMode",
 ]);
-const DISABLED_CLOUD_PROVIDER_IDS = new Set(["openai", "anthropic", "gemini", "groq"]);
+// Hosted providers the app no longer talks to. Anything still stored under one
+// of these ids is migrated back to the bundled local engine.
+const DISABLED_CLOUD_PROVIDER_IDS = new Set([
+  "openai",
+  "anthropic",
+  "gemini",
+  "groq",
+  "mistral-cloud",
+  "bedrock",
+  "azure",
+  "vertex",
+]);
 const DEFAULT_LOCAL_PROVIDER = "qwen";
 
 const INFERENCE_STORAGE_SCOPES = [
@@ -223,12 +230,10 @@ const BOOLEAN_SETTINGS = new Set([
   "chatAgentDisableThinking",
   "notificationsEnabled",
   "notifyMeetingDetection",
-  "notifyCalendarReminders",
   "notifyUpdates",
-  "gcalPrimaryOnly",
 ]);
 
-const ARRAY_SETTINGS = new Set(["gcalAccounts"]);
+const ARRAY_SETTINGS = new Set<string>();
 
 const NUMERIC_SETTINGS = new Set([
   "speechVadThreshold",
@@ -280,7 +285,6 @@ function enforceFixedBehaviorSettings() {
   localStorage.setItem("startMinimized", String(FIXED_START_MINIMIZED));
   localStorage.setItem("notificationsEnabled", String(FIXED_NOTIFICATIONS_ENABLED));
   localStorage.setItem("notifyMeetingDetection", String(FIXED_NOTIFICATIONS_ENABLED));
-  localStorage.setItem("notifyCalendarReminders", String(FIXED_NOTIFICATIONS_ENABLED));
   localStorage.setItem("notifyUpdates", String(FIXED_NOTIFICATIONS_ENABLED));
 }
 
@@ -350,12 +354,6 @@ function migrateProviderSettings() {
     if (reasoningProvider === "custom") {
       newReasoningMode = "self-hosted";
     } else if (
-      reasoningProvider === "bedrock" ||
-      reasoningProvider === "azure" ||
-      reasoningProvider === "vertex"
-    ) {
-      newReasoningMode = "enterprise";
-    } else if (
       reasoningProvider === "qwen" ||
       reasoningProvider === "llama" ||
       reasoningProvider === "mistral" ||
@@ -390,12 +388,6 @@ function migrateAgentMode() {
     const localProviders = ["qwen", "llama", "mistral", "openai-oss", "gemma"];
     if (agentProvider === "custom") {
       agentInferenceMode = "self-hosted";
-    } else if (
-      agentProvider === "bedrock" ||
-      agentProvider === "azure" ||
-      agentProvider === "vertex"
-    ) {
-      agentInferenceMode = "enterprise";
     } else if (agentProvider && localProviders.includes(agentProvider)) {
       agentInferenceMode = "local";
     } else {
@@ -524,14 +516,9 @@ export interface SettingsState
   pauseMediaOnDictation: boolean;
   startMinimized: boolean;
   showDockIcon: boolean;
-  gcalAccounts: GoogleCalendarAccount[];
-  gcalConnected: boolean;
-  gcalEmail: string;
   notificationsEnabled: boolean;
   notifyMeetingDetection: boolean;
-  notifyCalendarReminders: boolean;
   notifyUpdates: boolean;
-  gcalPrimaryOnly: boolean;
   meetingProcessDetection: boolean;
   meetingAudioDetection: boolean;
   speakerDiarizationEnabled: boolean;
@@ -617,26 +604,6 @@ export interface SettingsState
   setCleanupProvider: (value: string) => void;
   setUiLanguage: (language: string) => void;
 
-  // Enterprise providers
-  bedrockAuthMode: string;
-  bedrockRegion: string;
-  bedrockProfile: string;
-  azureEndpoint: string;
-  azureDeploymentName: string;
-  azureApiVersion: string;
-  vertexAuthMode: string;
-  vertexProject: string;
-  vertexLocation: string;
-  setBedrockAuthMode: (value: string) => void;
-  setBedrockRegion: (value: string) => void;
-  setBedrockProfile: (value: string) => void;
-  setAzureEndpoint: (value: string) => void;
-  setAzureDeploymentName: (value: string) => void;
-  setAzureApiVersion: (value: string) => void;
-  setVertexAuthMode: (value: string) => void;
-  setVertexProject: (value: string) => void;
-  setVertexLocation: (value: string) => void;
-
   setDictationKey: (key: string) => void;
   setMeetingKey: (key: string) => void;
   setMeetingHotkeyLayoutMode: (mode: "side-panel" | "full-width") => void;
@@ -654,12 +621,9 @@ export interface SettingsState
   setPauseMediaOnDictation: (value: boolean) => void;
   setStartMinimized: (enabled: boolean) => void;
   setShowDockIcon: (enabled: boolean) => void;
-  setGcalAccounts: (accounts: GoogleCalendarAccount[]) => void;
   setNotificationsEnabled: (value: boolean) => void;
   setNotifyMeetingDetection: (value: boolean) => void;
-  setNotifyCalendarReminders: (value: boolean) => void;
   setNotifyUpdates: (value: boolean) => void;
-  setGcalPrimaryOnly: (value: boolean) => void;
   setMeetingProcessDetection: (value: boolean) => void;
   setMeetingAudioDetection: (value: boolean) => void;
   setSpeakerDiarizationEnabled: (value: boolean) => void;
@@ -849,17 +813,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   cleanupModel: readString("cleanupModel", ""),
   cleanupProvider: readString("cleanupProvider", DEFAULT_LOCAL_PROVIDER),
 
-  // Enterprise providers
-  bedrockAuthMode: readString("bedrockAuthMode", "sso"),
-  bedrockRegion: readString("bedrockRegion", "us-east-1"),
-  bedrockProfile: readString("bedrockProfile", ""),
-  azureEndpoint: readString("azureEndpoint", ""),
-  azureDeploymentName: readString("azureDeploymentName", ""),
-  azureApiVersion: readString("azureApiVersion", "2024-10-21"),
-  vertexAuthMode: readString("vertexAuthMode", "adc"),
-  vertexProject: readString("vertexProject", ""),
-  vertexLocation: readString("vertexLocation", "us-central1"),
-
   dictationKey: readString("dictationKey", ""),
   meetingKey: readString("meetingKey", ""),
   meetingHotkeyLayoutMode: (readString("meetingHotkeyLayoutMode", "full-width") === "side-panel"
@@ -881,23 +834,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   startMinimized: FIXED_START_MINIMIZED,
   notificationsEnabled: FIXED_NOTIFICATIONS_ENABLED,
   notifyMeetingDetection: FIXED_NOTIFICATIONS_ENABLED,
-  notifyCalendarReminders: FIXED_NOTIFICATIONS_ENABLED,
   notifyUpdates: FIXED_NOTIFICATIONS_ENABLED,
-  ...(() => {
-    let accounts: GoogleCalendarAccount[] = [];
-    try {
-      const parsed = JSON.parse(readString("gcalAccounts", "[]"));
-      if (Array.isArray(parsed)) accounts = parsed;
-    } catch {
-      /* use empty default */
-    }
-    return {
-      gcalAccounts: accounts,
-      gcalConnected: accounts.length > 0,
-      gcalEmail: accounts[0]?.email ?? "",
-    };
-  })(),
-  gcalPrimaryOnly: readBoolean("gcalPrimaryOnly", true),
   meetingProcessDetection: readBoolean("meetingProcessDetection", true),
   meetingAudioDetection: readBoolean("meetingAudioDetection", true),
   speakerDiarizationEnabled: readBoolean("speakerDiarizationEnabled", true),
@@ -910,19 +847,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   ),
   speechVadMinSpeechDurationMs: clampVadValue(
     "minSpeechDurationMs",
-    readMigratedString(
-      "speechVadMinSpeechDurationMs",
-      "whisperVadMinSpeechDurationMs",
-      "250"
-    )
+    readMigratedString("speechVadMinSpeechDurationMs", "whisperVadMinSpeechDurationMs", "250")
   ),
   speechVadMinSilenceDurationMs: clampVadValue(
     "minSilenceDurationMs",
-    readMigratedString(
-      "speechVadMinSilenceDurationMs",
-      "whisperVadMinSilenceDurationMs",
-      "200"
-    )
+    readMigratedString("speechVadMinSilenceDurationMs", "whisperVadMinSilenceDurationMs", "200")
   ),
   speechVadMaxSpeechDurationS: clampVadValue(
     "maxSpeechDurationS",
@@ -944,7 +873,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   remoteTranscriptionUrl: readString("remoteTranscriptionUrl", ""),
   cleanupMode: (() => {
     const v = readString("cleanupMode", "local");
-    if (v === "local" || v === "self-hosted" || v === "enterprise") return v;
+    if (v === "local" || v === "self-hosted") return v;
     return "local" as InferenceMode;
   })(),
   cleanupRemoteUrl: readString("cleanupRemoteUrl", ""),
@@ -958,7 +887,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   noteFormattingMode: (() => {
     const v = readString("noteFormattingMode", "local");
-    if (v === "local" || v === "self-hosted" || v === "enterprise") return v;
+    if (v === "local" || v === "self-hosted") return v;
     return "local" as InferenceMode;
   })(),
   noteFormattingProvider: readString("noteFormattingProvider", ""),
@@ -987,7 +916,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   chatAgentCloudMode: readString("chatAgentCloudMode", "byok"),
   chatAgentMode: (() => {
     const v = readString("chatAgentMode", "local");
-    if (v === "local" || v === "self-hosted" || v === "enterprise") return v;
+    if (v === "local" || v === "self-hosted") return v;
     return "local" as InferenceMode;
   })(),
   chatAgentRemoteUrl: readString("chatAgentRemoteUrl", ""),
@@ -995,7 +924,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
 
   dictationAgentMode: (() => {
     const v = readString("dictationAgentMode", "local");
-    if (v === "local" || v === "self-hosted" || v === "enterprise") return v;
+    if (v === "local" || v === "self-hosted") return v;
     return "local" as InferenceMode;
   })(),
   dictationAgentProvider: readString("dictationAgentProvider", ""),
@@ -1065,58 +994,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
         );
       });
     }
-  },
-
-  // Enterprise provider setters
-  setBedrockAuthMode: (value: string) => {
-    if (isBrowser) localStorage.setItem("bedrockAuthMode", value);
-    set({ bedrockAuthMode: value });
-  },
-  setBedrockRegion: (value: string) => {
-    if (isBrowser) localStorage.setItem("bedrockRegion", value);
-    set({ bedrockRegion: value });
-    window.electronAPI?.saveBedrockRegion?.(value);
-    debouncedPersistToEnv();
-  },
-  setBedrockProfile: (value: string) => {
-    if (isBrowser) localStorage.setItem("bedrockProfile", value);
-    set({ bedrockProfile: value });
-    window.electronAPI?.saveBedrockProfile?.(value);
-    debouncedPersistToEnv();
-  },
-  setAzureEndpoint: (value: string) => {
-    if (isBrowser) localStorage.setItem("azureEndpoint", value);
-    set({ azureEndpoint: value });
-    window.electronAPI?.saveAzureEndpoint?.(value);
-    debouncedPersistToEnv();
-  },
-  setAzureDeploymentName: (value: string) => {
-    if (isBrowser) localStorage.setItem("azureDeploymentName", value);
-    set({ azureDeploymentName: value });
-    window.electronAPI?.saveAzureDeployment?.(value);
-    debouncedPersistToEnv();
-  },
-  setAzureApiVersion: (value: string) => {
-    if (isBrowser) localStorage.setItem("azureApiVersion", value);
-    set({ azureApiVersion: value });
-    window.electronAPI?.saveAzureApiVersion?.(value);
-    debouncedPersistToEnv();
-  },
-  setVertexAuthMode: (value: string) => {
-    if (isBrowser) localStorage.setItem("vertexAuthMode", value);
-    set({ vertexAuthMode: value });
-  },
-  setVertexProject: (value: string) => {
-    if (isBrowser) localStorage.setItem("vertexProject", value);
-    set({ vertexProject: value });
-    window.electronAPI?.saveVertexProject?.(value);
-    debouncedPersistToEnv();
-  },
-  setVertexLocation: (value: string) => {
-    if (isBrowser) localStorage.setItem("vertexLocation", value);
-    set({ vertexLocation: value });
-    window.electronAPI?.saveVertexLocation?.(value);
-    debouncedPersistToEnv();
   },
 
   setDictationKey: (key: string) => {
@@ -1202,14 +1079,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     }
   },
 
-  setGcalAccounts: (accounts: GoogleCalendarAccount[]) => {
-    if (isBrowser) localStorage.setItem("gcalAccounts", JSON.stringify(accounts));
-    useSettingsStore.setState({
-      gcalAccounts: accounts,
-      gcalConnected: accounts.length > 0,
-      gcalEmail: accounts[0]?.email ?? "",
-    });
-  },
   setNotificationsEnabled: () => {
     if (isBrowser)
       localStorage.setItem("notificationsEnabled", String(FIXED_NOTIFICATIONS_ENABLED));
@@ -1221,20 +1090,9 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     }
     useSettingsStore.setState({ notifyMeetingDetection: FIXED_NOTIFICATIONS_ENABLED });
   },
-  setNotifyCalendarReminders: () => {
-    if (isBrowser) {
-      localStorage.setItem("notifyCalendarReminders", String(FIXED_NOTIFICATIONS_ENABLED));
-    }
-    useSettingsStore.setState({ notifyCalendarReminders: FIXED_NOTIFICATIONS_ENABLED });
-  },
   setNotifyUpdates: () => {
     if (isBrowser) localStorage.setItem("notifyUpdates", String(FIXED_NOTIFICATIONS_ENABLED));
     useSettingsStore.setState({ notifyUpdates: FIXED_NOTIFICATIONS_ENABLED });
-  },
-  setGcalPrimaryOnly: (value: boolean) => {
-    if (isBrowser) localStorage.setItem("gcalPrimaryOnly", String(value));
-    useSettingsStore.setState({ gcalPrimaryOnly: value });
-    if (isBrowser) window.electronAPI?.gcalSetPrimaryOnly?.(value);
   },
   setMeetingProcessDetection: createBooleanSetter("meetingProcessDetection"),
   setMeetingAudioDetection: createBooleanSetter("meetingAudioDetection"),
@@ -1595,9 +1453,7 @@ export async function initializeSettings(): Promise<void> {
     try {
       let activationMode = state.activationMode;
       if (localStorage.getItem("activationMode") === null) {
-        activationMode = normalizeActivationMode(
-          await window.electronAPI.getActivationMode?.()
-        );
+        activationMode = normalizeActivationMode(await window.electronAPI.getActivationMode?.());
         localStorage.setItem("activationMode", activationMode);
       }
 
@@ -1607,7 +1463,6 @@ export async function initializeSettings(): Promise<void> {
         pauseMediaOnDictation: FIXED_PAUSE_MEDIA_ON_DICTATION,
         notificationsEnabled: FIXED_NOTIFICATIONS_ENABLED,
         notifyMeetingDetection: FIXED_NOTIFICATIONS_ENABLED,
-        notifyCalendarReminders: FIXED_NOTIFICATIONS_ENABLED,
         notifyUpdates: FIXED_NOTIFICATIONS_ENABLED,
       });
       await window.electronAPI.saveActivationMode?.(activationMode);
@@ -1665,23 +1520,11 @@ export async function initializeSettings(): Promise<void> {
       await window.electronAPI.syncNotificationPreferences?.({
         notificationsEnabled: FIXED_NOTIFICATIONS_ENABLED,
         notifyMeetingDetection: FIXED_NOTIFICATIONS_ENABLED,
-        notifyCalendarReminders: FIXED_NOTIFICATIONS_ENABLED,
         notifyUpdates: FIXED_NOTIFICATIONS_ENABLED,
       });
     } catch (err) {
       logger.warn(
         "Failed to sync notification preferences on startup",
-        { error: (err as Error).message },
-        "settings"
-      );
-    }
-
-    try {
-      const currentState = useSettingsStore.getState();
-      await window.electronAPI.gcalSetPrimaryOnly?.(currentState.gcalPrimaryOnly);
-    } catch (err) {
-      logger.warn(
-        "Failed to sync gcal primary-only on startup",
         { error: (err as Error).message },
         "settings"
       );
@@ -1774,14 +1617,6 @@ export async function initializeSettings(): Promise<void> {
     }
 
     useSettingsStore.setState({ [key]: value });
-
-    if (key === "gcalAccounts" && Array.isArray(value)) {
-      const accounts = value as GoogleCalendarAccount[];
-      useSettingsStore.setState({
-        gcalConnected: accounts.length > 0,
-        gcalEmail: accounts[0]?.email ?? "",
-      });
-    }
 
     if (key === "uiLanguage" && typeof value === "string") {
       void i18n.changeLanguage(FIXED_UI_LANGUAGE);

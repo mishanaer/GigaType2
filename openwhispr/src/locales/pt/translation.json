@@ -207,21 +207,6 @@
     }
   },
   "controlPanel": {
-    "update": {
-      "readyTitle": "Atualização pronta para instalar",
-      "readyDescription": "Clique em 'Instalar atualização' para reiniciar com a versão mais recente.",
-      "problemTitle": "Houve um problema na atualização",
-      "problemDescription": "Não foi possível concluir a atualização. Tente novamente mais tarde.",
-      "installTitle": "Instalar atualização",
-      "installDescription": "O Type será reiniciado para aplicar a atualização. O trabalho em andamento será salvo.",
-      "couldNotInstallTitle": "Não foi possível instalar a atualização",
-      "couldNotInstallDescription": "Algo deu errado. Tente novamente.",
-      "couldNotDownloadTitle": "Não foi possível baixar a atualização",
-      "couldNotDownloadDescription": "Verifique sua conexão e tente novamente.",
-      "installing": "Instalando...",
-      "installButton": "Instalar atualização",
-      "availableButton": "Atualização disponível"
-    },
     "limit": {
       "weeklyTitle": "Limite semanal atingido",
       "weeklyDescription": "Seu limite é redefinido continuamente. Faça upgrade para Pro ou use sua própria chave API para uso ilimitado."
@@ -338,41 +323,7 @@
     },
     "enterprise": {
       "title": "Provedores corporativos",
-      "description": "Conecte-se a provedores de nuvem usando as credenciais da sua organização.",
-      "testConnection": "Testar conexão",
-      "testing": "Testando…",
-      "testSuccess": "Conectado",
-      "testFailed": "Falha na conexão",
-      "authMode": "Autenticação",
-      "ssoProfile": "Perfil SSO",
-      "accessKeys": "Chaves de acesso",
-      "adc": "Application Default Credentials",
-      "apiKeyMode": "Chave API",
-      "region": "Região",
-      "profile": "Nome do perfil",
-      "accessKeyId": "Access Key ID",
-      "secretAccessKey": "Secret Access Key",
-      "sessionToken": "Session Token (opcional)",
-      "endpoint": "URL do endpoint",
-      "deploymentName": "Nome do deployment",
-      "apiVersion": "Versão da API",
-      "projectId": "ID do projeto",
-      "location": "Localização",
-      "customModelId": "ID de modelo personalizado",
-      "customModelPlaceholder": "Informe um ID de modelo ou nome de deployment",
-      "suggestedModels": "Modelos sugeridos",
-      "bedrock": {
-        "ssoHelp": "Usa sua configuração SSO do AWS CLI. Certifique-se de ter executado 'aws sso login'.",
-        "keysHelp": "Informe suas chaves de acesso AWS IAM."
-      },
-      "azure": {
-        "endpointHelp": "O endpoint do seu recurso Azure OpenAI (ex.: https://myresource.openai.azure.com).",
-        "deploymentHelp": "Nome do deployment do seu modelo no Azure OpenAI."
-      },
-      "vertex": {
-        "adcHelp": "Usa Application Default Credentials. Execute: gcloud auth application-default login",
-        "apikeyHelp": "Chave API do Vertex AI Express Mode obtida no Google AI Studio."
-      }
+      "description": "Conecte-se a provedores de nuvem usando as credenciais da sua organização."
     }
   },
   "hooks": {
@@ -423,13 +374,6 @@
     "modelDownload": {
       "errors": {
         "timeout": "Tempo de download esgotado. Verifique sua conexão e tente novamente.",
-        "notFound": "Não foi possível acessar o servidor de download. Verifique sua conexão.",
-        "corrupted": "Download incompleto ou corrompido. Tente novamente.",
-        "rateLimited": "Servidor limitando requisições. Aguarde alguns minutos e tente novamente.",
-        "server": "Erro do servidor ({{error}}). Tente mais tarde.",
-        "generic": "Falha no download: {{error}}",
-        "extractionFailed": "Modelo baixado, mas a instalação falhou. Clique em baixar para tentar a instalação novamente sem precisar baixar de novo.",
-        "tlsError": "Erro de certificado — sua rede pode usar inspeção SSL que bloqueia downloads. Tente baixar de outra rede.",
         "unknown": "Erro desconhecido"
       },
       "downloadFailed": {
@@ -1589,7 +1533,6 @@
     }
   },
   "models": {
-    "learnMore": "Saiba mais",
     "descriptions": {
       "transcription": {
         "gigaam_v3_e2e_rnnt": "GigaAM speech recognition"
@@ -2087,9 +2030,6 @@
     "addButton": "Adicionar"
   },
   "gpu": {
-    "transcriptionBanner": "Acelere a transcrição com GPU",
-    "reasoningBanner": "Acelere o processamento de IA com GPU",
-    "enableButton": "Ativar GPU",
     "active": "Aceleração GPU ativa",
     "ready": "Aceleração GPU pronta",
     "activating": "Ativando GPU...",
@@ -2230,20 +2170,7 @@
     "description": "Conecte serviços para turbinar seu fluxo de trabalho",
     "googleCalendar": {
       "title": "Google Calendar",
-      "optional": "Opcional",
-      "description": "Preencha automaticamente títulos e participantes das reuniões a partir do seu calendário.",
-      "connect": "Conectar Google Calendar",
-      "connecting": "Conectando...",
-      "connected": "Conectado",
-      "addAnother": "Adicionar outro calendário",
-      "primaryOnly": "Sincronizar apenas o calendário principal",
-      "primaryOnlyDescription": "Ignorar eventos de calendários compartilhados com você.",
-      "disconnect": "Desconectar",
-      "disconnectConfirm": "Desconectar {{email}}?",
-      "disconnectDescription": "As notas de reunião não serão mais gravadas deste calendário.",
-      "systemAudioRequired": "Permissão de Áudio do Sistema Necessária",
-      "systemAudioDescription": "Para transcrever reuniões, o Type precisa da permissão de Áudio do Sistema para capturar o áudio dos outros participantes. Nunca gravamos a sua tela. Você será levado às Configurações do Sistema para ativá-la.",
-      "openSettings": "Abrir Configurações do Sistema"
+      "description": "Preencha automaticamente títulos e participantes das reuniões a partir do seu calendário."
     },
     "sections": {
       "calendar": "Calendário",
