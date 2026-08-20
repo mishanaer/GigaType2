@@ -1,6 +1,5 @@
 import React from "react";
 import i18n from "../i18n";
-import { trackTelemetryEvent } from "../utils/telemetry";
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -23,11 +22,6 @@ export default class ErrorBoundary extends React.Component<ErrorBoundaryProps, E
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("[ErrorBoundary] Uncaught error:", error, errorInfo);
-    void trackTelemetryEvent("error_occurred", {
-      error_area: "app_start",
-      error_code: error.name || "RENDERER_ERROR",
-      safe_message: error.message || "Renderer error",
-    });
   }
 
   handleReload = () => {

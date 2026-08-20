@@ -7,7 +7,6 @@ import { useDialogs } from "../hooks/useDialogs";
 import { useSettings } from "../hooks/useSettings";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { validateHotkeyForSlot } from "../utils/hotkeyValidation";
-import { trackTelemetryEvent } from "../utils/telemetry";
 
 export default function SettingsPage() {
   const { t } = useTranslation();
@@ -42,12 +41,6 @@ export default function SettingsPage() {
     (hotkey: string) => validateHotkeyForSlot(hotkey, {}, t),
     [t]
   );
-
-  useEffect(() => {
-    void trackTelemetryEvent("settings_screen_viewed", {}, {
-      onceKey: "settings_screen_viewed_sent",
-    });
-  }, []);
 
   return (
     <>

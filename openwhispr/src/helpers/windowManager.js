@@ -43,8 +43,6 @@ class WindowManager {
     this._cachedActivationMode = "push";
     this._isDictatingToggle = false;
     this._pendingMeetingNoteNavigation = null;
-    this.telemetryManager = null;
-    this._onCheckForUpdates = null;
     this.showDockIcon = true;
     this._dockVisibilityPromise = Promise.resolve();
     this._mainWindowRaiseTimers = new Set();
@@ -62,14 +60,6 @@ class WindowManager {
     for (const eventName of ["display-metrics-changed", "display-added", "display-removed"]) {
       screen.on(eventName, () => this.recoverControlPanelLayout());
     }
-  }
-
-  setTelemetryManager(telemetryManager) {
-    this.telemetryManager = telemetryManager;
-  }
-
-  setCheckForUpdatesHandler(fn) {
-    this._onCheckForUpdates = fn;
   }
 
   setEnsureTrayHandler(fn) {
@@ -180,10 +170,7 @@ class WindowManager {
     await this.loadMainWindow();
     await this.initializeHotkey();
     this.dragManager.setTargetWindow(this.mainWindow);
-    MenuManager.setupMainMenu(
-      () => this.openSettings(),
-      () => this._onCheckForUpdates?.()
-    );
+    MenuManager.setupMainMenu(() => this.openSettings());
   }
 
   setMainWindowInteractivity(shouldCapture) {
@@ -802,11 +789,7 @@ class WindowManager {
       this.controlPanelWindow = null;
     });
 
-    MenuManager.setupControlPanelMenu(
-      this.controlPanelWindow,
-      () => this.openSettings(),
-      () => this._onCheckForUpdates?.()
-    );
+    MenuManager.setupControlPanelMenu(this.controlPanelWindow, () => this.openSettings());
 
     this.controlPanelWindow.webContents.on("did-finish-load", () => {
       clearVisibilityTimer();
@@ -837,11 +820,6 @@ class WindowManager {
           { reason: details.reason, exitCode: details.exitCode },
           "window"
         );
-        this.telemetryManager?.capture?.("renderer_process_gone", {
-          error_area: "app_start",
-          reason: details.reason,
-          exit_code: details.exitCode,
-        });
         setTimeout(() => this.loadControlPanel(), 1000);
       }
     });
@@ -1202,11 +1180,6 @@ class WindowManager {
           { reason: details.reason, exitCode: details.exitCode },
           "window"
         );
-        this.telemetryManager?.capture?.("renderer_process_gone", {
-          error_area: "app_start",
-          reason: details.reason,
-          exit_code: details.exitCode,
-        });
         setTimeout(() => {
           if (this.mainWindow && !this.mainWindow.isDestroyed()) {
             this.mainWindow.webContents.reload();
@@ -1395,17 +1368,10 @@ class WindowManager {
   }
 
   refreshLocalizedUi() {
-    MenuManager.setupMainMenu(
-      () => this.openSettings(),
-      () => this._onCheckForUpdates?.()
-    );
+    MenuManager.setupMainMenu(() => this.openSettings());
 
     if (this.controlPanelWindow && !this.controlPanelWindow.isDestroyed()) {
-      MenuManager.setupControlPanelMenu(
-        this.controlPanelWindow,
-        () => this.openSettings(),
-        () => this._onCheckForUpdates?.()
-      );
+      MenuManager.setupControlPanelMenu(this.controlPanelWindow, () => this.openSettings());
       this.controlPanelWindow.setTitle(i18nMain.t("window.controlPanelTitle"));
     }
 

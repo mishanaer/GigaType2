@@ -40,8 +40,7 @@
     "help": "說明",
     "learnMore": "瞭解更多",
     "file": "檔案",
-    "closeWindow": "關閉視窗",
-    "checkForUpdates": "檢查更新…"
+    "closeWindow": "關閉視窗"
   },
   "window": {
     "voiceRecorderTitle": "錄音器",
@@ -2552,19 +2551,5 @@
       "successDescription": "Bienvenido a {{name}}.",
       "errorTitle": "No se pudo aceptar la invitación"
     }
-  },
-  "updater": {
-    "readyTitle": "更新已就緒",
-    "readyPrompt": "版本 {{version}} 已下載完成，可以安裝。",
-    "install": "安裝並重新啟動",
-    "later": "稍後",
-    "upToDateTitle": "已是最新版本",
-    "upToDateMessage": "您已在使用最新版本的 Type。",
-    "downloadFailedTitle": "無法下載更新",
-    "downloadFailedMessage": "下載更新時發生問題。請稍後再試。",
-    "installFailedTitle": "無法安裝更新",
-    "installFailedMessage": "安裝更新時發生問題。請稍後再試。",
-    "checkFailedTitle": "無法檢查更新",
-    "checkFailedMessage": "檢查更新時發生問題。請稍後再試。"
   }
 }

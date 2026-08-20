@@ -168,14 +168,6 @@ if (!gotSingleInstanceLock) {
 }
 
 const isLiveWindow = (window) => window && !window.isDestroyed();
-let telemetryManager = null;
-
-function captureMainProcessError(error, area = "app_start") {
-  telemetryManager?.captureError?.(error, area, {
-    error_code: error?.code || error?.name || "UNHANDLED_MAIN_PROCESS_ERROR",
-  });
-}
-
 // Add global error handling for uncaught exceptions
 process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
@@ -185,14 +177,10 @@ process.on("uncaughtException", (error) => {
   }
   // For other errors, log and continue
   console.error("Error stack:", error.stack);
-  captureMainProcessError(error);
 });
 
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
-  const error =
-    reason instanceof Error ? reason : new Error(String(reason || "Unhandled rejection"));
-  captureMainProcessError(error);
 });
 
 // Import helper module classes (but don't instantiate yet - wait for app.whenReady())
@@ -204,7 +192,6 @@ const DiarizationManager = require("./src/helpers/diarization");
 const TrayManager = require("./src/helpers/tray");
 const IPCHandlers = require("./src/helpers/ipcHandlers");
 const CliBridge = require("./src/helpers/cliBridge");
-const UpdateManager = require("./src/updater");
 const GlobeKeyManager = require("./src/helpers/globeKeyManager");
 const WindowsKeyManager = require("./src/helpers/windowsKeyManager");
 const LinuxKeyManager = require("./src/helpers/linuxKeyManager");
@@ -216,7 +203,6 @@ const AudioTapManager = require("./src/helpers/audioTapManager");
 const LinuxPortalAudioManager = require("./src/helpers/linuxPortalAudioManager");
 const MeetingDetectionEngine = require("./src/helpers/meetingDetectionEngine");
 const GigaamLocalAsrManager = require("./src/helpers/gigaamLocalAsr");
-const TelemetryService = require("./src/helpers/telemetryService");
 const { i18nMain, changeLanguage } = require("./src/helpers/i18nMain");
 const { ensureYdotool } = require("./src/helpers/ensureYdotool");
 const { getWindowsInstallRebootState } = require("./src/utils/windowsInstallReboot.cjs");
@@ -232,7 +218,6 @@ let databaseManager = null;
 let clipboardManager = null;
 let diarizationManager = null;
 let trayManager = null;
-let updateManager = null;
 let globeKeyManager = null;
 let windowsKeyManager = null;
 let linuxKeyManager = null;
@@ -280,11 +265,7 @@ function initializeCoreManagers() {
   process.env.UI_LANGUAGE = uiLanguage;
   changeLanguage(uiLanguage);
   debugLogger.refreshLogLevel();
-  telemetryManager = new TelemetryService();
-  TelemetryService.setShared(telemetryManager);
-
   windowManager = new WindowManager();
-  windowManager.setTelemetryManager?.(telemetryManager);
   hotkeyManager = windowManager.hotkeyManager;
   databaseManager = new DatabaseManager();
   clipboardManager = new ClipboardManager();
@@ -298,16 +279,6 @@ function initializeCoreManagers() {
     databaseManager
   );
   windowManager.meetingDetectionEngine = meetingDetectionEngine;
-  updateManager = new UpdateManager();
-  updateManager.setWindowManager(windowManager);
-  // Before the installer replaces the app, run the same teardown a normal quit
-  // does and wait for every sidecar to exit (Windows file locks / macOS .app
-  // swap). The before-quit handler below then lets quitAndInstall proceed.
-  updateManager.setPrepareForInstall(async () => {
-    performSyncTeardown();
-    await sidecarRegistry.shutdownAll();
-  });
-  windowManager.setCheckForUpdatesHandler(() => updateManager.runManualUpdateCheck(true));
   windowsKeyManager = new WindowsKeyManager();
   linuxKeyManager = new LinuxKeyManager();
   textEditMonitor = new TextEditMonitor();
@@ -323,7 +294,6 @@ function initializeCoreManagers() {
     clipboardManager,
     diarizationManager,
     windowManager,
-    updateManager,
     windowsKeyManager,
     linuxKeyManager,
     textEditMonitor,
@@ -331,7 +301,6 @@ function initializeCoreManagers() {
     meetingDetectionEngine,
     audioTapManager,
     linuxPortalAudioManager,
-    telemetryManager,
     gigaamLocalAsrManager: gigaamSidecarManager,
     getTrayManager: () => trayManager,
   });
@@ -372,7 +341,6 @@ function logStartupState() {
       appPath: app.getAppPath(),
       microphoneStatus,
       accessibilityTrusted,
-      startupUpdateChecksEnabled: updateManager?.startupUpdateChecksEnabled ?? null,
     },
     "startup"
   );
@@ -450,69 +418,7 @@ function broadcastGigaamSidecarStatus(status = getGigaamSidecarStatus()) {
 function setupGigaamSidecarIpc() {
   if (!gigaamSidecarManager) return;
 
-  let sawModelDownloadThisRun = false;
-  let sentModelDownloadStarted = false;
-  let sentModelDownloadSucceeded = false;
-  let sentModelReady = false;
-  let sentModelDownloadFailed = false;
-
   gigaamSidecarManager.on("status", (status) => {
-    if (status?.modelStage === "downloading") {
-      sawModelDownloadThisRun = true;
-      if (!sentModelDownloadStarted) {
-        sentModelDownloadStarted = true;
-        telemetryManager?.capture?.("model_download_started", {
-          provider: "huggingface",
-          model: status.modelName,
-          model_stage: status.modelStage,
-          model_progress: status.modelProgress,
-        });
-      }
-    }
-
-    const isReady = status?.healthStatus === "ok" || status?.modelStage === "ready";
-    if (isReady && !sentModelReady) {
-      const source = sawModelDownloadThisRun
-        ? "downloaded"
-        : status?.modelCacheComplete
-          ? "cached"
-          : "unknown";
-      sentModelReady = true;
-      if (sawModelDownloadThisRun && !sentModelDownloadSucceeded) {
-        sentModelDownloadSucceeded = true;
-        telemetryManager?.capture?.("model_download_succeeded", {
-          provider: "huggingface",
-          model: status.modelName,
-          source,
-        });
-      }
-      telemetryManager?.capture?.("model_ready", {
-        provider: "gigaam_local",
-        model: status.modelName,
-        source,
-        model_cache_complete: status.modelCacheComplete === true,
-      });
-    }
-
-    const isError = status?.healthStatus === "error" || status?.modelStage === "error";
-    if (isError && !sentModelDownloadFailed) {
-      sentModelDownloadFailed = true;
-      telemetryManager?.capture?.("model_download_failed", {
-        provider: "huggingface",
-        model: status.modelName,
-        model_stage: status.modelStage,
-        health_status: status.healthStatus,
-        error_code: "MODEL_PREPARATION_FAILED",
-        safe_message: status.healthDetail || "Model preparation failed",
-      });
-      telemetryManager?.capture?.("error_occurred", {
-        error_area: "model_download",
-        error_code: "MODEL_PREPARATION_FAILED",
-        safe_message: status.healthDetail || "Model preparation failed",
-        provider: "huggingface",
-      });
-    }
-
     broadcastGigaamSidecarStatus(status);
   });
 
@@ -589,12 +495,6 @@ async function startApp() {
   // Phase 1: Core managers + IPC handlers before windows
   initializeCoreManagers();
   await environmentManager.init();
-  await telemetryManager.init();
-  await telemetryManager.capture("first_app_opened", {}, { onceKey: "first_app_opened_sent" });
-  await telemetryManager.capture("app_opened", {
-    is_packaged: app.isPackaged,
-    node_env: process.env.NODE_ENV || null,
-  });
   logStartupState();
   ensureAutoStartEnabledByDefault();
   registerSidecars();
@@ -746,9 +646,6 @@ async function startApp() {
       await windowManager.setShowDockIcon(showDockIcon);
     }
   }
-
-  updateManager.setWindows(windowManager.mainWindow, windowManager.controlPanelWindow);
-  updateManager.checkForUpdatesOnStartup();
 
   if (process.platform === "darwin") {
     const {
@@ -1360,18 +1257,11 @@ if (gotSingleInstanceLock) {
 
   let isShuttingDown = false;
   app.on("before-quit", (event) => {
-    // Update install path: the updater already ran performSyncTeardown +
-    // sidecarRegistry.shutdownAll (via setPrepareForInstall) before calling
-    // quitAndInstall. Let the quit proceed so Squirrel/NSIS can swap the app —
-    // do NOT preventDefault or app.exit(0) here, or the install is aborted.
-    if (updateManager && updateManager.isInstalling) return;
     if (isShuttingDown) return;
     isShuttingDown = true;
     event.preventDefault();
     performSyncTeardown();
-    Promise.allSettled([telemetryManager?.shutdown?.(), sidecarRegistry.shutdownAll()]).finally(
-      () => app.exit(0)
-    );
+    sidecarRegistry.shutdownAll().finally(() => app.exit(0));
   });
 }
 
@@ -1397,5 +1287,4 @@ function performSyncTeardown() {
   if (linuxPortalAudioManager) linuxPortalAudioManager.stop().catch(() => {});
   if (ipcHandlers) ipcHandlers._cleanupTextEditMonitor();
   if (textEditMonitor) textEditMonitor.stopMonitoring();
-  if (updateManager) updateManager.cleanup();
 }

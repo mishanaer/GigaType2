@@ -11,11 +11,6 @@
   "directories": {
     "output": "dist"
   },
-  "publish": {
-    "provider": "generic",
-    "url": "https://obs.ru-moscow-1.hc.sbercloud.ru/d-ssdev-crowd/function_descriptions/gigatype-electron/prod",
-    "channel": "latest"
-  },
   "npmRebuild": true,
   "buildDependenciesFromSource": false,
   "files": [

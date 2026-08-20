@@ -40,8 +40,7 @@
     "help": "ヘルプ",
     "learnMore": "詳細を見る",
     "file": "ファイル",
-    "closeWindow": "ウィンドウを閉じる",
-    "checkForUpdates": "アップデートを確認…"
+    "closeWindow": "ウィンドウを閉じる"
   },
   "window": {
     "voiceRecorderTitle": "ボイスレコーダー",
@@ -2557,19 +2556,5 @@
       "successDescription": "Bienvenido a {{name}}.",
       "errorTitle": "No se pudo aceptar la invitación"
     }
-  },
-  "updater": {
-    "readyTitle": "アップデートの準備ができました",
-    "readyPrompt": "バージョン {{version}} のダウンロードが完了し、インストールの準備ができました。",
-    "install": "インストールして再起動",
-    "later": "後で",
-    "upToDateTitle": "最新の状態です",
-    "upToDateMessage": "すでに最新バージョンの Type を使用しています。",
-    "downloadFailedTitle": "アップデートをダウンロードできませんでした",
-    "downloadFailedMessage": "アップデートのダウンロード中に問題が発生しました。しばらくしてからもう一度お試しください。",
-    "installFailedTitle": "アップデートをインストールできませんでした",
-    "installFailedMessage": "アップデートのインストール中に問題が発生しました。しばらくしてからもう一度お試しください。",
-    "checkFailedTitle": "アップデートを確認できませんでした",
-    "checkFailedMessage": "アップデートの確認中に問題が発生しました。しばらくしてからもう一度お試しください。"
   }
 }

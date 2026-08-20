@@ -40,8 +40,7 @@
     "help": "Hilfe",
     "learnMore": "Mehr erfahren",
     "file": "Datei",
-    "closeWindow": "Fenster schließen",
-    "checkForUpdates": "Nach Updates suchen…"
+    "closeWindow": "Fenster schließen"
   },
   "window": {
     "voiceRecorderTitle": "Sprachrekorder",
@@ -2557,19 +2556,5 @@
       "successDescription": "Willkommen bei {{name}}.",
       "errorTitle": "Einladung konnte nicht angenommen werden"
     }
-  },
-  "updater": {
-    "readyTitle": "Update bereit",
-    "readyPrompt": "Version {{version}} wurde heruntergeladen und kann installiert werden.",
-    "install": "Installieren und neu starten",
-    "later": "Später",
-    "upToDateTitle": "Alles aktuell",
-    "upToDateMessage": "Du verwendest bereits die neueste Version von Type.",
-    "downloadFailedTitle": "Update konnte nicht heruntergeladen werden",
-    "downloadFailedMessage": "Beim Herunterladen des Updates ist ein Fehler aufgetreten. Bitte versuche es später erneut.",
-    "installFailedTitle": "Update konnte nicht installiert werden",
-    "installFailedMessage": "Bei der Installation des Updates ist ein Fehler aufgetreten. Bitte versuche es später erneut.",
-    "checkFailedTitle": "Suche nach Updates fehlgeschlagen",
-    "checkFailedMessage": "Bei der Suche nach Updates ist ein Fehler aufgetreten. Bitte versuche es später erneut."
   }
 }

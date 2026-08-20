@@ -4,10 +4,8 @@ import { useTranslation } from "react-i18next";
 import type { PasteToolsResult } from "../types/electron";
 import { useLocalStorage } from "./useLocalStorage";
 import logger from "../utils/logger";
-import { areRequiredPermissionsMet } from "../utils/permissions";
 import { getPlatform } from "../utils/platform";
 import { describeMicAccessError } from "../utils/recordingErrors";
-import { trackTelemetryEvent } from "../utils/telemetry";
 
 export interface UsePermissionsReturn {
   // State
@@ -78,7 +76,6 @@ export const usePermissions = (
   );
   const [pasteToolsInfo, setPasteToolsInfo] = useState<PasteToolsResult | null>(null);
   const [isCheckingPasteTools, setIsCheckingPasteTools] = useState(false);
-  const platform = getPlatform();
 
   const openSystemSettings = useCallback(
     async (
@@ -152,27 +149,17 @@ export const usePermissions = (
       stopTracks(stream);
       setMicPermissionGranted(true);
       setMicPermissionError(null);
-      void trackTelemetryEvent("permission_result", {
-        permission: "microphone",
-        status: "granted",
-        trigger: "user_request",
-      });
     } catch (err) {
       logger.error("Microphone permission denied:", err);
       let winMicAccessStatus: string | null = null;
       if (getPlatform() === "win32") {
         try {
-          winMicAccessStatus = (await window.electronAPI?.checkMicrophoneAccess?.())?.status ?? null;
+          winMicAccessStatus =
+            (await window.electronAPI?.checkMicrophoneAccess?.())?.status ?? null;
         } catch {
           // status stays unknown — fall back to generic error texts
         }
       }
-      void trackTelemetryEvent("permission_result", {
-        permission: "microphone",
-        status: "denied",
-        os_status: winMicAccessStatus ?? undefined,
-        trigger: "user_request",
-      });
       const message = describeMicError(err, t, winMicAccessStatus);
       setMicPermissionError(message);
       if (showAlertDialog) {
@@ -192,17 +179,6 @@ export const usePermissions = (
       if (window.electronAPI?.checkPasteTools) {
         const result = await window.electronAPI.checkPasteTools();
         setPasteToolsInfo(result);
-        void trackTelemetryEvent("requirement_status_changed", {
-          requirement:
-            result.platform === "linux"
-              ? "linux_paste_tool"
-              : result.platform === "win32"
-                ? "windows_paste_tool"
-                : "paste_tool",
-          ready: result.available !== false,
-          linux_paste_tool_ready: result.platform === "linux" ? result.available === true : null,
-          windows_paste_tool_ready: result.platform === "win32" ? result.available === true : null,
-        });
 
         // On Windows and Linux with tools available, auto-grant accessibility
         if (result.platform === "win32") {
@@ -228,11 +204,6 @@ export const usePermissions = (
       const alreadyGranted =
         (await window.electronAPI?.promptAccessibilityPermission?.()) ??
         (await window.electronAPI?.checkAccessibilityPermission?.(true));
-      void trackTelemetryEvent("permission_result", {
-        permission: "accessibility",
-        status: alreadyGranted ? "granted" : "prompt",
-        trigger: "user_request",
-      });
       if (alreadyGranted) {
         setAccessibilityPermissionGranted(true);
         return;
@@ -273,50 +244,6 @@ export const usePermissions = (
       if (result) setMicPermissionGranted(result.granted);
     });
   }, [setMicPermissionGranted]);
-
-  useEffect(() => {
-    if (!micPermissionGranted) return;
-    void trackTelemetryEvent(
-      "permission_granted",
-      { permission_type: "microphone", microphone_ready: true },
-      { onceKey: "permission_microphone_granted_sent" }
-    );
-  }, [micPermissionGranted]);
-
-  useEffect(() => {
-    if (!accessibilityPermissionGranted) return;
-    void trackTelemetryEvent(
-      "permission_granted",
-      {
-        permission_type: platform === "darwin" ? "macos_accessibility" : "paste_tooling",
-        macos_accessibility_ready: platform === "darwin" ? true : null,
-        windows_paste_tool_ready: platform === "win32" ? true : null,
-        linux_paste_tool_ready: platform === "linux" ? true : null,
-      },
-      { onceKey: `permission_${platform}_accessibility_granted_sent` }
-    );
-  }, [accessibilityPermissionGranted, platform]);
-
-  useEffect(() => {
-    const ready = areRequiredPermissionsMet(
-      micPermissionGranted,
-      platform,
-      accessibilityPermissionGranted
-    );
-    if (!ready) return;
-    const properties = {
-      microphone_ready: micPermissionGranted,
-      macos_accessibility_ready: platform === "darwin" ? accessibilityPermissionGranted : null,
-      windows_paste_tool_ready: platform === "win32" ? accessibilityPermissionGranted : null,
-      linux_paste_tool_ready: platform === "linux" ? accessibilityPermissionGranted : null,
-    };
-    void trackTelemetryEvent("all_required_permissions_granted", properties, {
-      onceKey: "all_required_permissions_granted_sent",
-    });
-    void trackTelemetryEvent("requirements_ready", properties, {
-      onceKey: "requirements_ready_sent",
-    });
-  }, [micPermissionGranted, accessibilityPermissionGranted, platform]);
 
   // On macOS, re-validate accessibility permission on mount to override stale
   // localStorage values (e.g. after app update changes the code signature).

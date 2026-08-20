@@ -227,23 +227,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   resizeControlPanelToContent: (height, width) =>
     ipcRenderer.invoke("resize-control-panel-to-content", height, width),
 
-  // Update functions
-  checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
-  downloadUpdate: () => ipcRenderer.invoke("download-update"),
-  installUpdate: () => ipcRenderer.invoke("install-update"),
   getAppVersion: () => ipcRenderer.invoke("get-app-version"),
   getPostMigrationState: () => ipcRenderer.invoke("get-post-migration-state"),
   markBundleMigrated: () => ipcRenderer.invoke("mark-bundle-migrated"),
   markBundleMigrationDismissed: () => ipcRenderer.invoke("mark-bundle-migration-dismissed"),
-  getUpdateStatus: () => ipcRenderer.invoke("get-update-status"),
-  getUpdateInfo: () => ipcRenderer.invoke("get-update-info"),
-
-  // Update event listeners
-  onUpdateAvailable: registerListener("update-available"),
-  onUpdateNotAvailable: registerListener("update-not-available"),
-  onUpdateDownloaded: registerListener("update-downloaded"),
-  onUpdateDownloadProgress: registerListener("update-download-progress"),
-  onUpdateError: registerListener("update-error"),
 
   // Audio event listeners
   onNoAudioDetected: registerListener("no-audio-detected"),
@@ -338,8 +325,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   getLogLevel: () => ipcRenderer.invoke("get-log-level"),
   log: (entry) => ipcRenderer.invoke("app-log", entry),
-  trackTelemetryEvent: (eventName, properties, options) =>
-    ipcRenderer.invoke("telemetry-capture", eventName, properties, options),
 
   // ydotool status check
   getYdotoolStatus: () => ipcRenderer.invoke("get-ydotool-status"),

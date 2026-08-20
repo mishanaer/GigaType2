@@ -9,7 +9,6 @@ import { useClipboard } from "../hooks/useClipboard";
 import { useSettings } from "../hooks/useSettings";
 import { useGigaamSidecarStatus } from "../hooks/useGigaamSidecarStatus";
 import { setAgentName as saveAgentName } from "../utils/agentName";
-import { trackTelemetryEvent } from "../utils/telemetry";
 import { getDefaultHotkey } from "../utils/hotkeys";
 import { useHotkeyRegistration } from "../hooks/useHotkeyRegistration";
 import { useAppshotsAppleSkin } from "../hooks/useAppshotsAppleSkin";
@@ -247,7 +246,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
     const newStep = currentStep + 1;
     setCurrentStep(newStep);
-    void trackTelemetryEvent("onboarding_step", { step: newStep });
   }, [currentStep, setCurrentStep]);
 
   useEffect(() => {
@@ -261,7 +259,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       return;
     }
 
-    void trackTelemetryEvent("onboarding_completed", {});
     removeCurrentStep();
     onComplete();
   }, [saveSettings, removeCurrentStep, onComplete]);

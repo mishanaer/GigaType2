@@ -8,7 +8,6 @@ const debugLogger = require("./debugLogger");
 const { findAvailablePort, resolveBinaryPath } = require("../utils/serverUtils");
 const onnxWorkerClient = require("./onnxWorkerClient");
 const { downloadFile } = require("./downloadUtils");
-const TelemetryService = require("./telemetryService");
 const {
   ProtectedGigaamSidecar,
   resolveProtectedGigaamConfig,
@@ -497,54 +496,29 @@ class GigaamLocalAsrManager extends EventEmitter {
     this.modelStage = "downloading";
     this._emitStatus();
 
-    // Fresh-install ~890 MB fetch — the first-run blocker. Emit start/finish/fail
-    // so download failures (the thing that stops a user before their first
-    // dictation) are finally visible in product stats.
-    const telemetry = TelemetryService.shared?.();
-    const downloadStartedAt = Date.now();
-    const modelTelemetry = { source: "huggingface", model: "gigaam-v3-e2e-rnnt" };
-    telemetry?.capture("model_download", { ...modelTelemetry, status: "started" });
-
     let completedBytes = 0;
-    try {
-      for (const file of this._requiredModelFiles()) {
-        const dest = path.join(dir, file.name);
-        if (fs.existsSync(dest)) {
-          completedBytes += file.bytes;
-          continue;
-        }
-        debugLogger.info("Downloading GigaAM model file", { file: file.name });
-        await downloadFile(`${HF_BASE}/${file.name}`, dest, {
-          expectedSize: file.bytes,
-          onProgress: (downloaded) => {
-            this.modelDownloadedBytes = Math.min(completedBytes + downloaded, this.modelTotalBytes);
-            this.modelProgress = Math.min(
-              99,
-              Math.floor((this.modelDownloadedBytes / this.modelTotalBytes) * 100)
-            );
-            this._emitStatusThrottled();
-          },
-        });
+    for (const file of this._requiredModelFiles()) {
+      const dest = path.join(dir, file.name);
+      if (fs.existsSync(dest)) {
         completedBytes += file.bytes;
+        continue;
       }
-    } catch (error) {
-      telemetry?.capture("model_download", {
-        ...modelTelemetry,
-        status: "failed",
-        bytes: completedBytes,
-        duration_ms: Date.now() - downloadStartedAt,
-        error_code: TelemetryService.safeErrorCode?.(error) || "MODEL_DOWNLOAD_FAILED",
+      debugLogger.info("Downloading GigaAM model file", { file: file.name });
+      await downloadFile(`${HF_BASE}/${file.name}`, dest, {
+        expectedSize: file.bytes,
+        onProgress: (downloaded) => {
+          this.modelDownloadedBytes = Math.min(completedBytes + downloaded, this.modelTotalBytes);
+          this.modelProgress = Math.min(
+            99,
+            Math.floor((this.modelDownloadedBytes / this.modelTotalBytes) * 100)
+          );
+          this._emitStatusThrottled();
+        },
       });
-      throw error;
+      completedBytes += file.bytes;
     }
 
     this.modelDownloadedBytes = this.modelTotalBytes;
-    telemetry?.capture("model_download", {
-      ...modelTelemetry,
-      status: "completed",
-      bytes: this.modelTotalBytes,
-      duration_ms: Date.now() - downloadStartedAt,
-    });
     return dir;
   }
 

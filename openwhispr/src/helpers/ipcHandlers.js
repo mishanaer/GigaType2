@@ -281,7 +281,6 @@ class IPCHandlers {
     this.clipboardManager = managers.clipboardManager;
     this.diarizationManager = managers.diarizationManager;
     this.windowManager = managers.windowManager;
-    this.updateManager = managers.updateManager;
     this.windowsKeyManager = managers.windowsKeyManager;
     this.linuxKeyManager = managers.linuxKeyManager;
     this.textEditMonitor = managers.textEditMonitor;
@@ -290,7 +289,6 @@ class IPCHandlers {
     this.meetingDetectionEngine = managers.meetingDetectionEngine;
     this.audioTapManager = managers.audioTapManager;
     this.linuxPortalAudioManager = managers.linuxPortalAudioManager;
-    this.telemetryManager = managers.telemetryManager;
     this.gigaamLocalAsrManager = managers.gigaamLocalAsrManager;
     this.sessionId = crypto.randomUUID();
     this._hotkeyCaptureMode = false;
@@ -583,15 +581,6 @@ class IPCHandlers {
         return this.windowManager.controlPanelWindow.isMaximized();
       }
       return false;
-    });
-
-    handle("telemetry-capture", async (_event, eventName, properties = {}, options = {}) => {
-      return (
-        this.telemetryManager?.capture?.(eventName, properties, options) || {
-          queued: false,
-          reason: "telemetry-unavailable",
-        }
-      );
     });
 
     handle("app-quit", () => {
@@ -2168,28 +2157,8 @@ class IPCHandlers {
       return this.environmentManager.saveUiLanguage(language);
     });
 
-    handle("check-for-updates", async () => {
-      return this.updateManager.checkForUpdates();
-    });
-
-    handle("download-update", async () => {
-      return this.updateManager.downloadUpdate();
-    });
-
-    handle("install-update", async () => {
-      return this.updateManager.installUpdate();
-    });
-
     handle("get-app-version", async () => {
-      return this.updateManager.getAppVersion();
-    });
-
-    handle("get-update-status", async () => {
-      return this.updateManager.getUpdateStatus();
-    });
-
-    handle("get-update-info", async () => {
-      return this.updateManager.getUpdateInfo();
+      return { version: app.getVersion() };
     });
 
     handle("get-post-migration-state", async () => ({

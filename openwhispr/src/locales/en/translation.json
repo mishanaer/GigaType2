@@ -40,8 +40,7 @@
     "help": "Help",
     "learnMore": "Learn More",
     "file": "File",
-    "closeWindow": "Close Window",
-    "checkForUpdates": "Check for Updates…"
+    "closeWindow": "Close Window"
   },
   "window": {
     "voiceRecorderTitle": "Voice Recorder",
@@ -2554,19 +2553,5 @@
       "you": "You",
       "others": "Others"
     }
-  },
-  "updater": {
-    "readyTitle": "Update ready",
-    "readyPrompt": "Version {{version}} has been downloaded and is ready to install.",
-    "install": "Install & Restart",
-    "later": "Later",
-    "upToDateTitle": "You're up to date",
-    "upToDateMessage": "You already have the latest version of Type.",
-    "downloadFailedTitle": "Couldn't download update",
-    "downloadFailedMessage": "Something went wrong while downloading the update. Please try again later.",
-    "installFailedTitle": "Couldn't install update",
-    "installFailedMessage": "Something went wrong while installing the update. Please try again later.",
-    "checkFailedTitle": "Couldn't check for updates",
-    "checkFailedMessage": "Something went wrong while checking for updates. Please try again later."
   }
 }

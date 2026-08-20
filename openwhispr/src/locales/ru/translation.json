@@ -40,8 +40,7 @@
     "help": "Справка",
     "learnMore": "Узнать больше",
     "file": "Файл",
-    "closeWindow": "Закрыть окно",
-    "checkForUpdates": "Проверить обновления…"
+    "closeWindow": "Закрыть окно"
   },
   "window": {
     "voiceRecorderTitle": "Диктофон",
@@ -2557,19 +2556,5 @@
       "successDescription": "Willkommen bei {{name}}.",
       "errorTitle": "Einladung konnte nicht angenommen werden"
     }
-  },
-  "updater": {
-    "readyTitle": "Доступно обновление",
-    "readyPrompt": "Версия {{version}} загружена и готова к установке.",
-    "install": "Установить",
-    "later": "Позже",
-    "upToDateTitle": "Установлена последняя версия",
-    "upToDateMessage": "У вас уже установлена последняя версия Type.",
-    "downloadFailedTitle": "Не удалось загрузить обновление",
-    "downloadFailedMessage": "Не удалось загрузить обновление. Попробуйте позже.",
-    "installFailedTitle": "Не удалось установить обновление",
-    "installFailedMessage": "Не удалось установить обновление. Попробуйте позже.",
-    "checkFailedTitle": "Не удалось проверить обновления",
-    "checkFailedMessage": "Не удалось проверить обновления. Попробуйте позже."
   }
 }

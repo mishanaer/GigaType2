@@ -3,7 +3,13 @@ export type InferenceMode = "providers" | "local" | "self-hosted" | "enterprise"
 export type SelfHostedType = "openai-compatible" | "lan";
 
 export type GigaamHealthStatus =
-  "unavailable" | "stopped" | "starting" | "loading" | "ok" | "error" | "unknown";
+  | "unavailable"
+  | "stopped"
+  | "starting"
+  | "loading"
+  | "ok"
+  | "error"
+  | "unknown";
 
 export interface GigaamSidecarStatus {
   available: boolean;
@@ -220,7 +226,11 @@ export interface AudioDiagnosticsResult {
 
 export type SystemAudioMode = "native" | "loopback" | "portal" | "unsupported";
 export type SystemAudioStrategy =
-  "native" | "loopback" | "browser-portal" | "portal-helper" | "unsupported";
+  | "native"
+  | "loopback"
+  | "browser-portal"
+  | "portal-helper"
+  | "unsupported";
 
 export interface SystemAudioAccessResult {
   granted: boolean;
@@ -235,34 +245,6 @@ export interface SystemAudioAccessResult {
   restoreTokenAvailable?: boolean;
   portalVersion?: number | null;
   error?: string;
-}
-
-export interface UpdateCheckResult {
-  updateAvailable: boolean;
-  version?: string;
-  releaseDate?: string;
-  files?: any[];
-  releaseNotes?: string;
-  message?: string;
-}
-
-export interface UpdateStatusResult {
-  updateAvailable: boolean;
-  updateDownloaded: boolean;
-  isDevelopment: boolean;
-  startupUpdateChecksEnabled?: boolean;
-}
-
-export interface UpdateInfoResult {
-  version?: string;
-  releaseDate?: string;
-  releaseNotes?: string | null;
-  files?: any[];
-}
-
-export interface UpdateResult {
-  success: boolean;
-  message: string;
 }
 
 export interface AppVersionResult {
@@ -651,23 +633,10 @@ declare global {
       appQuit: () => Promise<void>;
       cleanupApp: () => Promise<{ success: boolean; message: string; errors?: string[] }>;
 
-      // Update operations
-      checkForUpdates: () => Promise<UpdateCheckResult>;
-      downloadUpdate: () => Promise<UpdateResult>;
-      installUpdate: () => Promise<UpdateResult>;
       getAppVersion: () => Promise<AppVersionResult>;
       getPostMigrationState: () => Promise<{ justMigrated: boolean }>;
       markBundleMigrated: () => Promise<void>;
       markBundleMigrationDismissed: () => Promise<void>;
-      getUpdateStatus: () => Promise<UpdateStatusResult>;
-      getUpdateInfo: () => Promise<UpdateInfoResult | null>;
-
-      // Update event listeners
-      onUpdateAvailable: (callback: (event: any, info: any) => void) => () => void;
-      onUpdateNotAvailable: (callback: (event: any, info: any) => void) => () => void;
-      onUpdateDownloaded: (callback: (event: any, info: any) => void) => () => void;
-      onUpdateDownloadProgress: (callback: (event: any, progressObj: any) => void) => () => void;
-      onUpdateError: (callback: (event: any, error: any) => void) => () => void;
 
       openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
 
@@ -770,11 +739,6 @@ declare global {
         scope?: string;
         source?: string;
       }) => Promise<void>;
-      trackTelemetryEvent?: (
-        eventName: string,
-        properties?: Record<string, unknown>,
-        options?: Record<string, unknown>
-      ) => Promise<{ queued: boolean; reason?: string; event_id?: string }>;
       getDebugState: () => Promise<{
         enabled: boolean;
         logPath: string | null;

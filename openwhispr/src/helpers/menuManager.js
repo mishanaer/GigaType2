@@ -2,18 +2,7 @@ const { Menu } = require("electron");
 const { i18nMain } = require("./i18nMain");
 
 class MenuManager {
-  static checkForUpdatesItem(onCheckForUpdates) {
-    if (!onCheckForUpdates) return [];
-    return [
-      {
-        label: i18nMain.t("menu.checkForUpdates"),
-        click: () => onCheckForUpdates(),
-      },
-      { type: "separator" },
-    ];
-  }
-
-  static setupMainMenu(onOpenSettings, onCheckForUpdates) {
+  static setupMainMenu(onOpenSettings) {
     if (process.platform === "darwin") {
       const template = [
         {
@@ -27,7 +16,6 @@ class MenuManager {
               click: () => onOpenSettings?.(),
             },
             { type: "separator" },
-            ...MenuManager.checkForUpdatesItem(onCheckForUpdates),
             { role: "services" },
             { type: "separator" },
             { role: "hide" },
@@ -43,7 +31,7 @@ class MenuManager {
     }
   }
 
-  static setupControlPanelMenu(controlPanelWindow, onOpenSettings, onCheckForUpdates) {
+  static setupControlPanelMenu(controlPanelWindow, onOpenSettings) {
     if (process.platform === "darwin") {
       // On macOS, create a proper application menu
       const template = [
@@ -58,7 +46,6 @@ class MenuManager {
               click: () => onOpenSettings?.(),
             },
             { type: "separator" },
-            ...MenuManager.checkForUpdatesItem(onCheckForUpdates),
             { role: "services" },
             { type: "separator" },
             { role: "hide" },
@@ -140,7 +127,6 @@ class MenuManager {
               click: () => onOpenSettings?.(),
             },
             { type: "separator" },
-            ...MenuManager.checkForUpdatesItem(onCheckForUpdates),
             { role: "close", label: i18nMain.t("menu.closeWindow") },
           ],
         },
