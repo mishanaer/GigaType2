@@ -2004,6 +2004,7 @@ dependencies = [
  "env_logger",
  "hkdf",
  "keyring",
+ "libc",
  "log",
  "ndarray",
  "once_cell",

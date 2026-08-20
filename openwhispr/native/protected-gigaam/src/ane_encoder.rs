@@ -125,6 +125,15 @@ impl AneEncoder {
         stdout.read_exact(&mut json).context("read hello body")?;
         let enc_dim = parse_enc_dim(&json).ok_or_else(|| anyhow!("encoder hello lacks encDim"))?;
 
+        // GENH means the helper has loaded and warmed the model, so CoreML now
+        // holds it via mmap and no longer reads the files. Delete the decrypted
+        // model from its backing volume immediately: after this point another
+        // same-user process has no file to copy, and a later kill leaves nothing
+        // to recover. The helper keeps running from its open mapping.
+        if let Some(volume) = &volume {
+            volume.purge();
+        }
+
         Ok(Self {
             child,
             _volume: volume,
