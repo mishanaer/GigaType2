@@ -24,6 +24,8 @@ use ndarray::{Array1, Array2, Array3, ArrayD, IxDyn};
 
 #[cfg(target_os = "macos")]
 use crate::ane_encoder::AneEncoder;
+#[cfg(target_os = "macos")]
+use crate::model_volume::ModelVolume;
 
 use super::featurizer::{Featurizer, N_MELS};
 use super::model::{
@@ -203,26 +205,48 @@ impl RnntModel {
         drop(vocab_bytes);
 
         // macOS: the encoder is an fp16 CoreML ML Program run on the ANE. The
-        // release carries it as two assets — the model spec and its weight blob —
-        // decrypted here and streamed to the helper; nothing plaintext hits disk.
-        // The prediction network and joiner stay on ONNX Runtime.
+        // release carries it already compiled, as the five files of a `.mlmodelc`
+        // flattened into single-component asset names. CoreML opens a compiled
+        // model only through a path, so the directory is rebuilt on a private
+        // volume (a RAM disk where one can be had) that lives exactly as long as
+        // the encoder. The prediction network and joiner stay on ONNX Runtime.
         #[cfg(target_os = "macos")]
         {
-            if files.len() != 4 {
+            if files.len() != 7 {
                 return Err(anyhow!(
-                    "protected macOS release must contain the encoder spec + weights, decoder, and joiner"
+                    "protected macOS release must contain the compiled encoder, decoder, and joiner"
                 ));
             }
             let helper = resolve_ane_helper()?;
-            let spec = read(files[0])?;
+
+            // Weights first: they dominate the volume, so their length sizes it.
             let weights = read(files[1])?;
-            let encoder = AneEncoder::spawn(&helper, &spec, &weights)?;
-            drop(spec);
+            let volume = ModelVolume::create(weights.len() as u64)?;
+            let model_dir = volume.path().join("encoder.mlmodelc");
+            std::fs::create_dir_all(model_dir.join("weights"))
+                .context("create compiled-model weights directory")?;
+            std::fs::create_dir_all(model_dir.join("analytics"))
+                .context("create compiled-model analytics directory")?;
+            std::fs::write(model_dir.join("weights").join("weight.bin"), &weights[..])
+                .context("write compiled-model weights")?;
             drop(weights);
-            let decoder_bytes = read(files[2])?;
+
+            for (asset, relative) in [
+                (files[0], "model.mil"),
+                (files[2], "coremldata.bin"),
+                (files[3], "metadata.json"),
+                (files[4], "analytics/coremldata.bin"),
+            ] {
+                let bytes = read(asset)?;
+                std::fs::write(model_dir.join(relative), &bytes[..])
+                    .with_context(|| format!("write compiled-model {relative}"))?;
+            }
+
+            let encoder = AneEncoder::spawn_from_dir(&helper, &model_dir, volume)?;
+            let decoder_bytes = read(files[5])?;
             let decoder = build_session_from_memory(&decoder_bytes)?;
             drop(decoder_bytes);
-            let joiner_bytes = read(files[3])?;
+            let joiner_bytes = read(files[6])?;
             let joiner = build_session_from_memory(&joiner_bytes)?;
             drop(joiner_bytes);
             return Ok(Self {
