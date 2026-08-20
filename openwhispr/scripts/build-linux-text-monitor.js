@@ -107,13 +107,19 @@ async function tryDownload() {
 
 function getPkgConfigFlags() {
   try {
-    const check = spawnSync("pkg-config", ["--exists", "atspi-2"], {
+    // gobject-2.0 is queried explicitly: the source calls g_object_* directly,
+    // but atspi-2's own pkg-config Libs do not re-export gobject. Modern ld
+    // (--no-copy-dt-needed-entries) then fails with "libgobject-2.0.so.0: DSO
+    // missing from command line" instead of resolving it transitively.
+    const modules = ["atspi-2", "gobject-2.0"];
+
+    const check = spawnSync("pkg-config", ["--exists", ...modules], {
       stdio: "pipe",
       env: process.env,
     });
     if (check.status !== 0) return null;
 
-    const result = spawnSync("pkg-config", ["--cflags", "--libs", "atspi-2"], {
+    const result = spawnSync("pkg-config", ["--cflags", "--libs", ...modules], {
       stdio: ["pipe", "pipe", "pipe"],
       env: process.env,
     });

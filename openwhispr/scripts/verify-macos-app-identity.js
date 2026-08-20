@@ -5,7 +5,11 @@ const path = require("path");
 const { execFileSync, spawnSync } = require("child_process");
 
 const EXPECTED_BUNDLE_ID = "ai.gigatype.app";
-const EXPECTED_TEAM_ID = "SBHVKH5UUY";
+// The team releases are signed under. Overridable so a local signed build with
+// a different Developer ID certificate can be verified against its own team
+// (scripts/build-mac-arm64-signed.sh sets it from APPLE_TEAM_ID); release CI
+// leaves it unset and therefore keeps gating on the release team.
+const EXPECTED_TEAM_ID = process.env.TYPE_EXPECTED_TEAM_ID || "SBHVKH5UUY";
 
 function parseCodesignDetails(output) {
   const details = {};
