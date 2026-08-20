@@ -1064,6 +1064,99 @@ class DatabaseManager {
     }
   }
 
+  addAgentMessage(conversationId, role, content, metadata) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      const metadataStr = metadata ? JSON.stringify(metadata) : null;
+      const result = this.db
+        .prepare(
+          "INSERT INTO agent_messages (conversation_id, role, content, metadata) VALUES (?, ?, ?, ?)"
+        )
+        .run(conversationId, role, content, metadataStr);
+      this.db
+        .prepare("UPDATE agent_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .run(conversationId);
+      return this.db
+        .prepare("SELECT * FROM agent_messages WHERE id = ?")
+        .get(result.lastInsertRowid);
+    } catch (error) {
+      debugLogger.error("Error adding agent message", { error: error.message }, "database");
+      throw error;
+    }
+  }
+
+  getAgentMessages(conversationId) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      return this.db
+        .prepare("SELECT * FROM agent_messages WHERE conversation_id = ? ORDER BY created_at ASC")
+        .all(conversationId);
+    } catch (error) {
+      debugLogger.error("Error getting agent messages", { error: error.message }, "database");
+      throw error;
+    }
+  }
+
+  searchNotes(query, limit = 50) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      const term = query
+        .trim()
+        .replace(/[^\w\s]/g, " ")
+        .trim();
+      if (!term) return [];
+      return this.db
+        .prepare(
+          `
+        SELECT n.*
+        FROM notes n
+        JOIN notes_fts ON notes_fts.rowid = n.id
+        WHERE notes_fts MATCH ? AND n.deleted_at IS NULL
+        ORDER BY notes_fts.rank
+        LIMIT ?
+      `
+        )
+        .all(term + "*", limit);
+    } catch (error) {
+      debugLogger.error("Error searching notes", { error: error.message }, "database");
+      throw error;
+    }
+  }
+
+  upsertContacts(contacts) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      const transaction = this.db.transaction((list) => {
+        const stmt = this.db.prepare(
+          "INSERT INTO contacts (email, display_name, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(email) DO UPDATE SET display_name = COALESCE(excluded.display_name, contacts.display_name), updated_at = CURRENT_TIMESTAMP"
+        );
+        for (const c of list) {
+          if (c.email) stmt.run(c.email.toLowerCase().trim(), c.displayName || null);
+        }
+      });
+      transaction(contacts);
+      return { success: true };
+    } catch (error) {
+      debugLogger.error("Error upserting contacts", { error: error.message }, "database");
+      throw error;
+    }
+  }
+
+  searchContacts(query) {
+    try {
+      if (!this.db) throw new Error("Database not initialized");
+      const pattern = `%${query || ""}%`;
+      return this.db
+        .prepare(
+          "SELECT * FROM contacts WHERE email LIKE ? OR display_name LIKE ? ORDER BY display_name ASC, email ASC LIMIT 20"
+        )
+        .all(pattern, pattern);
+    } catch (error) {
+      debugLogger.error("Error searching contacts", { error: error.message }, "database");
+      throw error;
+    }
+  }
+
   getMeetingsFolder() {
     try {
       if (!this.db) throw new Error("Database not initialized");

@@ -596,13 +596,9 @@ async function startApp() {
       });
   }
 
-  const localEmbeddings = require("./src/helpers/localEmbeddings");
-  if (!localEmbeddings.isAvailable()) {
-    localEmbeddings.downloadModel().catch((err) => {
-      debugLogger.debug("Embedding model download error (non-fatal)", { error: err.message });
-    });
-  }
-
+  // The embedding model is no longer fetched at runtime. When it is absent,
+  // localEmbeddings._ensureLoaded() rejects with a clear message and semantic
+  // search falls back to FTS5 keyword search.
   trayManager.setWindows(windowManager.mainWindow, windowManager.controlPanelWindow);
   trayManager.setWindowManager(windowManager);
   trayManager.setCreateControlPanelCallback(() => windowManager.createControlPanelWindow());

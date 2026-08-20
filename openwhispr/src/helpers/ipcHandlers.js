@@ -1441,6 +1441,7 @@ class IPCHandlers {
       return this.clipboardManager.checkPasteTools();
     });
 
+    // Diarization model management
     handle("get-diarization-model-status", async () => {
       return {
         available: this.diarizationManager?.isAvailable() ?? false,
@@ -1898,6 +1899,107 @@ class IPCHandlers {
           details: error.details,
         };
       }
+    });
+
+    // Enterprise provider configuration handlers
+    // Enterprise provider test connection
+    handle("get-dictation-key", async () => {
+      return this.environmentManager.getDictationKey();
+    });
+
+    handle("save-dictation-key", async (event, key) => {
+      return this.environmentManager.saveDictationKey(key);
+    });
+
+    handle("get-active-dictation-key", async () => {
+      return this.windowManager?.hotkeyManager?.currentHotkey ?? null;
+    });
+
+    handle("get-effective-default-hotkey", async () => {
+      return this.windowManager?.hotkeyManager?.getEffectiveDefaultHotkey() ?? null;
+    });
+
+    handle("is-fn-hotkey-available", async () => {
+      return this.windowManager?.hotkeyManager?.isFnHotkeyAvailable() ?? false;
+    });
+
+    handle("get-show-dock-icon", async () => {
+      return this.environmentManager.getShowDockIcon();
+    });
+
+    handle("set-show-dock-icon", async (_event, enabled) => {
+      const visible = Boolean(enabled);
+      this.environmentManager.saveShowDockIcon(visible);
+      await this.windowManager.setShowDockIcon(visible);
+      return { success: true, visible };
+    });
+
+    handle("get-activation-mode", async () => {
+      return this.environmentManager.getActivationMode();
+    });
+
+    handle("save-activation-mode", async (event, mode) => {
+      return this.environmentManager.saveActivationMode(mode);
+    });
+
+    handle("get-ui-language", async () => {
+      return this.environmentManager.getUiLanguage();
+    });
+
+    handle("save-ui-language", async (event, language) => {
+      return this.environmentManager.saveUiLanguage(language);
+    });
+
+    handle("get-app-version", async () => {
+      return { version: app.getVersion() };
+    });
+
+    handle("get-post-migration-state", async () => ({
+      justMigrated: postMigrationDetector.isReturningFromOldBundle(),
+    }));
+
+    handle("mark-bundle-migrated", async () => {
+      postMigrationDetector.markBundleMigrated();
+    });
+
+    handle("mark-bundle-migration-dismissed", async () => {
+      postMigrationDetector.markBundleMigrationDismissed();
+    });
+
+    handle("set-ui-language", async (event, language) => {
+      const result = this.environmentManager.saveUiLanguage(language);
+      process.env.UI_LANGUAGE = result.language;
+      changeLanguage(result.language);
+      this.windowManager?.refreshLocalizedUi?.();
+      this.getTrayManager?.()?.updateTrayMenu?.();
+      return { success: true, language: result.language };
+    });
+
+    handle("save-runtime-config-to-env", async () => {
+      return this.environmentManager.saveRuntimeConfigToEnvFile();
+    });
+
+    handle("sync-startup-preferences", async (_event, _prefs) => {
+      const setVars = {};
+      const clearVars = ["LOCAL_TRANSCRIPTION_PROVIDER", "PARAKEET_MODEL", "LOCAL_WHISPER_MODEL"];
+
+      clearVars.push(
+        "CLEANUP_PROVIDER",
+        "LOCAL_CLEANUP_MODEL",
+        "REASONING_PROVIDER",
+        "LOCAL_REASONING_MODEL",
+        "DICTATION_AGENT_PROVIDER",
+        "LOCAL_DICTATION_AGENT_MODEL"
+      );
+
+      const modelManager = require("./modelManagerBridge").default;
+      modelManager.stopServer().catch((err) => {
+        debugLogger.error("Failed to stop llama-server after disabling dictation-agent", {
+          error: err.message,
+        });
+      });
+
+      this._syncStartupEnv(setVars, clearVars);
     });
 
     handle("process-local-reasoning", async (event, text, modelId, _agentName, config) => {
