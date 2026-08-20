@@ -116,6 +116,11 @@ class MenuManager {
             },
             { type: "separator" },
             { role: "close", label: i18nMain.t("menu.closeWindow") },
+            // "Close Window" only hides to tray, so without this the tray icon
+            // is the only way out — and on Linux the tray needs
+            // libappindicator (a Recommends) plus, on GNOME, the AppIndicator
+            // extension. When it does not show, the app cannot be quit at all.
+            { role: "quit", label: i18nMain.t("menu.quit") },
           ],
         },
         {
